@@ -28,6 +28,11 @@ verdesat analyze --datafile output/ndvi_timeseries.csv
 verdesat forecast
 ```
 
+## CLI
+
+- **`verdesat prepare <input_dir>`**  
+  Process any KMZ/KML/Shapefile folder into a cleaned, reprojected GeoJSON for ingestion.
+
 ## 📁 Repository Structure
 ```
 verdesat/
