@@ -1,4 +1,4 @@
-import pandas as pd # type: ignore
+import pandas as pd  # type: ignore
 from statsmodels.tsa.seasonal import seasonal_decompose  # type: ignore
 
 
