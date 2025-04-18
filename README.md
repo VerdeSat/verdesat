@@ -1,3 +1,4 @@
+![CI](https://github.com/VerdeSat/verdesat/actions/workflows/ci.yml/badge.svg
 # VerdeSat — Remote Sensing for Sustainability
 
 VerdeSat blends advanced satellite technology with sustainability, focusing on environmental monitoring, biodiversity mapping, and agricultural health. Our minimal, modern toolkit makes it easy to ingest data, run analyses, and build ML models—all in Python.
