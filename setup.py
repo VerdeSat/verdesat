@@ -26,9 +26,5 @@ setup(
     install_requires=parse_reqs(),
     include_package_data=True,
     python_requires=">=3.8",
-    entry_points={
-    "console_scripts": [
-        "verdesat=core.cli:cli"
-    ]
-},
+    entry_points={"console_scripts": ["verdesat=core.cli:cli"]},
 )

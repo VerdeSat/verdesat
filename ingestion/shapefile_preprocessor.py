@@ -7,6 +7,7 @@ import pandas as pd
 # Configure logging
 logger = logging.getLogger(__name__)
 
+
 class ShapefilePreprocessor:
     """
     Processes vector files in a directory:
@@ -16,6 +17,7 @@ class ShapefilePreprocessor:
     - Adds a username field based on the directory name
     - Writes a combined GeoJSON to the input directory
     """
+
     def __init__(self, input_dir: str):
         self.input_dir = input_dir
         self.files = glob.glob(os.path.join(self.input_dir, "*"))
@@ -25,13 +27,13 @@ class ShapefilePreprocessor:
         """
         Extracts the first KML from a KMZ archive to a temp file and reads it.
         """
-        with zipfile.ZipFile(filepath, 'r') as z:
+        with zipfile.ZipFile(filepath, "r") as z:
             # find the first .kml file
-            kml_files = [name for name in z.namelist() if name.lower().endswith('.kml')]
+            kml_files = [name for name in z.namelist() if name.lower().endswith(".kml")]
             if not kml_files:
                 raise RuntimeError(f"No .kml file found inside {filepath}")
             with z.open(kml_files[0]) as kml:
-                with tempfile.NamedTemporaryFile(suffix='.kml', delete=False) as tmp:
+                with tempfile.NamedTemporaryFile(suffix=".kml", delete=False) as tmp:
                     tmp.write(kml.read())
                     tmp.flush()
                     return gpd.read_file(tmp.name, driver="KML")
@@ -53,10 +55,7 @@ class ShapefilePreprocessor:
                 logger.warning(f"Skipping file {filepath}: {e}")
         if not gdfs:
             raise RuntimeError(f"No valid geospatial files found in {self.input_dir}")
-        self.gdf = gpd.GeoDataFrame(
-            pd.concat(gdfs, ignore_index=True),
-            crs="EPSG:4326"
-        )
+        self.gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True), crs="EPSG:4326")
 
     def fix_and_explode(self):
         # Repair invalid geometries
@@ -98,11 +97,9 @@ class ShapefilePreprocessor:
         Drop Z dimension from all geometries by dumping to 2D WKB and reloading.
         """
         self.gdf["geometry"] = self.gdf["geometry"].apply(
-            lambda geom: wkb.loads(
-                wkb.dumps(geom, output_dimension=2)
-            )
+            lambda geom: wkb.loads(wkb.dumps(geom, output_dimension=2))
         )
-        logger.info("Dropped Z dimension from geometries")    
+        logger.info("Dropped Z dimension from geometries")
 
     def save(self):
         username = os.path.basename(os.path.normpath(self.input_dir))
