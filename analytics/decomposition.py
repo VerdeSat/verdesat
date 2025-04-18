@@ -1,10 +1,10 @@
 import pandas as pd
-from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.seasonal import seasonal_decompose  # type: ignore
 
-def decompose_timeseries(df: pd.DataFrame,
-                         column: str = 'ndvi',
-                         model: str = 'additive',
-                         freq: int = 12):
+
+def decompose_timeseries(
+    df: pd.DataFrame, column: str = "ndvi", model: str = "additive", freq: int = 12
+):
     """
     Perform seasonal decomposition.
     df must have a DatetimeIndex.

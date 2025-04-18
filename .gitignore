@@ -35,6 +35,7 @@ coverage.xml
 .ipynb_checkpoints/
 
 # Env files
+env/
 .env
 .env.*
 
@@ -42,4 +43,4 @@ coverage.xml
 *.swp
 
 # Data
-data
+data/
