@@ -3,6 +3,11 @@ from verdesat.core import utils, config  # type: ignore
 import os
 import sys
 from verdesat.ingestion.shapefile_preprocessor import ShapefilePreprocessor
+from click import echo
+
+import json
+import pandas as pd
+from verdesat.analytics.timeseries import daily_timeseries, aggregate_timeseries
 
 
 @click.group()
@@ -49,6 +54,43 @@ def prepare(input_dir):
     except Exception as e:
         click.echo(f"❌  Processing failed: {e}", err=True)
         sys.exit(1)
+
+
+@cli.command()
+@click.argument("geojson", type=click.Path(exists=True))
+@click.option(
+    "--collection", "-c", default="NASA/HLS/HLSL30/v002", help="EE ImageCollection ID"
+)
+@click.option("--start", "-s", default="2015-01-01", help="Start date (YYYY-MM-DD)")
+@click.option("--end", "-e", default="2024-12-31", help="End date (YYYY-MM-DD)")
+@click.option("--scale", type=int, default=30, help="Spatial resolution (meters)")
+@click.option(
+    "--agg",
+    type=click.Choice(["D", "M", "Y"]),
+    default="D",
+    help="Temporal aggregation: D,M,Y",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default="timeseries.csv",
+    help="Output CSV path",
+)
+def timeseries(geojson, collection, start, end, scale, agg, output):
+    """Download and aggregate NDVI timeseries for polygons in GEOJSON."""
+    utils.setup_logging()
+    echo(f"Loading {geojson}...")
+    with open(geojson) as f:
+        gj = json.load(f)
+
+    df = daily_timeseries(gj, collection, start, end, scale=scale)
+    if agg != "D":
+        df = aggregate_timeseries(df, freq=agg)
+
+    echo(f"Saving to {output}...")
+    df.to_csv(output, index=False)
+    echo("Done.")
 
 
 if __name__ == "__main__":
