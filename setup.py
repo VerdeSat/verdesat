@@ -13,18 +13,6 @@ setup(
     version="0.1.0",
     package_dir={"verdesat": "verdesat"},
     packages=find_packages(include=["verdesat", "verdesat.*"]),
-    # packages=find_packages(
-    #     include=[
-    #         "core",
-    #         "ingestion",
-    #         "analytics",
-    #         "modeling",
-    #         "biodiversity",
-    #         "agri_health",
-    #         "carbon_flux",
-    #         "webapp",
-    #     ]
-    # ),
     install_requires=parse_reqs(),
     include_package_data=True,
     python_requires=">=3.8",
