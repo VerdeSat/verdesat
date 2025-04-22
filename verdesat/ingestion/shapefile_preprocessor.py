@@ -26,9 +26,13 @@ class ShapefilePreprocessor:
         self.gdf = gpd.GeoDataFrame()
 
     def _collect_files(self) -> list[str]:
-        """Gather all supported vector files in the input directory."""
-        all_files = glob.glob(os.path.join(self.input_dir, "*"))
-        return [f for f in all_files if os.path.splitext(f)[1].lower() in self.exts]
+        """Gather all supported vector files in the input directory (recursive)."""
+        matches = []
+        for root, _, files in os.walk(self.input_dir):
+            for fname in files:
+                if os.path.splitext(fname)[1].lower() in self.exts:
+                    matches.append(os.path.join(root, fname))
+        return matches
 
     def _read_kmz(self, filepath: str):
         """
