@@ -1,6 +1,6 @@
 import geopandas as gpd
 import pytest
-from shapely.geometry import Polygon, Point
+from shapely.geometry import Polygon
 import zipfile
 import json
 
@@ -12,7 +12,6 @@ def sample_shapefile(tmp_path):
         {"id": [1], "geometry": [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]},
         crs="EPSG:4326",
     )
-
     shp_dir = tmp_path / "test_shapefile"
     shp_dir.mkdir()
     gdf.to_file(shp_dir / "test.shp")
@@ -22,25 +21,23 @@ def sample_shapefile(tmp_path):
 @pytest.fixture
 def sample_kml(tmp_path):
     """Create a minimal KML file."""
-    kml_content = """
-    <?xml version="1.0" encoding="UTF-8"?>
-    <kml xmlns="http://www.opengis.net/kml/2.2">
-      <Placemark>
-        <name>Sample</name>
-        <Polygon>
-          <outerBoundaryIs>
-            <LinearRing>
-              <coordinates>
-                0,0,0 0,1,0 1,1,0 1,0,0 0,0,0
-              </coordinates>
-            </LinearRing>
-          </outerBoundaryIs>
-        </Polygon>
-      </Placemark>
-    </kml>
-    """
+    kml_content = """<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Placemark>
+    <name>Sample</name>
+    <Polygon>
+      <outerBoundaryIs>
+        <LinearRing>
+          <coordinates>
+            0,0,0 0,1,0 1,1,0 1,0,0 0,0,0
+          </coordinates>
+        </LinearRing>
+      </outerBoundaryIs>
+    </Polygon>
+  </Placemark>
+</kml>"""
     kml_path = tmp_path / "sample.kml"
-    kml_path.write_text(kml_content.strip())
+    kml_path.write_text(kml_content)
     return tmp_path
 
 

@@ -40,7 +40,7 @@ jobs:
           pip install -e .
       - name: Run pytest
         run: |
-          pytest --maxfail=1 --disable-warnings -q --cov=verdesat
+          pytest --maxfail=1 --disable-warnings -q --cov=verdesat --cov-report term-missing
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:

@@ -1,5 +1,5 @@
 import numpy as np
-from ingestion.custom_indices import ndvi
+from verdesat.ingestion.custom_indices import ndvi
 
 
 def test_ndvi_simple():
