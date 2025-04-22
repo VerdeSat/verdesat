@@ -36,7 +36,7 @@ class ShapefilePreprocessor:
 
     def _read_kmz(self, filepath: str):
         """
-        Extracts the first KML from a KMZ archive to a temp file and reads it.
+        Extracts all KMLs from a KMZ archive to a temp file and reads it.
         """
         with zipfile.ZipFile(filepath, "r") as z:
             kmls = [n for n in z.namelist() if n.lower().endswith(".kml")]
