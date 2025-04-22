@@ -2,6 +2,7 @@ import os, glob, logging, zipfile, tempfile
 from shapely import wkb
 import geopandas as gpd
 import pandas as pd
+from core.config import SUPPORTED_INPUT_FORMATS
 
 
 # Configure logging
@@ -20,8 +21,14 @@ class ShapefilePreprocessor:
 
     def __init__(self, input_dir: str):
         self.input_dir = input_dir
-        self.files = glob.glob(os.path.join(self.input_dir, "*"))
+        # Whitelist of supported file extensions
+        self.exts = [e.lower() for e in SUPPORTED_INPUT_FORMATS]
         self.gdf = gpd.GeoDataFrame()
+
+    def _collect_files(self) -> list[str]:
+        """Gather all supported vector files in the input directory."""
+        all_files = glob.glob(os.path.join(self.input_dir, "*"))
+        return [f for f in all_files if os.path.splitext(f)[1].lower() in self.exts]
 
     def _read_kmz(self, filepath: str):
         """
@@ -40,7 +47,12 @@ class ShapefilePreprocessor:
 
     def load_and_reproject(self):
         gdfs = []
-        for filepath in self.files:
+        paths = self._collect_files()
+        if not paths:
+            raise RuntimeError(f"No supported vector files found in {self.input_dir}")
+        # Log and print the list of files to be processed
+        logger.info(f"Processing input files: {paths}")
+        for filepath in paths:
             try:
                 if filepath.lower().endswith(".kmz"):
                     gdf = self._read_kmz(filepath)
