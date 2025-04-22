@@ -2,7 +2,7 @@ import os, glob, logging, zipfile, tempfile
 from shapely import wkb
 import geopandas as gpd
 import pandas as pd
-from core.config import SUPPORTED_INPUT_FORMATS
+from verdesat.core.config import SUPPORTED_INPUT_FORMATS
 
 
 # Configure logging

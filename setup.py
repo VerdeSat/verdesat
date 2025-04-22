@@ -11,20 +11,22 @@ def parse_reqs(fname="requirements.txt"):
 setup(
     name="verdesat",
     version="0.1.0",
-    packages=find_packages(
-        include=[
-            "core",
-            "ingestion",
-            "analytics",
-            "modeling",
-            "biodiversity",
-            "agri_health",
-            "carbon_flux",
-            "webapp",
-        ]
-    ),
+    package_dir={"verdesat": "verdesat"},
+    packages=find_packages(include=["verdesat", "verdesat.*"]),
+    # packages=find_packages(
+    #     include=[
+    #         "core",
+    #         "ingestion",
+    #         "analytics",
+    #         "modeling",
+    #         "biodiversity",
+    #         "agri_health",
+    #         "carbon_flux",
+    #         "webapp",
+    #     ]
+    # ),
     install_requires=parse_reqs(),
     include_package_data=True,
     python_requires=">=3.8",
-    entry_points={"console_scripts": ["verdesat=core.cli:cli"]},
+    entry_points={"console_scripts": ["verdesat=verdesat.core.cli:cli"]},
 )

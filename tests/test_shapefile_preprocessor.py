@@ -1,6 +1,6 @@
 import os
 import geopandas as gpd
-from ingestion.shapefile_preprocessor import ShapefilePreprocessor
+from verdesat.ingestion.shapefile_preprocessor import ShapefilePreprocessor
 
 
 def test_processor_creates_output(tmp_path, sample_shapefile):
