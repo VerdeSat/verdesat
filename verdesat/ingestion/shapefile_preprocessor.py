@@ -38,16 +38,17 @@ class ShapefilePreprocessor:
         """
         Extracts the first KML from a KMZ archive to a temp file and reads it.
         """
-        with zipfile.ZipFile(filepath, "r") as z:
-            # find the first .kml file
-            kml_files = [name for name in z.namelist() if name.lower().endswith(".kml")]
-            if not kml_files:
-                raise RuntimeError(f"No .kml file found inside {filepath}")
-            with z.open(kml_files[0]) as kml:
-                with tempfile.NamedTemporaryFile(suffix=".kml", delete=False) as tmp:
-                    tmp.write(kml.read())
-                    tmp.flush()
-                    return gpd.read_file(tmp.name, driver="KML")
+        with zipfile.ZipFile(filepath, 'r') as z:
+            kmls = [n for n in z.namelist() if n.lower().endswith('.kml')]
+            if not kmls:
+                raise RuntimeError("No .kml in KMZ")
+            gdfs = []
+            for name in kmls:
+                with z.open(name) as kml:
+                    with tempfile.NamedTemporaryFile(suffix='.kml', delete=False) as tmp:
+                        tmp.write(kml.read()); tmp.flush()
+                        gdfs.append(gpd.read_file(tmp.name, driver='KML'))
+            return pd.concat(gdfs, ignore_index=True)
 
     def load_and_reproject(self):
         gdfs = []
