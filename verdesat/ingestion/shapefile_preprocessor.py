@@ -95,22 +95,10 @@ class ShapefilePreprocessor:
         self.gdf["username"] = username
 
     def ensure_id(self):
-        """
-        Ensure there is an 'id' column: detect existing ID/FID case-insensitively,
-        rename it to 'id', otherwise assign sequential IDs starting at 1.
-        """
-        # Look for any column named 'id' or 'fid', case-insensitive
-        id_cols = [col for col in self.gdf.columns if col.lower() in ("id", "fid")]
-        if id_cols:
-            existing = id_cols[0]
-            if existing != "id":
-                # Rename the first matching column to 'id'
-                self.gdf = self.gdf.rename(columns={existing: "id"})
-            logger.info(f"Using existing identifier column '{existing}' as 'id'")
-        else:
-            # assign sequential integer IDs
-            self.gdf.insert(0, "id", range(1, len(self.gdf) + 1))
-            logger.info("Added sequential 'id' field")
+        # Always overwrite any existing 'id' field
+        self.gdf.reset_index(drop=True, inplace=True)
+        self.gdf["id"] = self.gdf.index.astype(int) + 1
+        logger.info("Overwritten 'id' column with sequential identifiers")
 
     def drop_z(self):
         """
