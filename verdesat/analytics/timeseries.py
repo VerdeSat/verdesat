@@ -4,6 +4,38 @@ from typing import Literal
 from verdesat.ingestion.downloader import initialize, get_image_collection
 from verdesat.ingestion.mask import mask_fmask_bits
 from verdesat.ingestion.indices import compute_ndvi
+import logging
+
+
+def chunked_timeseries(
+    geojson: dict,
+    collection_id: str,
+    start_date: str,
+    end_date: str,
+    scale: int = 30,
+    freq: str = "M",
+) -> pd.DataFrame:
+    """
+    Retrieve NDVI time series in chunks to avoid GEE element limits.
+    Splits the date range by the given freq ('D','M','Q','Y') and
+    concatenates results from daily_timeseries.
+    """
+    # Build list of chunk boundaries
+    dates = pd.date_range(start=start_date, end=end_date, freq=freq)
+    bounds = zip(
+        [start_date] + list(dates.strftime("%Y-%m-%d")),
+        list(dates.strftime("%Y-%m-%d")) + [end_date],
+    )
+    dfs = []
+    for s, e in bounds:
+        try:
+            df_chunk = daily_timeseries(geojson, collection_id, s, e, scale)
+            dfs.append(df_chunk)
+        except Exception as err:
+            logging.warning(f"Chunk {s}–{e} failed: {err}")
+    if not dfs:
+        raise RuntimeError("All chunks failed for time series retrieval")
+    return pd.concat(dfs, ignore_index=True)
 
 
 def daily_timeseries(

@@ -7,7 +7,7 @@ from click import echo
 
 import json
 import pandas as pd
-from verdesat.analytics.timeseries import daily_timeseries, aggregate_timeseries
+from verdesat.analytics.timeseries import chunked_timeseries, aggregate_timeseries
 
 
 @click.group()
@@ -84,7 +84,7 @@ def timeseries(geojson, collection, start, end, scale, agg, output):
     with open(geojson) as f:
         gj = json.load(f)
 
-    df = daily_timeseries(gj, collection, start, end, scale=scale)
+    df = chunked_timeseries(gj, collection, start, end, scale=scale, freq="M")
     if agg != "D":
         df = aggregate_timeseries(df, freq=agg)
 
