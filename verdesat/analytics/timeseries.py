@@ -3,7 +3,7 @@ import pandas as pd
 from typing import Literal
 from verdesat.ingestion.downloader import initialize, get_image_collection
 from verdesat.ingestion.mask import mask_fmask_bits
-from verdesat.ingestion.indices import compute_ndvi
+from verdesat.ingestion.indices import compute_index
 import logging
 
 
@@ -14,6 +14,7 @@ def chunked_timeseries(
     end_date: str,
     scale: int = 30,
     freq: str = "M",
+    index: str = "ndvi",
 ) -> pd.DataFrame:
     """
     Retrieve NDVI time series in chunks to avoid GEE element limits.
@@ -29,7 +30,7 @@ def chunked_timeseries(
     dfs = []
     for s, e in bounds:
         try:
-            df_chunk = daily_timeseries(geojson, collection_id, s, e, scale)
+            df_chunk = daily_timeseries(geojson, collection_id, s, e, scale, index)
             dfs.append(df_chunk)
         except Exception as err:
             logging.warning(f"Chunk {s}–{e} failed: {err}")
@@ -39,7 +40,12 @@ def chunked_timeseries(
 
 
 def daily_timeseries(
-    geojson: dict, collection_id: str, start_date: str, end_date: str, scale: int = 30
+    geojson: dict,
+    collection_id: str,
+    start_date: str,
+    end_date: str,
+    scale: int = 30,
+    index: str = "ndvi",
 ) -> pd.DataFrame:
     """
     Returns a DataFrame of (id, date, mean_ndvi) for each image in the date range.
@@ -50,8 +56,8 @@ def daily_timeseries(
 
     def _reduce(img):
         m = mask_fmask_bits(img)
-        ndvi = compute_ndvi(m)
-        stats = ndvi.reduceRegions(region, ee.Reducer.mean(), scale=scale)
+        idx_img = compute_index(m, index)
+        stats = idx_img.reduceRegions(region, ee.Reducer.mean(), scale=scale)
         date = ee.Date(img.get("system:time_start")).format("YYYY-MM-dd")
         return stats.map(lambda f: f.set("date", date))
 
@@ -60,7 +66,7 @@ def daily_timeseries(
         {
             "id": feat["properties"].get("id"),
             "date": feat["properties"].get("date"),
-            "mean_ndvi": feat["properties"].get("mean"),
+            f"mean_{index}": feat["properties"].get("mean"),
         }
         for feat in features
     ]
@@ -70,15 +76,15 @@ def daily_timeseries(
 
 
 def aggregate_timeseries(
-    df: pd.DataFrame, freq: Literal["D", "M", "Y"]
+    df: pd.DataFrame, freq: Literal["D", "M", "Y"], index: str = "ndvi"
 ) -> pd.DataFrame:
     """
     Aggregate the daily DataFrame to the given frequency:
       'D' = daily (no-op), 'M' = monthly mean, 'Y' = yearly mean.
     Returns a DataFrame with MultiIndex [id, date].
     """
+    # Determine the column to aggregate based on index
+    col_name = f"mean_{index}"
     df = df.set_index(["id", "date"])
-    grouped = (
-        df["mean_ndvi"].groupby(level=0).resample(freq, level=1).mean().reset_index()
-    )
+    grouped = df[col_name].groupby(level=0).resample(freq, level=1).mean().reset_index()
     return grouped

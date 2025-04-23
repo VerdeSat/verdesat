@@ -24,3 +24,29 @@ def compute_evi(img: Image) -> Image:
             "L": 1.0,
         },
     ).rename("EVI")
+
+
+# Map of supported index names to functions
+INDEX_FUNCTIONS = {
+    "ndvi": compute_ndvi,
+    "evi": compute_evi,
+}
+
+
+def compute_index(img: Image, index: str) -> Image:
+    """
+    Compute a named spectral index on the given EE Image.
+
+    Args:
+      img: ee.Image
+      index: one of 'ndvi', 'evi'
+
+    Returns:
+      ee.Image of the computed index band.
+    """
+    key = index.lower()
+    if key not in INDEX_FUNCTIONS:
+        raise ValueError(
+            f"Index '{index}' not supported. Choose from: {list(INDEX_FUNCTIONS)}"
+        )
+    return INDEX_FUNCTIONS[key](img)

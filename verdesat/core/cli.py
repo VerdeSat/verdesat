@@ -65,6 +65,13 @@ def prepare(input_dir):
 @click.option("--end", "-e", default="2024-12-31", help="End date (YYYY-MM-DD)")
 @click.option("--scale", type=int, default=30, help="Spatial resolution (meters)")
 @click.option(
+    "--index",
+    "-i",
+    type=click.Choice(["ndvi", "evi"]),
+    default="ndvi",
+    help="Spectral index to compute",
+)
+@click.option(
     "--agg",
     type=click.Choice(["D", "M", "Y"]),
     default="D",
@@ -77,16 +84,21 @@ def prepare(input_dir):
     default="timeseries.csv",
     help="Output CSV path",
 )
-def timeseries(geojson, collection, start, end, scale, agg, output):
-    """Download and aggregate NDVI timeseries for polygons in GEOJSON."""
+def timeseries(geojson, collection, start, end, scale, index, agg, output):
+    """
+    Download and aggregate spectral index timeseries for polygons in GEOJSON.
+    Use --index to select the spectral index (e.g., ndvi, evi).
+    """
     utils.setup_logging()
     echo(f"Loading {geojson}...")
     with open(geojson) as f:
         gj = json.load(f)
 
-    df = chunked_timeseries(gj, collection, start, end, scale=scale, freq="M")
+    df = chunked_timeseries(
+        gj, collection, start, end, scale=scale, freq="M", index=index
+    )
     if agg != "D":
-        df = aggregate_timeseries(df, freq=agg)
+        df = aggregate_timeseries(df, freq=agg, index=index)
 
     echo(f"Saving to {output}...")
     df.to_csv(output, index=False)
