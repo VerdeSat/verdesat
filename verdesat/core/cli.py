@@ -97,6 +97,49 @@ def timeseries(geojson, collection, start, end, scale, index, agg, output):
 
 
 @cli.group()
+def stats():
+    """Statistical operations on time-series data."""
+    pass
+
+
+@stats.command(name="aggregate")
+@click.argument("input_csv", type=click.Path(exists=True))
+@click.option(
+    "--index",
+    "-i",
+    type=click.Choice(["ndvi", "evi"]),
+    default="ndvi",
+    help="Spectral index that was computed (e.g., ndvi, evi)",
+)
+@click.option(
+    "--freq",
+    "-f",
+    type=click.Choice(["D", "M", "Y"]),
+    default="D",
+    help="Frequency to aggregate to: D (daily), M (monthly), Y (yearly)",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default="aggregated.csv",
+    help="Output path for the aggregated CSV",
+)
+def aggregate(input_csv, index, freq, output):
+    """
+    Aggregate a raw daily time-series CSV to the specified frequency.
+    """
+
+    echo(f"Loading {input_csv}...")
+    df = pd.read_csv(input_csv, parse_dates=["date"])
+    echo(f"Aggregating by frequency '{freq}' for index '{index}'...")
+    df_agg = aggregate_timeseries(df, freq=freq, index=index)
+    echo(f"Saving aggregated data to {output}...")
+    df_agg.to_csv(output, index=False)
+    echo("Done.")
+
+
+@cli.group()
 def visualize():
     """Visualization commands."""
     pass
