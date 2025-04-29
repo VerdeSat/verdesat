@@ -21,15 +21,12 @@ def decompose_each(
     freq: int = 12,
     model: Literal["additive", "multiplicative"] = "additive",
 ):
-    """
-    Perform seasonal decomposition on each polygon.
-    Saves or returns a dict[id] -> DecomposeResult.
-    """
     results = {}
-    for pid, grp in df.groupby("id"):
-        ts = grp.set_index("date")[index_col].dropna()
-        if len(ts) < freq * 2:
+    # Each column in df is a polygon ID; perform decomposition per column
+    for pid in df.columns:
+        series = df[pid].dropna()
+        if len(series) < freq * 2:
             continue
-        res = seasonal_decompose(ts, model=model, period=freq)
+        res = seasonal_decompose(series, model=model, period=freq)
         results[pid] = res
     return results
