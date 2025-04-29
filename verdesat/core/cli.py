@@ -11,6 +11,7 @@ from verdesat.analytics.timeseries import chunked_timeseries, aggregate_timeseri
 from verdesat.visualization.static_viz import plot_decomposition
 from verdesat.analytics.decomposition import decompose_each
 from verdesat.analytics.trend import compute_trend
+from verdesat.analytics.preprocessing import interpolate_gaps
 from verdesat.visualization.plotly_viz import plot_timeseries_html
 from verdesat.visualization.static_viz import plot_time_series
 
@@ -142,6 +143,44 @@ def aggregate(input_csv, index, freq, output):
     echo("Done.")
 
 
+@cli.group()
+def preprocess():
+    """Data transformation commands (gap-fill, resample, etc.)."""
+    pass
+
+
+@preprocess.command(name="fill-gaps")
+@click.argument("input_csv", type=click.Path(exists=True))
+@click.option(
+    "--value-col",
+    "-c",
+    default="mean_ndvi",
+    help="Column to fill gaps in (e.g. mean_ndvi)",
+)
+@click.option(
+    "--method", "-m", default="time", help="Interpolation method (time, linear, etc.)"
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default="filled.csv",
+    help="Output path for gap-filled CSV",
+)
+def fill_gaps_cmd(input_csv, value_col, method, output):
+    """Interpolate missing values in a time-series CSV."""
+
+    echo(f"Loading {input_csv}...")
+    df = pd.read_csv(input_csv, parse_dates=["date"])
+    echo(f"Filling gaps in '{value_col}', method '{method}'...")
+    df_filled = interpolate_gaps(
+        df, date_col="date", value_col=value_col, method=method
+    )
+    echo(f"Saving filled data to {output}...")
+    df_filled.to_csv(output, index=False)
+    echo("Done.")
+
+
 @stats.command(name="decompose")
 @click.argument("input_csv", type=click.Path(exists=True))
 @click.option(
@@ -169,24 +208,19 @@ def aggregate(input_csv, index, freq, output):
 )
 def decompose(input_csv, index_col, model, period, output_dir):
     """
-    Perform seasonal decomposition on a time-series CSV and save plot.
+    Perform seasonal decomposition on a pivoted CSV and save plot.
     """
     echo(f"Loading {input_csv}...")
     df = pd.read_csv(input_csv, parse_dates=["date"])
-    # Pivot to wide format
     df_pivot = df.set_index("date").pivot(columns="id", values=index_col)
     echo("Decomposing time series...")
-    # Strip 'mean_' prefix for index name passed to decomposition
-    base_index = index_col.replace('mean_', '')
-    result = decompose_each(
-        df_pivot,
-        index_col=base_index,
-        model=model,
-        freq=period
-    )
+    from verdesat.analytics.decomposition import decompose_each
 
+    result = decompose_each(df_pivot, index_col=index_col, model=model, freq=period)
     os.makedirs(output_dir, exist_ok=True)
     plot_path = os.path.join(output_dir, f"decomposition_{index_col}.png")
+    from verdesat.visualization.static_viz import plot_decomposition
+
     plot_decomposition(result, plot_path)
     echo(f"✅  Decomposition plot saved to {plot_path}")
 
@@ -194,7 +228,7 @@ def decompose(input_csv, index_col, model, period, output_dir):
 @stats.command(name="trend")
 @click.argument("input_csv", type=click.Path(exists=True))
 @click.option(
-    "--column", "-c", default="mean_ndvi", help="Column in CSV for trend computation"
+    "--index-col", "-c", default="mean_ndvi", help="Column in CSV for trend computation"
 )
 @click.option(
     "--output",
@@ -203,14 +237,16 @@ def decompose(input_csv, index_col, model, period, output_dir):
     default="trend.csv",
     help="Output CSV path for trend values",
 )
-def trend(input_csv, column, output):
+def trend(input_csv, index_col, output):
     """
     Compute linear trend for each polygon in a time-series CSV.
     """
     echo(f"Loading {input_csv}...")
     df = pd.read_csv(input_csv, parse_dates=["date"])
     echo("Computing trend...")
-    df_trend = compute_trend(df, column=column)
+    from verdesat.analytics.trend import compute_trend
+
+    df_trend = compute_trend(df, column=index_col)
     echo(f"Saving trend data to {output}...")
     df_trend.to_csv(output, index=False)
     echo(f"✅  Trend data saved to {output}")
