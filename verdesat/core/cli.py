@@ -209,7 +209,7 @@ def fill_gaps_cmd(input_csv, value_col, method, output):
 @click.option(
     "--plot/--no-plot",
     default=True,
-    help="Whether to generate PNG plots for each polygon (default: True)"
+    help="Whether to generate PNG plots for each polygon (default: True)",
 )
 def decompose(input_csv, index_col, model, period, output_dir, plot):
     """
@@ -225,13 +225,15 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
 
     # Save decomposition components for each polygon
     for pid, res in results.items():
-        df_out = pd.DataFrame({
-            "date": res.observed.index,
-            "observed": res.observed.values,
-            "trend": res.trend.values,
-            "seasonal": res.seasonal.values,
-            "resid": res.resid.values,
-        })
+        df_out = pd.DataFrame(
+            {
+                "date": res.observed.index,
+                "observed": res.observed.values,
+                "trend": res.trend.values,
+                "seasonal": res.seasonal.values,
+                "resid": res.resid.values,
+            }
+        )
         csv_path = os.path.join(output_dir, f"{pid}_decomposition.csv")
         df_out.to_csv(csv_path, index=False)
         echo(f"✅  Decomposition data saved to {csv_path}")
