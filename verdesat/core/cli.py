@@ -8,6 +8,10 @@ from click import echo
 from verdesat.core import utils
 from verdesat.ingestion.shapefile_preprocessor import ShapefilePreprocessor
 from verdesat.analytics.timeseries import chunked_timeseries, aggregate_timeseries
+from verdesat.visualization.static_viz import plot_decomposition
+from verdesat.analytics.decomposition import decompose_each
+from verdesat.analytics.trend import compute_trend
+from verdesat.analytics.preprocessing import interpolate_gaps
 from verdesat.visualization.plotly_viz import plot_timeseries_html
 from verdesat.visualization.static_viz import plot_time_series
 
@@ -137,6 +141,132 @@ def aggregate(input_csv, index, freq, output):
     echo(f"Saving aggregated data to {output}...")
     df_agg.to_csv(output, index=False)
     echo("Done.")
+
+
+@cli.group()
+def preprocess():
+    """Data transformation commands (gap-fill, resample, etc.)."""
+    pass
+
+
+@preprocess.command(name="fill-gaps")
+@click.argument("input_csv", type=click.Path(exists=True))
+@click.option(
+    "--value-col",
+    "-c",
+    default="mean_ndvi",
+    help="Column to fill gaps in (e.g. mean_ndvi)",
+)
+@click.option(
+    "--method", "-m", default="time", help="Interpolation method (time, linear, etc.)"
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default="filled.csv",
+    help="Output path for gap-filled CSV",
+)
+def fill_gaps_cmd(input_csv, value_col, method, output):
+    """Interpolate missing values in a time-series CSV."""
+
+    echo(f"Loading {input_csv}...")
+    df = pd.read_csv(input_csv, parse_dates=["date"])
+    echo(f"Filling gaps in '{value_col}', method '{method}'...")
+    df_filled = interpolate_gaps(
+        df, date_col="date", value_col=value_col, method=method
+    )
+    echo(f"Saving filled data to {output}...")
+    df_filled.to_csv(output, index=False)
+    echo("Done.")
+
+
+@stats.command(name="decompose")
+@click.argument("input_csv", type=click.Path(exists=True))
+@click.option(
+    "--index-col",
+    "-c",
+    default="mean_ndvi",
+    help="Column in CSV for decomposition (e.g. mean_ndvi)",
+)
+@click.option(
+    "--model",
+    "-m",
+    type=click.Choice(["additive", "multiplicative"]),
+    default="additive",
+    help="Decomposition model",
+)
+@click.option(
+    "--period", "-p", type=int, default=12, help="Seasonal period (e.g. 12 for monthly)"
+)
+@click.option(
+    "--output-dir",
+    "-o",
+    type=click.Path(),
+    default="decomposition",
+    help="Directory to save outputs",
+)
+@click.option(
+    "--plot/--no-plot",
+    default=True,
+    help="Whether to generate PNG plots for each polygon (default: True)",
+)
+def decompose(input_csv, index_col, model, period, output_dir, plot):
+    """
+    Perform seasonal decomposition on a pivoted CSV and save plot.
+    """
+    echo(f"Loading {input_csv}...")
+    df = pd.read_csv(input_csv, parse_dates=["date"])
+    df_pivot = df.set_index("date").pivot(columns="id", values=index_col)
+    echo("Decomposing time series...")
+
+    results = decompose_each(df_pivot, index_col=index_col, model=model, freq=period)
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Save decomposition components for each polygon
+    for pid, res in results.items():
+        df_out = pd.DataFrame(
+            {
+                "date": res.observed.index,
+                "observed": res.observed.values,
+                "trend": res.trend.values,
+                "seasonal": res.seasonal.values,
+                "resid": res.resid.values,
+            }
+        )
+        csv_path = os.path.join(output_dir, f"{pid}_decomposition.csv")
+        df_out.to_csv(csv_path, index=False)
+        echo(f"✅  Decomposition data saved to {csv_path}")
+
+        if plot:
+            plot_path = os.path.join(output_dir, f"{pid}_decomposition.png")
+            plot_decomposition(res, plot_path)
+            echo(f"✅  Decomposition plot saved to {plot_path}")
+
+
+@stats.command(name="trend")
+@click.argument("input_csv", type=click.Path(exists=True))
+@click.option(
+    "--index-col", "-c", default="mean_ndvi", help="Column in CSV for trend computation"
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default="trend.csv",
+    help="Output CSV path for trend values",
+)
+def trend(input_csv, index_col, output):
+    """
+    Compute linear trend for each polygon in a time-series CSV.
+    """
+    echo(f"Loading {input_csv}...")
+    df = pd.read_csv(input_csv, parse_dates=["date"])
+    echo("Computing trend...")
+    df_trend = compute_trend(df, column=index_col)
+    echo(f"Saving trend data to {output}...")
+    df_trend.to_csv(output, index=False)
+    echo(f"✅  Trend data saved to {output}")
 
 
 @cli.group()
