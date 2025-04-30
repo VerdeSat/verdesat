@@ -38,6 +38,7 @@ xgboost>=1.5.0
 
 # Optional but useful
 tqdm  # Progress bars
+types-requests
 # landlab>=1.0.0
 # pysheds>=0.6.0
 # fastapi>=0.75.0
