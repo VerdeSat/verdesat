@@ -13,6 +13,7 @@ def get_composite(
     bands: list[str],
     scale: int,
     period: Literal["M", "Y"],
+    base_coll: Optional[ee.ImageCollection] = None,
     project: Optional[str] = None,
 ) -> ee.ImageCollection:
     """
@@ -22,24 +23,37 @@ def get_composite(
     # 1) initialize EE with project (using our existing init)
     initialize(project=project)
 
+    # Align start_date to period boundary
+    start_dt = ee.Date(start_date)
+    if period == 'M':
+        # First day of start month
+        start_dt = ee.Date.fromYMD(start_dt.get('year'), start_dt.get('month'), 1)
+    elif period == 'Y':
+        # First day of start year
+        start_dt = ee.Date.fromYMD(start_dt.get('year'), 1, 1)
+    # Use start_dt instead of start_date below
+
     # 2) load your AOI as an ee.FeatureCollection
     aoi = ee.FeatureCollection(feature_collection)
 
-    # 3) build the image collection
-    coll = (
-        ee.ImageCollection(collection_id)
-        .filterDate(start_date, end_date)
-        .filterBounds(aoi)
-    )
+    # 3) build or use provided image collection
+    if base_coll is not None:
+        coll = base_coll
+    else:
+        coll = (
+            ee.ImageCollection(collection_id)
+            .filterDate(start_date, end_date)
+            .filterBounds(aoi)
+        )
 
     # 4) define the period‐mapper
     def make_periodic_image(offset):
         offset = ee.Number(offset)
         if period == "M":
-            start = ee.Date(start_date).advance(offset, "month")
+            start = start_dt.advance(offset, "month")
             end = start.advance(1, "month")
         else:  # "Y"
-            start = ee.Date(start_date).advance(offset, "year")
+            start = start_dt.advance(offset, "year")
             end = start.advance(1, "year")
         monthly = coll.filterDate(start, end)
         # perform reduction and rename bands to original
@@ -48,7 +62,7 @@ def get_composite(
         return composite.set("system:time_start", start.millis())
 
     # 5) count months/years
-    start = ee.Date(start_date)
+    start = start_dt
     end = ee.Date(end_date)
     if period == "M":
         count = end.difference(start, "month").floor().add(1)
@@ -79,6 +93,13 @@ def export_composites_to_png(
     features = feature_collection.get("features")
     if not isinstance(features, list):
         raise ValueError("GeoJSON missing features list")
+
+    # Determine stretch for visualization
+    if bands == ["NDVI"]:
+        min_val, max_val = 0.0, 1.0
+    else:
+        min_val, max_val = 0, 3000
+
     count = composites.size().getInfo()
     if count is None or not isinstance(count, int) or count <= 0:
         raise ValueError("Failed to compute a valid size of the composites collection.")
@@ -98,9 +119,10 @@ def export_composites_to_png(
                 url = clip.getThumbURL(
                     {
                         "bands": bands,
-                        #"min": 0,
-                        #"max": 3000,
+                        "min": min_val,
+                        "max": max_val,
                         "palette": palette or [],
+                        "region": geom,
                         "scale": scale,
                     }
                 )
@@ -109,9 +131,9 @@ def export_composites_to_png(
                 url = clip.getDownloadURL(
                     {
                         "bands": bands,
-                        #"min": 0,
-                        #"max": 3000,
-                        "palette": palette or [],
+                        "min": min_val,
+                        "max": max_val,
+                        "region": geom,
                         "scale": scale,
                         "format": fmt,
                     }

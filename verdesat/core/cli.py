@@ -145,7 +145,9 @@ def chips(
     # If NDVI, map compute_index
     if chip_type == "ndvi":
         # compute_index expects (img, index='ndvi')
-        coll = coll.map(lambda img: compute_index(img, index="ndvi"))
+        #coll = coll.map(lambda img: compute_index(img, index="ndvi"))
+        from verdesat.ingestion.indices import compute_ndvi
+        coll = coll.map(compute_ndvi)
         bands = ["NDVI"]
         palette = ["white", "green"]
     else:
@@ -162,6 +164,7 @@ def chips(
         bands=bands,
         scale=scale,
         period=period,
+        base_coll=coll,
         project=ee_project,
     )
 
