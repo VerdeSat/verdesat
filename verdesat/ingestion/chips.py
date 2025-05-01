@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Literal, Optional
+from typing import Literal, Optional, Union, Any
 from ee import ImageCollection
 import ee
 from verdesat.ingestion.downloader import initialize, get_image_collection
@@ -111,8 +111,8 @@ def export_composites_to_png(
     bands: list[str],
     palette: Optional[list[str]] = None,
     scale: Optional[int] = None,
-    min_val: Optional[float] = None,
-    max_val: Optional[float] = None,
+    min_val: Optional[Union[float, list[Any]]] = None,
+    max_val: Optional[Union[float, list[Any]]] = None,
     buffer: int = 0,
     gamma: Optional[float] = None,
     percentile_low: Optional[float] = None,
