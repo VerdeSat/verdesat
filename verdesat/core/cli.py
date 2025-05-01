@@ -19,6 +19,14 @@ from verdesat.visualization.static_viz import plot_time_series
 from verdesat.ingestion.downloader import initialize, get_image_collection
 from verdesat.ingestion.indices import compute_index
 
+# Predefined NDVI color palettes
+PRESET_PALETTES = {
+    "white-green": ["white", "green"],
+    "red-white-green": ["red", "white", "green"],
+    "brown-green": ["brown", "green"],
+    "blue-white-green": ["blue", "white", "green"],
+}
+
 logger = logging.getLogger(__name__)
 
 
@@ -172,6 +180,16 @@ def timeseries(geojson, collection, start, end, scale, index, agg, output):
     default=None,
     help="Upper percentile for auto-stretch (e.g., 98)",
 )
+@click.option(
+    "--palette",
+    "palette_arg",
+    type=str,
+    default=None,
+    help=(
+        "NDVI palette: preset names (white-green, red-white-green, brown-green, blue-white-green)"
+        " or comma-separated colors"
+    ),
+)
 @click.option("--format", "-f", default="png", help="Format of the output files")
 @click.option("--out-dir", "-o", default="chips", help="Output directory")
 @click.option("--ee-project", default=None, help="GCP project override")
@@ -189,6 +207,7 @@ def chips(
     gamma,
     percentile_low,
     percentile_high,
+    palette_arg,
     format,
     out_dir,
     ee_project,
@@ -204,9 +223,15 @@ def chips(
         coll = get_image_collection(collection, start, end, aoi)
         # If NDVI, map compute_index
         if chip_type == "ndvi":
-            # Select which bands to composite; get_composite will compute NDVI if requested
             bands = ["NDVI"]
-            palette = ["white", "green"]
+            # Determine palette
+            if palette_arg:
+                if palette_arg in PRESET_PALETTES:
+                    palette = PRESET_PALETTES[palette_arg]
+                else:
+                    palette = [c.strip() for c in palette_arg.split(",") if c.strip()]
+            else:
+                palette = PRESET_PALETTES["white-green"]
         else:
             bands = ["B4", "B3", "B2"]
             palette = None
