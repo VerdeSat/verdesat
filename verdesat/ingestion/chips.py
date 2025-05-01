@@ -161,7 +161,9 @@ def export_composites_to_png(
             geom = feat.get("geometry", {})
             coords_list = geom.get("coordinates", [])
             # Handle Polygon or MultiPolygon
-            rings = coords_list[0] if geom.get("type") == "MultiPolygon" else coords_list
+            rings = (
+                coords_list[0] if geom.get("type") == "MultiPolygon" else coords_list
+            )
             if rings and isinstance(rings[0], list):
                 for x, y in rings[0]:
                     coords.append((x, y))
