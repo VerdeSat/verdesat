@@ -136,6 +136,24 @@ def timeseries(geojson, collection, start, end, scale, index, agg, output):
     default="truecolor",
 )
 @click.option("--scale", type=int, default=30, help="Resolution in meters")
+@click.option(
+    "--min-val",
+    type=float,
+    default=None,
+    help="Minimum stretch value (e.g. 0.0 for true color, -1.0 for NDVI)",
+)
+@click.option(
+    "--max-val",
+    type=float,
+    default=None,
+    help="Maximum stretch value (e.g. 1.0)",
+)
+@click.option(
+    "--buffer",
+    type=int,
+    default=0,
+    help="Buffer distance (meters) to apply around each polygon",
+)
 @click.option("--format", "-f", default="png", help="Format of the output files")
 @click.option("--out-dir", "-o", default="chips", help="Output directory")
 @click.option("--ee-project", default=None, help="GCP project override")
@@ -147,6 +165,9 @@ def chips(
     period,
     chip_type,
     scale,
+    min_val,
+    max_val,
+    buffer,
     format,
     out_dir,
     ee_project,
@@ -191,6 +212,9 @@ def chips(
             bands=bands,
             palette=palette,
             scale=scale,
+            min_val=min_val,
+            max_val=max_val,
+            buffer=buffer,
             fmt=format,
         )
 

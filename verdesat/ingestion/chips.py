@@ -111,6 +111,9 @@ def export_composites_to_png(
     bands: list[str],
     palette: Optional[list[str]] = None,
     scale: Optional[int] = None,
+    min_val: Optional[float] = None,
+    max_val: Optional[float] = None,
+    buffer: int = 0,
     fmt: str = "png",
 ) -> None:
     """
@@ -123,12 +126,24 @@ def export_composites_to_png(
         bands: List of band names to include (e.g. ['B4','B3','B2'] or ['NDVI']).
         palette: Optional color palette for PNG thumbnails.
         scale: The pixel resolution in meters.
+        min_val: Optional minimum value for visualization stretch.
+        max_val: Optional maximum value for visualization stretch.
+        buffer: Optional buffer (in meters) to apply to geometries.
         fmt: Output format, either 'png' or 'GeoTIFF'.
 
     Raises:
         ValueError: If `feature_collection` has no features or `composites` is empty.
     """
     import requests
+
+    # Determine stretch defaults (unless overridden)
+    if min_val is None or max_val is None:
+        if bands == ["NDVI"]:
+            default_min, default_max = 0.0, 1.0
+        else:
+            default_min, default_max = 0.0, 0.4
+        min_val = min_val if min_val is not None else default_min
+        max_val = max_val if max_val is not None else default_max
 
     os.makedirs(out_dir, exist_ok=True)
     features = feature_collection.get("features")
@@ -137,13 +152,6 @@ def export_composites_to_png(
     count = composites.size().getInfo()
     if not isinstance(count, int) or count <= 0:
         raise ValueError("No composites to export (empty collection).")
-
-    # Determine stretch for visualization (HLS reflectance 0.0–1.0)
-    if bands == ["NDVI"]:
-        min_val, max_val = 0.0, 1.0
-    else:
-        # True-color reflectance values (HLS) range 0.0–1.0
-        min_val, max_val = 0.0, 1.0
 
     img_list = composites.toList(count)
     for i in range(count):
@@ -159,34 +167,27 @@ def export_composites_to_png(
             # extract polygon ID
             props = feat.get("properties", {})
             pid = props.get("id") or props.get("system:index")
-            geom_json = feat.get("geometry")
-            clip = img.clip(ee.Geometry(geom_json))
+            # Build EE geometry and apply buffer
+            geom = ee.Geometry(feat.get("geometry"))
+            if buffer > 0:
+                geom = geom.buffer(buffer)
+            clip = img.clip(geom)
+            params = {
+                "bands": bands,
+                "min": min_val,
+                "max": max_val,
+                "region": geom,
+                "scale": scale,
+            }
             if fmt.lower() == "png":
-                # Build visualization parameters
-                params = {
-                    "bands": bands,
-                    "min": min_val,
-                    "max": max_val,
-                    "region": geom_json,
-                    "scale": scale,
-                }
-                # Only include a color palette for single-band indices (e.g., NDVI)
                 if palette:
                     params["palette"] = palette
                 url = clip.getThumbURL(params)
                 path = os.path.join(out_dir, f"{pid}_{date}.png")
             else:
-                url = clip.getDownloadURL(
-                    {
-                        "bands": bands,
-                        "min": min_val,
-                        "max": max_val,
-                        "region": geom_json,
-                        "scale": scale,
-                        "format": fmt,
-                    }
-                )
-                path = os.path.join(out_dir, f"{pid}_{date}.tif")
+                params["format"] = fmt
+                url = clip.getDownloadURL(params)
+                path = os.path.join(out_dir, f"{pid}_{date}.{fmt.lower()}")
 
             # DEBUG: print URL and response status
             # logger.info("    → URL: %s", url)
