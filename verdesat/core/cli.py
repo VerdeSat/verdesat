@@ -154,6 +154,24 @@ def timeseries(geojson, collection, start, end, scale, index, agg, output):
     default=0,
     help="Buffer distance (meters) to apply around each polygon",
 )
+@click.option(
+    "--gamma",
+    type=float,
+    default=None,
+    help="Gamma correction value for visualization (e.g., 0.8)",
+)
+@click.option(
+    "--percentile-low",
+    type=float,
+    default=None,
+    help="Lower percentile for auto-stretch (e.g., 2)",
+)
+@click.option(
+    "--percentile-high",
+    type=float,
+    default=None,
+    help="Upper percentile for auto-stretch (e.g., 98)",
+)
 @click.option("--format", "-f", default="png", help="Format of the output files")
 @click.option("--out-dir", "-o", default="chips", help="Output directory")
 @click.option("--ee-project", default=None, help="GCP project override")
@@ -168,6 +186,9 @@ def chips(
     min_val,
     max_val,
     buffer,
+    gamma,
+    percentile_low,
+    percentile_high,
     format,
     out_dir,
     ee_project,
@@ -215,6 +236,9 @@ def chips(
             min_val=min_val,
             max_val=max_val,
             buffer=buffer,
+            gamma=gamma,
+            percentile_low=percentile_low,
+            percentile_high=percentile_high,
             fmt=format,
         )
 

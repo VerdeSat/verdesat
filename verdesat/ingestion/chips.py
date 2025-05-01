@@ -114,6 +114,9 @@ def export_composites_to_png(
     min_val: Optional[float] = None,
     max_val: Optional[float] = None,
     buffer: int = 0,
+    gamma: Optional[float] = None,
+    percentile_low: Optional[float] = None,
+    percentile_high: Optional[float] = None,
     fmt: str = "png",
 ) -> None:
     """
@@ -156,6 +159,28 @@ def export_composites_to_png(
     img_list = composites.toList(count)
     for i in range(count):
         img = ee.Image(img_list.get(i))
+        # Dynamic percentile stretch per composite (over full AOI)
+        if percentile_low is not None and percentile_high is not None:
+            # Compute percentiles on each band over the AOI
+            region = ee.FeatureCollection(feature_collection).geometry()
+            reducer = ee.Reducer.percentile([percentile_low, percentile_high])
+            stats = img.reduceRegion(
+                reducer=reducer,
+                geometry=region,
+                scale=scale,
+                bestEffort=True,
+                maxPixels=1e12,
+            ).getInfo()
+            mins, maxs = [], []
+            for band in bands:
+                key_low = f"{band}_p{int(percentile_low)}"
+                key_high = f"{band}_p{int(percentile_high)}"
+                mins.append(stats.get(key_low, min_val))
+                maxs.append(stats.get(key_high, max_val))
+            # Use lists for multi-band, or single values if one band
+            min_val = mins if len(mins) > 1 else mins[0]
+            max_val = maxs if len(maxs) > 1 else maxs[0]
+
         # DEBUG: composite bands and date
         logger.info("  • Composite #%d, bands: %s", i, img.bandNames().getInfo())
         date = ee.Date(img.get("system:time_start")).format("YYYY-MM-dd").getInfo()
@@ -179,6 +204,9 @@ def export_composites_to_png(
                 "region": geom,
                 "scale": scale,
             }
+            if gamma is not None:
+                # Apply same gamma to each band
+                params["gamma"] = [gamma] * len(bands)
             if fmt.lower() == "png":
                 if palette:
                     params["palette"] = palette
