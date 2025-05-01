@@ -3,6 +3,7 @@ import logging
 from typing import Literal, Optional, Union, Any
 from ee import ImageCollection
 import ee
+import math
 from verdesat.ingestion.downloader import initialize, get_image_collection
 from verdesat.ingestion.indices import compute_index
 
@@ -114,6 +115,7 @@ def export_composites_to_png(
     min_val: Optional[Union[float, list[Any]]] = None,
     max_val: Optional[Union[float, list[Any]]] = None,
     buffer: int = 0,
+    buffer_percent: Optional[float] = None,
     gamma: Optional[float] = None,
     percentile_low: Optional[float] = None,
     percentile_high: Optional[float] = None,
@@ -152,6 +154,27 @@ def export_composites_to_png(
     features = feature_collection.get("features")
     if not isinstance(features, list) or not features:
         raise ValueError("No polygon features found in the provided GeoJSON.")
+    # If a percentage buffer is specified, compute absolute buffer in meters
+    if buffer_percent is not None:
+        coords = []
+        for feat in features:
+            geom = feat.get("geometry", {})
+            coords_list = geom.get("coordinates", [])
+            # Handle Polygon or MultiPolygon
+            rings = coords_list[0] if geom.get("type") == "MultiPolygon" else coords_list
+            if rings and isinstance(rings[0], list):
+                for x, y in rings[0]:
+                    coords.append((x, y))
+        if coords:
+            xs, ys = zip(*coords)
+            min_x, max_x = min(xs), max(xs)
+            min_y, max_y = min(ys), max(ys)
+            mean_lat = (min_y + max_y) / 2.0
+            # Approximate degrees to meters
+            height_m = (max_y - min_y) * 111320.0
+            width_m = (max_x - min_x) * 111320.0 * math.cos(math.radians(mean_lat))
+            extent_max = max(abs(width_m), abs(height_m))
+            buffer = extent_max * (buffer_percent / 100.0)
     count = composites.size().getInfo()
     if not isinstance(count, int) or count <= 0:
         raise ValueError("No composites to export (empty collection).")

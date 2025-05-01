@@ -163,6 +163,12 @@ def timeseries(geojson, collection, start, end, scale, index, agg, output):
     help="Buffer distance (meters) to apply around each polygon",
 )
 @click.option(
+    "--buffer-percent",
+    type=float,
+    default=None,
+    help="Buffer distance as a percentage of AOI size",
+)
+@click.option(
     "--gamma",
     type=float,
     default=None,
@@ -204,6 +210,7 @@ def chips(
     min_val,
     max_val,
     buffer,
+    buffer_percent,
     gamma,
     percentile_low,
     percentile_high,
@@ -261,6 +268,7 @@ def chips(
             min_val=min_val,
             max_val=max_val,
             buffer=buffer,
+            buffer_percent=buffer_percent,
             gamma=gamma,
             percentile_low=percentile_low,
             percentile_high=percentile_high,
