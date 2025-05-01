@@ -197,6 +197,37 @@ def export_composites_to_png(
                 with open(path, "wb") as f:
                     f.write(resp.content)
                 logger.info("    ✔ Wrote %s file: %s", fmt, path)
+                # If GeoTIFF, convert to Cloud-Optimized GeoTIFF (COG)
+                if fmt.lower() != "png":
+                    try:
+                        import rasterio
+                        from rasterio.enums import Resampling
+
+                        # Read the newly written TIFF
+                        with rasterio.open(path) as src:
+                            profile = src.profile
+                            data = src.read()
+
+                        # Update profile for COG
+                        profile.update(
+                            driver="GTiff",
+                            compress="deflate",
+                            tiled=True,
+                            blockxsize=512,
+                            blockysize=512,
+                        )
+
+                        # Rewrite as COG with overviews
+                        with rasterio.open(path, "w", **profile) as dst:
+                            dst.write(data)
+                            dst.build_overviews([2, 4, 8, 16], Resampling.nearest)
+                            dst.update_tags(OVR_RESAMPLING="NEAREST")
+
+                        logger.info("    ✔ Converted to COG: %s", path)
+                    except Exception as cog_err:
+                        logger.warning(
+                            "    ⚠ COG conversion failed for %s: %s", path, cog_err
+                        )
             except Exception as e:
                 logger.error(
                     "Failed to export %s for polygon %s on %s: %s",
