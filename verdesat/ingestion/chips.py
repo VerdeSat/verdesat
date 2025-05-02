@@ -269,7 +269,7 @@ def export_composites_to_png(
     out_dir: str,
     bands: list[str],
     palette: Optional[list[str]] = None,
-    scale: Optional[int] = None,
+    scale: Optional[int] = 30,
     min_val: Optional[Union[float, list[Any]]] = None,
     max_val: Optional[Union[float, list[Any]]] = None,
     buffer: int = 0,
