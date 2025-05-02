@@ -2,7 +2,6 @@ import ee
 import pandas as pd
 from typing import Literal
 from verdesat.ingestion.downloader import initialize, get_image_collection
-from verdesat.ingestion.mask import mask_fmask_bits
 from verdesat.ingestion.indices import compute_index
 import logging
 
@@ -52,11 +51,18 @@ def daily_timeseries(
     """
     initialize()
     region = ee.FeatureCollection(geojson)
-    coll = get_image_collection(collection_id, start_date, end_date, region)
+    # Apply Fmask-based cloud/shadow/water masking at collection time
+    coll = get_image_collection(
+        collection_id,
+        start_date,
+        end_date,
+        region,
+        mask_clouds=True,
+    )
 
     def _reduce(img):
-        m = mask_fmask_bits(img)
-        idx_img = compute_index(m, index)
+        # Image is already cloud-masked via get_image_collection(mask_clouds=True)
+        idx_img = compute_index(img, index)
         stats = idx_img.reduceRegions(region, ee.Reducer.mean(), scale=scale)
         date = ee.Date(img.get("system:time_start")).format("YYYY-MM-dd")
         return stats.map(lambda f: f.set("date", date))

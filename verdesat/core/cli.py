@@ -120,6 +120,11 @@ def timeseries(geojson, collection, start, end, scale, index, agg, output):
 
 
 @download.command(name="chips")
+@click.option(
+    "--mask-clouds/--no-mask-clouds",
+    default=True,
+    help="Apply Fmask-based cloud/shadow/water masking before composites",
+)
 @click.argument("geojson", type=click.Path(exists=True))
 @click.option(
     "--collection",
@@ -200,6 +205,7 @@ def timeseries(geojson, collection, start, end, scale, index, agg, output):
 @click.option("--out-dir", "-o", default="chips", help="Output directory")
 @click.option("--ee-project", default=None, help="GCP project override")
 def chips(
+    mask_clouds,
     geojson,
     collection,
     start,
@@ -227,7 +233,9 @@ def chips(
         echo("Initializing Earth Engine and fetching collection...")
         # Use GEE helper to fetch raw image collection
         aoi = ee.FeatureCollection(gj)
-        coll = get_image_collection(collection, start, end, aoi)
+        coll = get_image_collection(
+            collection, start, end, aoi, mask_clouds=mask_clouds
+        )
         # If NDVI, map compute_index
         if chip_type == "ndvi":
             bands = ["NDVI"]
@@ -275,7 +283,7 @@ def chips(
             fmt=format,
         )
 
-        click.echo(f"✅  Chips written under {out_dir}/")
+        echo(f"✅  Chips written under {out_dir}/")
     except Exception as e:
         logger.error("Chips command failed", exc_info=True)
         echo(f"❌  Chips download failed: {e}", err=True)

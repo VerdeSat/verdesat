@@ -10,6 +10,164 @@ from verdesat.ingestion.indices import compute_index
 logger = logging.getLogger(__name__)
 
 
+def compute_buffer(
+    features: list[dict], buffer: int, buffer_percent: Optional[float]
+) -> float:
+    if buffer_percent is None:
+        return buffer
+    coords = []
+    for feat in features:
+        geom = feat.get("geometry", {})
+        coords_list = geom.get("coordinates", [])
+        # Handle Polygon or MultiPolygon
+        rings = coords_list[0] if geom.get("type") == "MultiPolygon" else coords_list
+        if rings and isinstance(rings[0], list):
+            for x, y in rings[0]:
+                coords.append((x, y))
+    if not coords:
+        return buffer
+    xs, ys = zip(*coords)
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    mean_lat = (min_y + max_y) / 2.0
+    # Approximate degrees to meters
+    height_m = (max_y - min_y) * 111320.0
+    width_m = (max_x - min_x) * 111320.0 * math.cos(math.radians(mean_lat))
+    extent_max = max(abs(width_m), abs(height_m))
+    return extent_max * (buffer_percent / 100.0)
+
+
+def make_feature_geometry(feat: dict, buffer_m: float) -> ee.Geometry:
+    geom_json = feat.get("geometry")
+    geom = ee.Geometry(geom_json)
+    if buffer_m > 0:
+        geom = geom.buffer(buffer_m)
+    return geom
+
+
+def calc_percentile_stretch(
+    img: ee.Image,
+    features: list[dict],
+    bands: list[str],
+    scale: int,
+    low: float,
+    high: float,
+) -> tuple[Union[float, list[float]], Union[float, list[float]]]:
+    region = ee.FeatureCollection(
+        {"type": "FeatureCollection", "features": features}
+    ).geometry()
+    reducer = ee.Reducer.percentile([low, high])
+    stats = img.reduceRegion(
+        reducer=reducer,
+        geometry=region,
+        scale=scale,
+        bestEffort=True,
+        maxPixels=1e12,
+    ).getInfo()
+    mins, maxs = [], []
+    for band in bands:
+        key_low = f"{band}_p{int(low)}"
+        key_high = f"{band}_p{int(high)}"
+        mins.append(stats.get(key_low, low))
+        maxs.append(stats.get(key_high, high))
+    min_val = mins if len(mins) > 1 else mins[0]
+    max_val = maxs if len(maxs) > 1 else maxs[0]
+    return min_val, max_val
+
+
+def build_viz_params(
+    bands: list[str],
+    min_val,
+    max_val,
+    scale: int,
+    dims: int,
+    palette: Optional[list[str]],
+    gamma: Optional[float],
+    fmt: str,
+) -> dict:
+    params = {
+        "bands": bands,
+        "min": min_val,
+        "max": max_val,
+        "scale": scale,
+    }
+    if gamma is not None:
+        params["gamma"] = [gamma] * len(bands)
+    if fmt.lower() == "png":
+        params.pop("scale", None)
+        params["dimensions"] = dims
+        if palette:
+            params["palette"] = palette
+    else:
+        params["format"] = fmt
+    return params
+
+
+def export_one_thumbnail(
+    img: ee.Image,
+    feat: dict,
+    date: str,
+    bands: list[str],
+    params: dict,
+    out_dir: str,
+    com_type: str,
+    fmt: str,
+):
+    import requests
+
+    props = feat.get("properties", {})
+    pid = props.get("id") or props.get("system:index")
+    geom_json = feat.get("geometry")
+    url = (
+        img.getThumbURL(params) if fmt.lower() == "png" else img.getDownloadURL(params)
+    )
+    ext = "png" if fmt.lower() == "png" else "tiff"
+    path = os.path.join(out_dir, f"{com_type}_{pid}_{date}.{ext}")
+
+    try:
+        resp = requests.get(url, timeout=60)
+        resp.raise_for_status()
+        with open(path, "wb") as f:
+            f.write(resp.content)
+        logger.info("    ✔ Wrote %s file: %s", fmt, path)
+    except Exception as e:
+        logger.error(
+            "Failed to export %s for polygon %s on %s: %s",
+            fmt,
+            pid,
+            date,
+            e,
+            exc_info=True,
+        )
+
+
+def convert_to_cog(path: str):
+    import rasterio
+    from rasterio.enums import Resampling
+
+    try:
+        with rasterio.open(path) as src:
+            profile = src.profile
+            data = src.read()
+
+        profile.update(
+            driver="GTiff",
+            compress="deflate",
+            tiled=True,
+            blockxsize=512,
+            blockysize=512,
+        )
+
+        with rasterio.open(path, "w", **profile) as dst:
+            dst.write(data)
+            dst.build_overviews([2, 4, 8, 16], Resampling.nearest)
+            dst.update_tags(OVR_RESAMPLING="NEAREST")
+
+        logger.info("    ✔ Converted to COG: %s", path)
+    except Exception as cog_err:
+        logger.warning("    ⚠ COG conversion failed for %s: %s", path, cog_err)
+
+
 def get_composite(
     feature_collection: dict,
     collection_id: str,
@@ -30,11 +188,11 @@ def get_composite(
     initialize(project=project)
 
     # DEBUG: inspect first raw image bands
-    first = (
-        base_coll
-        or get_image_collection(collection_id, start_date, end_date, feature_collection)
-    ).first()
-    logger.info("▶ get_composite: first image bands: %s", first.bandNames().getInfo())
+    # first = (
+    #     base_coll
+    #     or get_image_collection(collection_id, start_date, end_date, feature_collection)
+    # ).first()
+    # logger.info("▶ get_composite: first image bands: %s", first.bandNames().getInfo())
 
     # Align start_date to period boundary
     start_dt = ee.Date(start_date)
@@ -65,11 +223,11 @@ def get_composite(
             )
         )
         # DEBUG: inspect bands post NDVI map
-        example = coll.first()
-        logger.info(
-            "▶ get_composite (post-NDVI map): example bands: %s",
-            example.bandNames().getInfo(),
-        )
+        # example = coll.first()
+        # logger.info(
+        #     "▶ get_composite (post-NDVI map): example bands: %s",
+        #     example.bandNames().getInfo(),
+        # )
 
     # 4) define the period‐mapper
     def make_periodic_image(offset):
@@ -141,6 +299,22 @@ def export_composites_to_png(
     """
     import requests
 
+    # Default thumbnail dimensions for PNG exports
+    thumb_dimensions = 512
+
+    com_type = "NDVI" if "NDVI" in bands else "RGB"
+
+    os.makedirs(out_dir, exist_ok=True)
+    features = feature_collection.get("features")
+    if not isinstance(features, list) or not features:
+        raise ValueError("No polygon features found in the provided GeoJSON.")
+
+    # buffer_m = compute_buffer(features, buffer, buffer_percent)
+
+    count = composites.size().getInfo()
+    if not isinstance(count, int) or count <= 0:
+        raise ValueError("No composites to export (empty collection).")
+
     # Determine stretch defaults (unless overridden)
     if min_val is None or max_val is None:
         if bands == ["NDVI"]:
@@ -150,144 +324,54 @@ def export_composites_to_png(
         min_val = min_val if min_val is not None else default_min
         max_val = max_val if max_val is not None else default_max
 
-    os.makedirs(out_dir, exist_ok=True)
-    features = feature_collection.get("features")
-    if not isinstance(features, list) or not features:
-        raise ValueError("No polygon features found in the provided GeoJSON.")
-    # If a percentage buffer is specified, compute absolute buffer in meters
-    if buffer_percent is not None:
-        coords = []
-        for feat in features:
-            geom = feat.get("geometry", {})
-            coords_list = geom.get("coordinates", [])
-            # Handle Polygon or MultiPolygon
-            rings = (
-                coords_list[0] if geom.get("type") == "MultiPolygon" else coords_list
-            )
-            if rings and isinstance(rings[0], list):
-                for x, y in rings[0]:
-                    coords.append((x, y))
-        if coords:
-            xs, ys = zip(*coords)
-            min_x, max_x = min(xs), max(xs)
-            min_y, max_y = min(ys), max(ys)
-            mean_lat = (min_y + max_y) / 2.0
-            # Approximate degrees to meters
-            height_m = (max_y - min_y) * 111320.0
-            width_m = (max_x - min_x) * 111320.0 * math.cos(math.radians(mean_lat))
-            extent_max = max(abs(width_m), abs(height_m))
-            buffer = extent_max * (buffer_percent / 100.0)
-    count = composites.size().getInfo()
-    if not isinstance(count, int) or count <= 0:
-        raise ValueError("No composites to export (empty collection).")
-
     img_list = composites.toList(count)
     for i in range(count):
         img = ee.Image(img_list.get(i))
-        # Dynamic percentile stretch per composite (over full AOI)
-        if percentile_low is not None and percentile_high is not None:
-            # Compute percentiles on each band over the AOI
-            region = ee.FeatureCollection(feature_collection).geometry()
-            reducer = ee.Reducer.percentile([percentile_low, percentile_high])
-            stats = img.reduceRegion(
-                reducer=reducer,
-                geometry=region,
-                scale=scale,
-                bestEffort=True,
-                maxPixels=1e12,
-            ).getInfo()
-            mins, maxs = [], []
-            for band in bands:
-                key_low = f"{band}_p{int(percentile_low)}"
-                key_high = f"{band}_p{int(percentile_high)}"
-                mins.append(stats.get(key_low, min_val))
-                maxs.append(stats.get(key_high, max_val))
-            # Use lists for multi-band, or single values if one band
-            min_val = mins if len(mins) > 1 else mins[0]
-            max_val = maxs if len(maxs) > 1 else maxs[0]
-
-        # DEBUG: composite bands and date
         logger.info("  • Composite #%d, bands: %s", i, img.bandNames().getInfo())
         date = ee.Date(img.get("system:time_start")).format("YYYY-MM-dd").getInfo()
         logger.info("    – date=%s", date)
         if img.bandNames().size().getInfo() == 0:
             continue
-        date = ee.Date(img.get("system:time_start")).format("YYYY-MM-dd").getInfo()
+
+        min_val_i, max_val_i = min_val, max_val
+        if percentile_low is not None and percentile_high is not None:
+            min_val_i, max_val_i = calc_percentile_stretch(
+                img, features, bands, scale, percentile_low, percentile_high
+            )
+
         for feat in features:
-            # extract polygon ID
-            props = feat.get("properties", {})
-            pid = props.get("id") or props.get("system:index")
-            # Build EE geometry and apply buffer
-            geom = ee.Geometry(feat.get("geometry"))
-            if buffer > 0:
-                geom = geom.buffer(buffer)
+            # compute buffer for this feature only
+            local_buffer_m = compute_buffer([feat], buffer, buffer_percent)
+            geom = make_feature_geometry(feat, local_buffer_m)
             clip = img.clip(geom)
-            params = {
-                "bands": bands,
-                "min": min_val,
-                "max": max_val,
-                "region": geom,
-                "scale": scale,
-            }
-            if gamma is not None:
-                # Apply same gamma to each band
-                params["gamma"] = [gamma] * len(bands)
-            if fmt.lower() == "png":
-                if palette:
-                    params["palette"] = palette
-                url = clip.getThumbURL(params)
-                path = os.path.join(out_dir, f"{pid}_{date}.png")
-            else:
-                params["format"] = fmt
-                url = clip.getDownloadURL(params)
-                path = os.path.join(out_dir, f"{pid}_{date}.{fmt.lower()}")
+            params = build_viz_params(
+                bands,
+                min_val_i,
+                max_val_i,
+                scale,
+                thumb_dimensions,
+                palette,
+                gamma,
+                fmt,
+            )
+            # Compute bounding box of buffered geometry for thumbnail region
+            bounds = geom.bounds()
+            bounds_info = bounds.getInfo()
+            # Extract the corner coordinates ring
+            coords = bounds_info.get("coordinates", [[]])[0]
+            xs = [pt[0] for pt in coords]
+            ys = [pt[1] for pt in coords]
+            region_bbox = [min(xs), min(ys), max(xs), max(ys)]
+            params["region"] = region_bbox
 
-            # DEBUG: print URL and response status
-            # logger.info("    → URL: %s", url)
-            try:
-                resp = requests.get(url, timeout=60)
-                resp.raise_for_status()
-                with open(path, "wb") as f:
-                    f.write(resp.content)
-                logger.info("    ✔ Wrote %s file: %s", fmt, path)
-                # If GeoTIFF, convert to Cloud-Optimized GeoTIFF (COG)
-                if fmt.lower() != "png":
-                    try:
-                        import rasterio
-                        from rasterio.enums import Resampling
+            export_one_thumbnail(
+                clip, feat, date, bands, params, out_dir, com_type, fmt
+            )
 
-                        # Read the newly written TIFF
-                        with rasterio.open(path) as src:
-                            profile = src.profile
-                            data = src.read()
-
-                        # Update profile for COG
-                        profile.update(
-                            driver="GTiff",
-                            compress="deflate",
-                            tiled=True,
-                            blockxsize=512,
-                            blockysize=512,
-                        )
-
-                        # Rewrite as COG with overviews
-                        with rasterio.open(path, "w", **profile) as dst:
-                            dst.write(data)
-                            dst.build_overviews([2, 4, 8, 16], Resampling.nearest)
-                            dst.update_tags(OVR_RESAMPLING="NEAREST")
-
-                        logger.info("    ✔ Converted to COG: %s", path)
-                    except Exception as cog_err:
-                        logger.warning(
-                            "    ⚠ COG conversion failed for %s: %s", path, cog_err
-                        )
-            except Exception as e:
-                logger.error(
-                    "Failed to export %s for polygon %s on %s: %s",
-                    fmt,
-                    pid,
-                    date,
-                    e,
-                    exc_info=True,
-                )
-                continue
+            if fmt.lower() != "png":
+                # Convert to Cloud-Optimized GeoTIFF (COG)
+                props = feat.get("properties", {})
+                pid = props.get("id") or props.get("system:index")
+                ext = "tiff"
+                path = os.path.join(out_dir, f"{com_type}_{pid}_{date}.{ext}")
+                convert_to_cog(path)
