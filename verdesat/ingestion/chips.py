@@ -96,8 +96,10 @@ def build_viz_params(
     if fmt.lower() == "png":
         params.pop("scale", None)
         params["dimensions"] = dims
-        if palette:
+        if palette is not None and gamma is None:
             params["palette"] = palette
+        elif palette is not None and gamma is not None:
+            logger.warning("Palette ignored when gamma correction is enabled")
     else:
         params["format"] = fmt
     return params
