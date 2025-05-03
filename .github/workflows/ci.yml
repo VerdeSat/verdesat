@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: '3.10'
       - name: Install linters
-        run: pip install black mypy
+        run: pip install black mypy types-requests
       - name: Black check
         run: black --check .
       - name: MyPy

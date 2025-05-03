@@ -1,5 +1,6 @@
 import os
 import ee
+from verdesat.ingestion.mask import mask_fmask_bits
 from ee import EEException
 from typing import Optional
 
@@ -25,13 +26,20 @@ def initialize(
 
 
 def get_image_collection(
-    collection_id: str, start_date: str, end_date: str, region: ee.FeatureCollection
+    collection_id: str,
+    start_date: str,
+    end_date: str,
+    region: ee.FeatureCollection,
+    mask_clouds: bool = True,
 ) -> ee.ImageCollection:
     """
     Return an ImageCollection filtered by date and bounds.
     """
-    return (
+    coll = (
         ee.ImageCollection(collection_id)
         .filterDate(start_date, end_date)
         .filterBounds(region)
     )
+    if mask_clouds:
+        coll = coll.map(mask_fmask_bits)
+    return coll
