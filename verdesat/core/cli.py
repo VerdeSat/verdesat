@@ -17,6 +17,7 @@ from verdesat.analytics.preprocessing import interpolate_gaps
 from verdesat.visualization.plotly_viz import plot_timeseries_html
 from verdesat.visualization.static_viz import plot_time_series
 from verdesat.visualization.gallery import build_gallery
+from verdesat.visualization.animate import make_gifs_per_site
 from verdesat.ingestion.downloader import initialize, get_image_collection
 from verdesat.ingestion.indices import compute_index
 
@@ -512,6 +513,52 @@ def plot(datafile, index_col, agg_freq, interactive, output):
         png_path = output if output.lower().endswith(".png") else output + ".png"
         plot_time_series(df, index_col, png_path, agg_freq)
         echo(f"✅  Static plot saved to {png_path}")
+
+
+# ---- Animate command ----
+@visualize.command(name="animate")
+@click.argument("images_dir", type=click.Path(exists=True))
+@click.option(
+    "--pattern",
+    "-p",
+    default="*.png",
+    help="Glob pattern to match image files (e.g., 'NDVI_*.png')",
+)
+@click.option(
+    "--output-dir",
+    "-o",
+    default="gifs",
+    help="Directory into which to write per-site animated GIFs",
+)
+@click.option(
+    "--duration",
+    type=float,
+    default=2,
+    help="Frame duration in seconds",
+)
+@click.option(
+    "--loop",
+    type=int,
+    default=0,
+    help="Number of loops (0 = infinite)",
+)
+def animate(images_dir, pattern, output_dir, duration, loop):
+    """
+    Generate one animated GIF per site by scanning IMAGES_DIR for files matching PATTERN.
+    """
+    try:
+        make_gifs_per_site(
+            images_dir=images_dir,
+            pattern=pattern,
+            output_dir=output_dir,
+            duration=duration,
+            loop=loop,
+        )
+        echo(f"✅  Animated GIFs written under {output_dir}")
+    except Exception as e:
+        logger.error("Animate command failed", exc_info=True)
+        echo(f"❌  Animation generation failed: {e}", err=True)
+        sys.exit(1)
 
 
 # ---- Gallery command ----
