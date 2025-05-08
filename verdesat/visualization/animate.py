@@ -4,10 +4,11 @@ import imageio
 import re
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+from typing import Union
 
 
 def make_gif(
-    images_dir: str,
+    images_dir: Union[str, Path],
     pattern: str,
     output_path: str,
     duration: float = 2,
@@ -66,7 +67,7 @@ def make_gif(
 
 # New function: make_gifs_per_site
 def make_gifs_per_site(
-    images_dir: str,
+    images_dir: Union[str, Path],
     pattern: str,
     output_dir: str,
     duration: float = 2,
