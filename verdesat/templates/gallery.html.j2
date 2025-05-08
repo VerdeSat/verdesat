@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>{{ title or "VerdeSat Gallery" }}</title>
+        <style>
+    body { font-family: sans-serif; }
+    .site { margin-bottom: 2em; }
+    .site h2 { margin-top: 1em; }
+    .thumb { display:inline-block; margin:4px; }
+    .thumb img { max-width:200px; border:1px solid #ccc; }
+    .caption { text-align:center; font-size:0.8em; }
+        </style>
+    </head>
+    <body>
+        <h1>{{ title or "Image Gallery" }}</h1>
+        {% for site, images in gallery.items() %}
+            <div class="site">
+                <h2>Site {{ site }}</h2>
+                {% for date, path in images %}
+                    <div class="thumb">
+                        <img src="{{ path }}" alt="{{ date }}">
+                        <div class="caption">{{ date }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </body>
+</html>
