@@ -16,6 +16,7 @@ from verdesat.analytics.trend import compute_trend
 from verdesat.analytics.preprocessing import interpolate_gaps
 from verdesat.visualization.plotly_viz import plot_timeseries_html
 from verdesat.visualization.static_viz import plot_time_series
+from verdesat.visualization.gallery import build_gallery
 from verdesat.ingestion.downloader import initialize, get_image_collection
 from verdesat.ingestion.indices import compute_index
 
@@ -511,6 +512,46 @@ def plot(datafile, index_col, agg_freq, interactive, output):
         png_path = output if output.lower().endswith(".png") else output + ".png"
         plot_time_series(df, index_col, png_path, agg_freq)
         echo(f"✅  Static plot saved to {png_path}")
+
+
+# ---- Gallery command ----
+@cli.command(name="gallery")
+@click.argument("chips_dir", type=click.Path(exists=True))
+@click.option(
+    "--template",
+    "-t",
+    type=click.Path(exists=True),
+    default=None,
+    help="Path to Jinja gallery template (defaults to built‑in)",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default="gallery.html",
+    help="Output HTML file path",
+)
+@click.option(
+    "--title",
+    default=None,
+    help="Title for the gallery page",
+)
+def gallery(chips_dir, template, output, title):
+    """
+    Build a static HTML image gallery from a directory of chips.
+    """
+    try:
+        build_gallery(
+            chips_dir=chips_dir,
+            output_html=output,
+            title=title,
+            template_path=template,
+        )
+        echo(f"✅  Gallery written to {output}")
+    except Exception as e:
+        logger.error("Gallery command failed", exc_info=True)
+        echo(f"❌  Gallery generation failed: {e}", err=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
