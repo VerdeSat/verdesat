@@ -2,9 +2,14 @@ import os
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
+from typing import Optional, Dict, List, Tuple
+
 
 def build_gallery(
-    chips_dir: str, output_html: str, title: str = None, template_path: str = None
+    chips_dir: str,
+    output_html: str,
+    title: Optional[str] = None,
+    template_path: Optional[str] = None,
 ) -> None:
     """
     Build a simple HTML gallery of image chips.
@@ -20,7 +25,7 @@ def build_gallery(
         raise ValueError(f"{chips_dir!r} is not a directory")
 
     # Gather image files
-    gallery = {}
+    gallery: Dict[str, List[Tuple[str, str]]] = {}
     for file in sorted(chip_path.iterdir()):
         if not file.is_file():
             continue
