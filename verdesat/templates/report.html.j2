@@ -1,0 +1,54 @@
+<!-- in templates/report.html.j2 -->
+<p>This report provides key metrics for each site, including:</p>
+<ul>
+    <li>
+        <strong>Mean NDVI:</strong> The average and median NDVI values, as well as minimum, maximum, and standard deviation.
+    </li>
+    <li>
+        <strong>Trend:</strong> Sen’s slope (robust trend per year).
+    </li>
+    <li>
+        <strong>Mann–Kendall p-value:</strong> Significance of the monotonic trend (lower values indicate more significant trends).
+    </li>
+    <li>
+        <strong>Trend ΔNDVI:</strong> Net change in the trend component from start to end.
+    </li>
+    <li>
+        <strong>Peak Month:</strong> The month when NDVI reaches its maximum value.
+    </li>
+    <li>
+        <strong>% Gapfilled:</strong> The percentage of data points that were gap-filled.
+    </li>
+</ul>
+<h2>Summary Statistics</h2>
+<p>
+    Sites with positive Sen’s slope show increasing vegetation health over time, while negative slopes indicate decline. A low Mann–Kendall p-value (&lt;0.05) indicates that the trend is statistically significant.
+</p>
+<table>
+    <tr>
+        <th>Site</th>
+        <th>Mean NDVI</th>
+        <th>Min NDVI</th>
+        <th>Max NDVI</th>
+        <th>Std NDVI</th>
+        <th>Sen's Slope (NDVI/yr)</th>
+        <th>Trend ΔNDVI</th>
+        <th>Mann–Kendall p-value</th>
+        <th>Peak Month</th>
+        <th>% Gapfilled</th>
+    </tr>
+    {% for row in stats %}
+        <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ "%.2f"|format(row.mean_ndvi) }}</td>
+            <td>{{ "%.2f"|format(row.min_ndvi) }}</td>
+            <td>{{ "%.2f"|format(row.max_ndvi) }}</td>
+            <td>{{ "%.2f"|format(row.std_ndvi) }}</td>
+            <td>{{ "%.4f"|format(row.sen_slope) }}</td>
+            <td>{{ "%.3f"|format(row.trend_delta_ndvi) }}</td>
+            <td>{{ "%.4f"|format(row.mk_pvalue) }}</td>
+            <td>{{ row.month_of_peak }}</td>
+            <td>{{ "%.1f"|format(row.percent_gapfilled) }}%</td>
+        </tr>
+    {% endfor %}
+</table>
