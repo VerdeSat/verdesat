@@ -12,7 +12,7 @@ def load_timeseries_divs(html_dir: str) -> Dict[str, str]:
     Read all files timeseries_<id>.html in html_dir and return { id: html_div, … }.
     """
     divs = {}
-    for p in Path(html_dir).glob("timeseries_*.html"):
+    for p in Path(html_dir).glob("*.html"):
         pid = p.stem.split("_")[1]
         divs[pid] = p.read_text()
     return divs
@@ -32,7 +32,7 @@ def build_report(
         gj = json.load(f)
     run_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     # 2. Compute summary stats (e.g. read CSV, calc slope)
-    stats_table = compute_summary_stats(timeseries_csv, decomposition_dir)
+    stats_table = compute_summary_stats(timeseries_csv, decomp_dir=decomposition_dir)
     # 3. Discover decomposition images: files named like "1_decomposition.png"
     decomp_pattern = r"(?P<id>\d+)_decomposition\.png"
     decomp_images = collect_assets(
@@ -50,7 +50,7 @@ def build_report(
         # key_fn default extracts m.group("id"), date_fn default m.group("date")
     )
     # 5. Load timeseries HTML divs
-    timeseries_divs = load_timeseries_divs(timeseries_csv)
+    timeseries_divs = load_timeseries_divs(chips_dir)
     # 6. Render Jinja
     env = Environment(
         loader=FileSystemLoader(searchpath=Path(__file__).parent.parent / "templates")

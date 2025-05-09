@@ -2,6 +2,14 @@
 <p>
     <em>Generated on {{ run_date }}</em>
 </p>
+{% if map_png %}
+    <h2>Project Area Map</h2>
+    <img src="{{ map_png }}"
+         alt="Project Area Map"
+         style="max-width:600px;
+                border:1px solid #ccc">
+{% endif %}
+<h2>Summary Statistics</h2>
 <p>This report provides key metrics for each site, including:</p>
 <ul>
     <li>
@@ -23,67 +31,93 @@
         <strong>% Gapfilled:</strong> The percentage of data points that were gap-filled.
     </li>
 </ul>
-{% if map_png %}
-    <h2>Project Area Map</h2>
-    <img src="{{ map_png }}"
-         alt="Project Area Map"
-         style="max-width:600px;
-                border:1px solid #ccc">
-{% endif %}
-<h2>Time Series</h2>
-{% for site, div in timeseries.items() %}
-    <h3>Site {{ site }}</h3>
-    {{ div | safe }}
-{% endfor %}
-<h2>Summary Statistics</h2>
 <p>
     Sites with positive Sen’s slope show increasing vegetation health over time, while negative slopes indicate decline. A low Mann–Kendall p-value (&lt;0.05) indicates that the trend is statistically significant.
 </p>
-<table>
+<table style="border-collapse: collapse; width:70%;">
     <tr>
-        <th>Site</th>
-        <th>Mean NDVI</th>
-        <th>Min NDVI</th>
-        <th>Max NDVI</th>
-        <th>Std NDVI</th>
-        <th>Sen's Slope (NDVI/yr)</th>
-        <th>Trend ΔNDVI</th>
-        <th>Mann–Kendall p-value</th>
-        <th>Peak Month</th>
-        <th>% Gapfilled</th>
+        <th style="padding:4px; text-align: left;">Site</th>
+        <th style="padding:4px; text-align: left;">Mean</th>
+        <th style="padding:4px; text-align: left;">Med</th>
+        <th style="padding:4px; text-align: left;">Min</th>
+        <th style="padding:4px; text-align: left;">Max</th>
+        <th style="padding:4px; text-align: left;">Std</th>
+        <th style="padding:4px; text-align: left;">Slope</th>
+        <th style="padding:4px; text-align: left;">ΔNDVI</th>
+        <th style="padding:4px; text-align: left;">p‑value</th>
+        <th style="padding:4px; text-align: left;">Peak</th>
+        <th style="padding:4px; text-align: left;">% Fill</th>
     </tr>
     {% for row in stats %}
         <tr>
-            <td>{{ row.id }}</td>
-            <td>{{ "%.2f"|format(row["Mean NDVI"]) }}</td>
-            <td>{{ "%.2f"|format(row["Min NDVI"]) }}</td>
-            <td>{{ "%.2f"|format(row["Max NDVI"]) }}</td>
-            <td>{{ "%.2f"|format(row["Std NDVI"]) }}</td>
-            <td>{{ "%.4f"|format(row["Sen's Slope (NDVI/yr)"]) }}</td>
-            <td>{{ "%.3f"|format(row["Trend ΔNDVI"]) }}</td>
-            <td>{{ "%.4f"|format(row["Mann–Kendall p-value"]) }}</td>
-            <td>{{ row["Peak Month"] }}</td>
-            <td>{{ "%.1f"|format(row["% Gapfilled"]) }}%</td>
+            <td style="padding:4px; text-align: left;">{{ row["Site ID"] }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Mean NDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Median NDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Min NDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Max NDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Std NDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.4f"|format(row["Sen's Slope (NDVI/yr)"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.3f"|format(row["Trend ΔNDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.4f"|format(row["Mann–Kendall p-value"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ row["Peak Month"] }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.1f"|format(row["% Gapfilled"]) }}%</td>
         </tr>
     {% endfor %}
 </table>
 <h2>Decomposition Plots</h2>
-{% for site, images in decomp.items() %}
+<p>
+    Each decomposition chart shows:
+    <ul>
+        <li>
+            <strong>Observed</strong>: original NDVI time series.
+        </li>
+        <li>
+            <strong>Trend</strong>: long-term NDVI trend.
+        </li>
+        <li>
+            <strong>Seasonal</strong>: repeating seasonal cycle.
+        </li>
+        <li>
+            <strong>Residual</strong>: remaining variations.
+        </li>
+    </ul>
+</p>
+{% for site, images in decomp|dictsort %}
     <h3>Site {{ site }}</h3>
     {% for label, path in images %}
         <img src="{{ path }}"
              alt="Decomposition {{ site }}"
-             style="max-width:200px;
-                    margin:4px">
+             style="margin:4px">
     {% endfor %}
 {% endfor %}
-<h2>Image Gallery</h2>
-{% for site, images in gallery.items() %}
-    <h3>Site {{ site }}</h3>
-    {% for label, path in images %}
+<h2>Time Series</h2>
+{% if timeseries.get("all") %}{{ timeseries["all"] | safe }}{% endif %}
+{% for site, div in timeseries|dictsort %}
+    {% if site != "all" %}
+        <h3>Site {{ site }}</h3>
+        {{ div | safe }}
+    {% endif %}
+{% endfor %}
+{% for site in stats|sort(attribute='Site ID') %}
+    <h2>Site {{ site['Site ID'] }}</h2>
+    {% for label,path in decomp.get(site['Site ID'], []) %}
         <img src="{{ path }}"
-             alt="Chip {{ site }} {{ label }}"
+             alt="Decomposition {{ site['Site ID'] }}"
              style="max-width:200px;
                     margin:4px">
     {% endfor %}
+    {% for label,path in gallery.get(site['Site ID'], []) %}
+        <img src="{{ path }}"
+             alt="Chip {{ site['Site ID'] }} {{ label }}"
+             style="max-width:200px;
+                    margin:4px">
+    {% endfor %}
+    {% if gifs is defined %}
+        {% for label,path in gifs.get(site['Site ID'], []) %}
+            <img src="{{ path }}"
+                 alt="GIF {{ site['Site ID'] }} {{ label }}"
+                 style="max-width:200px;
+                        margin:4px">
+        {% endfor %}
+    {% endif %}
 {% endfor %}
