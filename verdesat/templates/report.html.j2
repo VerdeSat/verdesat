@@ -1,4 +1,7 @@
-<!-- in templates/report.html.j2 -->
+<h1>{{ title }}</h1>
+<p>
+    <em>Generated on {{ run_date }}</em>
+</p>
 <p>This report provides key metrics for each site, including:</p>
 <ul>
     <li>
@@ -20,6 +23,18 @@
         <strong>% Gapfilled:</strong> The percentage of data points that were gap-filled.
     </li>
 </ul>
+{% if map_png %}
+    <h2>Project Area Map</h2>
+    <img src="{{ map_png }}"
+         alt="Project Area Map"
+         style="max-width:600px;
+                border:1px solid #ccc">
+{% endif %}
+<h2>Time Series</h2>
+{% for site, div in timeseries.items() %}
+    <h3>Site {{ site }}</h3>
+    {{ div | safe }}
+{% endfor %}
 <h2>Summary Statistics</h2>
 <p>
     Sites with positive Sen’s slope show increasing vegetation health over time, while negative slopes indicate decline. A low Mann–Kendall p-value (&lt;0.05) indicates that the trend is statistically significant.
@@ -40,15 +55,35 @@
     {% for row in stats %}
         <tr>
             <td>{{ row.id }}</td>
-            <td>{{ "%.2f"|format(row.mean_ndvi) }}</td>
-            <td>{{ "%.2f"|format(row.min_ndvi) }}</td>
-            <td>{{ "%.2f"|format(row.max_ndvi) }}</td>
-            <td>{{ "%.2f"|format(row.std_ndvi) }}</td>
-            <td>{{ "%.4f"|format(row.sen_slope) }}</td>
-            <td>{{ "%.3f"|format(row.trend_delta_ndvi) }}</td>
-            <td>{{ "%.4f"|format(row.mk_pvalue) }}</td>
-            <td>{{ row.month_of_peak }}</td>
-            <td>{{ "%.1f"|format(row.percent_gapfilled) }}%</td>
+            <td>{{ "%.2f"|format(row["Mean NDVI"]) }}</td>
+            <td>{{ "%.2f"|format(row["Min NDVI"]) }}</td>
+            <td>{{ "%.2f"|format(row["Max NDVI"]) }}</td>
+            <td>{{ "%.2f"|format(row["Std NDVI"]) }}</td>
+            <td>{{ "%.4f"|format(row["Sen's Slope (NDVI/yr)"]) }}</td>
+            <td>{{ "%.3f"|format(row["Trend ΔNDVI"]) }}</td>
+            <td>{{ "%.4f"|format(row["Mann–Kendall p-value"]) }}</td>
+            <td>{{ row["Peak Month"] }}</td>
+            <td>{{ "%.1f"|format(row["% Gapfilled"]) }}%</td>
         </tr>
     {% endfor %}
 </table>
+<h2>Decomposition Plots</h2>
+{% for site, images in decomp.items() %}
+    <h3>Site {{ site }}</h3>
+    {% for label, path in images %}
+        <img src="{{ path }}"
+             alt="Decomposition {{ site }}"
+             style="max-width:200px;
+                    margin:4px">
+    {% endfor %}
+{% endfor %}
+<h2>Image Gallery</h2>
+{% for site, images in gallery.items() %}
+    <h3>Site {{ site }}</h3>
+    {% for label, path in images %}
+        <img src="{{ path }}"
+             alt="Chip {{ site }} {{ label }}"
+             style="max-width:200px;
+                    margin:4px">
+    {% endfor %}
+{% endfor %}
