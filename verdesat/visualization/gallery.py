@@ -1,8 +1,25 @@
+# in verdesat/visualization/gallery.py
+
 import os
 from pathlib import Path
+from typing import Optional, Dict, List, Tuple
 from jinja2 import Environment, FileSystemLoader
 
-from typing import Optional, Dict, List, Tuple
+
+def collect_gallery(chips_dir: str) -> Dict[int, List[Tuple[str, str]]]:
+    """
+    Scan a directory of chips named like "{id}_{YYYY-MM-DD}.png"
+    and return a dict mapping id → list of (date_str, rel_path).
+    """
+    gallery: Dict[int, List[Tuple[str, str]]] = {}
+    p = Path(chips_dir)
+    for img in sorted(p.glob("*.png")):
+        name = img.stem  # e.g. "3_2021-06-01"
+        parts = name.split("_", 1)
+        pid = int(parts[0])
+        date = parts[1]
+        gallery.setdefault(pid, []).append((date, str(img)))
+    return gallery
 
 
 def build_gallery(
