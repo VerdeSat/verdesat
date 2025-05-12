@@ -1,0 +1,110 @@
+<h1>{{ title }}</h1>
+<p>
+    <em>Generated on {{ run_date }}</em>
+</p>
+{% if map_png %}
+    <h2>Project Area Map</h2>
+    <img src="{{ map_png }}"
+         alt="Project Area Map"
+         style="max-width:600px;
+                border:1px solid #ccc">
+{% endif %}
+<h2>Summary Statistics</h2>
+<p>This report provides key metrics for each site, including:</p>
+<ul>
+    <li>
+        <strong>Mean NDVI:</strong> The average and median NDVI values, as well as minimum, maximum, and standard deviation.
+    </li>
+    <li>
+        <strong>Trend:</strong> Sen’s slope (robust trend per year).
+    </li>
+    <li>
+        <strong>Mann–Kendall p-value:</strong> Significance of the monotonic trend (lower values indicate more significant trends).
+    </li>
+    <li>
+        <strong>Trend ΔNDVI:</strong> Net change in the trend component from start to end.
+    </li>
+    <li>
+        <strong>Peak Month:</strong> The month when NDVI reaches its maximum value.
+    </li>
+    <li>
+        <strong>% Gapfilled:</strong> The percentage of data points that were gap-filled.
+    </li>
+</ul>
+<p>
+    Sites with positive Sen’s slope show increasing vegetation health over time, while negative slopes indicate decline. A low Mann–Kendall p-value (&lt;0.05) indicates that the trend is statistically significant.
+</p>
+<table style="border-collapse: collapse; width:70%;">
+    <tr>
+        <th style="padding:4px; text-align: left;">Site</th>
+        <th style="padding:4px; text-align: left;">Mean</th>
+        <th style="padding:4px; text-align: left;">Med</th>
+        <th style="padding:4px; text-align: left;">Min</th>
+        <th style="padding:4px; text-align: left;">Max</th>
+        <th style="padding:4px; text-align: left;">Std</th>
+        <th style="padding:4px; text-align: left;">Slope</th>
+        <th style="padding:4px; text-align: left;">ΔNDVI</th>
+        <th style="padding:4px; text-align: left;">p‑value</th>
+        <th style="padding:4px; text-align: left;">Peak</th>
+        <th style="padding:4px; text-align: left;">% Fill</th>
+    </tr>
+    {% for row in stats %}
+        <tr>
+            <td style="padding:4px; text-align: left;">{{ row["Site ID"] }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Mean NDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Median NDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Min NDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Max NDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Std NDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.4f"|format(row["Sen's Slope (NDVI/yr)"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.3f"|format(row["Trend ΔNDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.4f"|format(row["Mann–Kendall p-value"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ row["Peak Month"] }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.1f"|format(row["% Gapfilled"]) }}%</td>
+        </tr>
+    {% endfor %}
+</table>
+<h2>Project Time Series</h2>
+{% if timeseries_html %}{{ timeseries_html | safe }}{% endif %}
+{% for row in stats|sort(attribute='Site ID') %}
+    {% set pid = row['Site ID'] %}
+    <h2>Site {{ pid }}</h2>
+    <h3>Decomposition Plot</h3>
+    {% set site_decomp = decomp.get(pid, decomp.get(pid|string, [])) %}
+    {% if site_decomp %}
+        {% for label, path in site_decomp %}
+            <img src="{{ path }}"
+                 alt="Decomposition {{ pid }}"
+                 style="max-width:600px;
+                        margin:4px">
+        {% endfor %}
+    {% else %}
+        <p>
+            <em>No decomposition plots available for this site.</em>
+        </p>
+    {% endif %}
+    <h3>Image Chips</h3>
+    {% set site_gallery = gallery.get(pid, gallery.get(pid|string, [])) %}
+    {% if site_gallery %}
+        {% for label, path in site_gallery %}
+            <img src="{{ path }}"
+                 alt="Chip {{ pid }} {{ label }}"
+                 style="max-width:200px;
+                        margin:4px">
+        {% endfor %}
+    {% else %}
+        <p>
+            <em>No chips available for this site.</em>
+        </p>
+    {% endif %}
+    {% set site_gifs = (gifs.get(pid, gifs.get(pid|string, [])) if gifs is defined else []) %}
+    {% if site_gifs %}
+        <h3>Animations</h3>
+        {% for label, path in site_gifs %}
+            <img src="{{ path }}"
+                 alt="GIF {{ pid }} {{ label }}"
+                 style="max-width:200px;
+                        margin:4px">
+        {% endfor %}
+    {% endif %}
+{% endfor %}

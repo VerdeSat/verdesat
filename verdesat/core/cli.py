@@ -601,5 +601,81 @@ def gallery(chips_dir, template, output, title):
         sys.exit(1)
 
 
+@cli.command(name="report")
+@click.argument("geojson", type=click.Path(exists=True))
+@click.argument("timeseries_csv", type=click.Path(exists=True))
+@click.argument("timeseries_html", type=click.Path(exists=True))
+@click.option(
+    "--gifs-dir",
+    "-g",
+    type=click.Path(exists=True),
+    default=None,
+    help="Directory of per-site animated GIFs",
+)
+@click.option(
+    "--decomposition-dir",
+    "-d",
+    type=click.Path(exists=True),
+    required=True,
+    help="Directory containing per-site decomposition PNGs",
+)
+@click.option(
+    "--chips-dir",
+    "-c",
+    type=click.Path(exists=True),
+    required=True,
+    help="Directory containing per-site image chips",
+)
+@click.option(
+    "--map-png",
+    type=click.Path(exists=True),
+    default=None,
+    help="Optional static PNG of project area to embed in report",
+)
+@click.option(
+    "--title", type=str, default="VerdeSat Report", help="Title for the HTML report"
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default="report.html",
+    help="Output HTML report path",
+)
+def report(
+    geojson: str,
+    timeseries_csv: str,
+    timeseries_html: str,
+    gifs_dir: str,
+    decomposition_dir: str,
+    chips_dir: str,
+    map_png: str,
+    title: str,
+    output: str,
+):
+    """
+    Generate a one‑page HTML report summarizing statistics, time‑series, decomposition, and image gallery.
+    """
+    echo(f"Building report '{output}'...")
+    from verdesat.visualization.report import build_report
+
+    try:
+        build_report(
+            geojson_path=geojson,
+            timeseries_csv=timeseries_csv,
+            timeseries_html=timeseries_html,
+            gifs_dir=gifs_dir,
+            decomposition_dir=decomposition_dir,
+            chips_dir=chips_dir,
+            map_png=map_png,
+            output_path=output,
+            title=title,
+        )
+        echo(f"✅  Report saved to {output}")
+    except Exception as e:
+        echo(f"❌  Failed to build report: {e}")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     cli()
