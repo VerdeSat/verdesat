@@ -64,58 +64,43 @@
         </tr>
     {% endfor %}
 </table>
-<h2>Decomposition Plots</h2>
-<p>
-    Each decomposition chart shows:
-    <ul>
-        <li>
-            <strong>Observed</strong>: original NDVI time series.
-        </li>
-        <li>
-            <strong>Trend</strong>: long-term NDVI trend.
-        </li>
-        <li>
-            <strong>Seasonal</strong>: repeating seasonal cycle.
-        </li>
-        <li>
-            <strong>Residual</strong>: remaining variations.
-        </li>
-    </ul>
-</p>
-{% for site, images in decomp|dictsort %}
-    <h3>Site {{ site }}</h3>
-    {% for label, path in images %}
-        <img src="{{ path }}"
-             alt="Decomposition {{ site }}"
-             style="margin:4px">
-    {% endfor %}
-{% endfor %}
-<h2>Time Series</h2>
-{% if timeseries.get("all") %}{{ timeseries["all"] | safe }}{% endif %}
-{% for site, div in timeseries|dictsort %}
-    {% if site != "all" %}
-        <h3>Site {{ site }}</h3>
-        {{ div | safe }}
-    {% endif %}
-{% endfor %}
-{% for site in stats|sort(attribute='Site ID') %}
-    <h2>Site {{ site['Site ID'] }}</h2>
-    {% for label,path in decomp.get(site['Site ID'], []) %}
-        <img src="{{ path }}"
-             alt="Decomposition {{ site['Site ID'] }}"
-             style="max-width:200px;
-                    margin:4px">
-    {% endfor %}
-    {% for label,path in gallery.get(site['Site ID'], []) %}
-        <img src="{{ path }}"
-             alt="Chip {{ site['Site ID'] }} {{ label }}"
-             style="max-width:200px;
-                    margin:4px">
-    {% endfor %}
-    {% if gifs is defined %}
-        {% for label,path in gifs.get(site['Site ID'], []) %}
+<h2>Project Time Series</h2>
+{% if timeseries_html %}{{ timeseries_html | safe }}{% endif %}
+{% for row in stats|sort(attribute='Site ID') %}
+    <h2>Site {{ row["Site ID"] }}</h2>
+    <h3>Decomposition Plot</h3>
+    {% set site_decomp = decomp.get(row["Site ID"] ~ '', []) %}
+    {% if site_decomp %}
+        {% for label, path in site_decomp %}
             <img src="{{ path }}"
-                 alt="GIF {{ site['Site ID'] }} {{ label }}"
+                 alt="Decomposition {{ row['Site ID'] }}"
+                 style="max-width:600px;
+                        margin:4px">
+        {% endfor %}
+    {% else %}
+        <p>
+            <em>No decomposition plots available for this site.</em>
+        </p>
+    {% endif %}
+    <h3>Image Chips</h3>
+    {% set site_gallery = gallery.get(row["Site ID"] ~ '', []) %}
+    {% if site_gallery %}
+        {% for label, path in site_gallery %}
+            <img src="{{ path }}"
+                 alt="Chip {{ row['Site ID'] }} {{ label }}"
+                 style="max-width:200px;
+                        margin:4px">
+        {% endfor %}
+    {% else %}
+        <p>
+            <em>No chips available for this site.</em>
+        </p>
+    {% endif %}
+    {% if gifs is defined %}
+        <h3>Animations</h3>
+        {% for label, path in gifs.get(row["Site ID"] ~ '', []) %}
+            <img src="{{ path }}"
+                 alt="GIF {{ row['Site ID'] }} {{ label }}"
                  style="max-width:200px;
                         margin:4px">
         {% endfor %}

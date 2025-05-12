@@ -605,6 +605,17 @@ def gallery(chips_dir, template, output, title):
 @click.argument("geojson", type=click.Path(exists=True))
 @click.argument("timeseries_csv", type=click.Path(exists=True))
 @click.option(
+    "--timeseries-html", "-t",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to interactive time-series HTML to embed"
+)
+@click.option("--gifs-dir", "-g",
+              type=click.Path(exists=True),
+              default=None,
+              help="Directory of per-site animated GIFs"
+)
+@click.option(
     "--decomposition-dir",
     "-d",
     type=click.Path(exists=True),
@@ -637,6 +648,8 @@ def gallery(chips_dir, template, output, title):
 def report(
     geojson: str,
     timeseries_csv: str,
+    timeseries_html: str,
+    gifs_dir: str,
     decomposition_dir: str,
     chips_dir: str,
     map_png: str,
@@ -653,6 +666,8 @@ def report(
         build_report(
             geojson_path=geojson,
             timeseries_csv=timeseries_csv,
+            timeseries_html=timeseries_html,
+            gifs_dir=gifs_dir,
             decomposition_dir=decomposition_dir,
             chips_dir=chips_dir,
             map_png=map_png,

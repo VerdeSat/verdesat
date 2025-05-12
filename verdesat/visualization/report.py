@@ -1,21 +1,10 @@
 import os, json
 from pathlib import Path
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Optional
 from jinja2 import Environment, FileSystemLoader
 from verdesat.analytics.stats import compute_summary_stats
 from verdesat.visualization._collect import collect_assets
-
-
-def load_timeseries_divs(html_dir: str) -> Dict[str, str]:
-    """
-    Read all files timeseries_<id>.html in html_dir and return { id: html_div, … }.
-    """
-    divs = {}
-    for p in Path(html_dir).glob("*.html"):
-        pid = p.stem.split("_")[1]
-        divs[pid] = p.read_text()
-    return divs
 
 
 def build_report(
@@ -23,6 +12,8 @@ def build_report(
     timeseries_csv: str,
     decomposition_dir: str,
     chips_dir: str,
+    timeseries_html: Optional[str] = None,
+    gifs_dir: Optional[str] = None,
     map_png: str = None,
     output_path: str = None,
     title: str = "VerdeSat Report",
@@ -38,19 +29,33 @@ def build_report(
     decomp_images = collect_assets(
         base_dir=decomposition_dir,
         filename_regex=decomp_pattern,
-        # date_fn can be a no‐op since there's no date in the filename:
+        key_fn=lambda m: int(m.group("id")),
         date_fn=lambda m: "decomposition",
     )
 
     # 4. Discover chips gallery: files like "NDVI_<id>_<YYYY-MM-DD>.png"
-    gallery_pattern = r"(?P<id>\d+)_(?P<date>\d{4}-\d{2}-\d{2})\.png"
+    gallery_pattern = r"^[^_]+_(?P<id>\d+)_(?P<date>\d{4}-\d{2}-\d{2})\.png$"
     gallery = collect_assets(
         base_dir=chips_dir,
         filename_regex=gallery_pattern,
-        # key_fn default extracts m.group("id"), date_fn default m.group("date")
+        key_fn=lambda m: int(m.group("id")),
     )
-    # 5. Load timeseries HTML divs
-    timeseries_divs = load_timeseries_divs(chips_dir)
+    # Collect GIFs if provided
+    gifs = {}
+    if gifs_dir:
+        gif_pattern = r"(?P<id>\d+)_.*\.gif"
+        gifs = collect_assets(
+            base_dir=gifs_dir,
+            filename_regex=gif_pattern,
+            key_fn=lambda m: int(m.group("id")),
+            date_fn=lambda m: m.group(0),
+        )
+    # Load single interactive time-series plot (if provided)
+    timeseries_html_div = None
+    if timeseries_html:
+        from pathlib import Path
+
+        timeseries_html_div = Path(timeseries_html).read_text()
     # 6. Render Jinja
     env = Environment(
         loader=FileSystemLoader(searchpath=Path(__file__).parent.parent / "templates")
@@ -61,9 +66,10 @@ def build_report(
         run_date=run_date,
         stats=stats_table,
         map_png=map_png,
-        timeseries=timeseries_divs,
+        timeseries_html=timeseries_html_div,
         decomp=decomp_images,
         gallery=gallery,
+        gifs=gifs,
     )
     os.makedirs(Path(output_path).parent, exist_ok=True)
     with open(output_path, "w") as f:
