@@ -67,13 +67,14 @@
 <h2>Project Time Series</h2>
 {% if timeseries_html %}{{ timeseries_html | safe }}{% endif %}
 {% for row in stats|sort(attribute='Site ID') %}
-    <h2>Site {{ row["Site ID"] }}</h2>
+    {% set pid = row['Site ID'] %}
+    <h2>Site {{ pid }}</h2>
     <h3>Decomposition Plot</h3>
-    {% set site_decomp = decomp.get(row["Site ID"] ~ '', []) %}
+    {% set site_decomp = decomp.get(pid, decomp.get(pid|string, [])) %}
     {% if site_decomp %}
         {% for label, path in site_decomp %}
             <img src="{{ path }}"
-                 alt="Decomposition {{ row['Site ID'] }}"
+                 alt="Decomposition {{ pid }}"
                  style="max-width:600px;
                         margin:4px">
         {% endfor %}
@@ -83,11 +84,11 @@
         </p>
     {% endif %}
     <h3>Image Chips</h3>
-    {% set site_gallery = gallery.get(row["Site ID"] ~ '', []) %}
+    {% set site_gallery = gallery.get(pid, gallery.get(pid|string, [])) %}
     {% if site_gallery %}
         {% for label, path in site_gallery %}
             <img src="{{ path }}"
-                 alt="Chip {{ row['Site ID'] }} {{ label }}"
+                 alt="Chip {{ pid }} {{ label }}"
                  style="max-width:200px;
                         margin:4px">
         {% endfor %}
@@ -96,11 +97,12 @@
             <em>No chips available for this site.</em>
         </p>
     {% endif %}
-    {% if gifs is defined %}
+    {% set site_gifs = (gifs.get(pid, gifs.get(pid|string, [])) if gifs is defined else []) %}
+    {% if site_gifs %}
         <h3>Animations</h3>
-        {% for label, path in gifs.get(row["Site ID"] ~ '', []) %}
+        {% for label, path in site_gifs %}
             <img src="{{ path }}"
-                 alt="GIF {{ row['Site ID'] }} {{ label }}"
+                 alt="GIF {{ pid }} {{ label }}"
                  style="max-width:200px;
                         margin:4px">
         {% endfor %}

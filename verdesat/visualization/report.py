@@ -10,12 +10,12 @@ from verdesat.visualization._collect import collect_assets
 def build_report(
     geojson_path: str,
     timeseries_csv: str,
-    timeseries_html: str,
+    timeseries_html: Optional[str] = None,
     gifs_dir: Optional[str] = None,
-    decomposition_dir: [str] = None,
-    chips_dir: [str] = None,
-    map_png: str = None,
-    output_path: str = None,
+    decomposition_dir: Optional[str] = None,
+    chips_dir: Optional[str] = None,
+    map_png: Optional[str] = None,
+    output_path: str = "verdesat_report.html",
     title: str = "VerdeSat Report",
 ):
 
@@ -23,24 +23,28 @@ def build_report(
     with open(geojson_path) as f:
         gj = json.load(f)
     run_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    # 2. Compute summary stats (e.g. read CSV, calc slope)
+    # 2. compute summary stats
     stats_table = compute_summary_stats(timeseries_csv, decomp_dir=decomposition_dir)
     # 3. Discover decomposition images: files named like "1_decomposition.png"
     decomp_pattern = r"(?P<id>\d+)_decomposition\.png"
-    decomp_images = collect_assets(
-        base_dir=decomposition_dir,
-        filename_regex=decomp_pattern,
-        key_fn=lambda m: int(m.group("id")),
-        date_fn=lambda m: "decomposition",
-    )
+    decomp_images = {}
+    if decomposition_dir:
+        decomp_images = collect_assets(
+            base_dir=decomposition_dir,
+            filename_regex=decomp_pattern,
+            key_fn=lambda m: int(m.group("id")),
+            date_fn=lambda m: "decomposition",
+        )
 
     # 4. Discover chips gallery: files like "NDVI_<id>_<YYYY-MM-DD>.png"
     gallery_pattern = r"^[^_]+_(?P<id>\d+)_(?P<date>\d{4}-\d{2}-\d{2})\.png$"
-    gallery = collect_assets(
-        base_dir=chips_dir,
-        filename_regex=gallery_pattern,
-        key_fn=lambda m: int(m.group("id")),
-    )
+    gallery = {}
+    if chips_dir:
+        gallery = collect_assets(
+            base_dir=chips_dir,
+            filename_regex=gallery_pattern,
+            key_fn=lambda m: int(m.group("id")),
+        )
     # Collect GIFs if provided
     gifs = {}
     if gifs_dir:
