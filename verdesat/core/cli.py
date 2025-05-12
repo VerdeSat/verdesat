@@ -605,10 +605,12 @@ def gallery(chips_dir, template, output, title):
 @click.argument("geojson", type=click.Path(exists=True))
 @click.argument("timeseries_csv", type=click.Path(exists=True))
 @click.argument("timeseries_html", type=click.Path(exists=True))
-@click.option("--gifs-dir", "-g",
-              type=click.Path(exists=True),
-              default=None,
-              help="Directory of per-site animated GIFs"
+@click.option(
+    "--gifs-dir",
+    "-g",
+    type=click.Path(exists=True),
+    default=None,
+    help="Directory of per-site animated GIFs",
 )
 @click.option(
     "--decomposition-dir",
