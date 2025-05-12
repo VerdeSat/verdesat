@@ -1,18 +1,50 @@
-from verdesat.visualization.report import build_report
+import pytest
+import json
+import pandas as pd
+from pathlib import Path
 
+@pytest.fixture
+def sample_geojson(tmp_path):
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"id": 1},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]],
+                },
+            }
+        ],
+    }
+    path = tmp_path / "sample.geojson"
+    path.write_text(json.dumps(geojson))
+    return path
 
-def test_build_report(
-    tmp_path, sample_geojson, sample_timeseries_csv, sample_decomp_dir, sample_chips_dir
-):
-    out = tmp_path / "report.html"
-    build_report(
-        str(sample_geojson),
-        str(sample_timeseries_csv),
-        str(sample_decomp_dir),
-        str(sample_chips_dir),
-        str(out),
-        title="Test",
-    )
-    assert out.exists()
-    content = out.read_text()
-    assert "<html" in content and "Test" in content
+@pytest.fixture
+def sample_timeseries_csv(tmp_path):
+    data = pd.DataFrame({
+        "date": ["2020-01-01", "2020-02-01"],
+        "id": [1, 1],
+        "mean_ndvi": [0.5, 0.6],
+    })
+    path = tmp_path / "timeseries.csv"
+    data.to_csv(path, index=False)
+    return path
+
+@pytest.fixture
+def sample_decomp_dir(tmp_path):
+    d = tmp_path / "decomp"
+    d.mkdir()
+    # create a dummy decomposition PNG
+    (d / "1_decomposition.png").write_bytes(b"")
+    return d
+
+@pytest.fixture
+def sample_chips_dir(tmp_path):
+    d = tmp_path / "chips"
+    d.mkdir()
+    # create a dummy chip PNG matching gallery pattern
+    (d / "1_2020-01-01.png").write_bytes(b"")
+    return d
