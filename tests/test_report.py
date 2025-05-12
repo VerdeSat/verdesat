@@ -1,7 +1,7 @@
-import pytest
 import json
+import pytest
 import pandas as pd
-from pathlib import Path
+
 
 @pytest.fixture
 def sample_geojson(tmp_path):
@@ -22,16 +22,20 @@ def sample_geojson(tmp_path):
     path.write_text(json.dumps(geojson))
     return path
 
+
 @pytest.fixture
 def sample_timeseries_csv(tmp_path):
-    data = pd.DataFrame({
-        "date": ["2020-01-01", "2020-02-01"],
-        "id": [1, 1],
-        "mean_ndvi": [0.5, 0.6],
-    })
+    data = pd.DataFrame(
+        {
+            "date": ["2020-01-01", "2020-02-01"],
+            "id": [1, 1],
+            "mean_ndvi": [0.5, 0.6],
+        }
+    )
     path = tmp_path / "timeseries.csv"
     data.to_csv(path, index=False)
     return path
+
 
 @pytest.fixture
 def sample_decomp_dir(tmp_path):
@@ -40,6 +44,7 @@ def sample_decomp_dir(tmp_path):
     # create a dummy decomposition PNG
     (d / "1_decomposition.png").write_bytes(b"")
     return d
+
 
 @pytest.fixture
 def sample_chips_dir(tmp_path):
