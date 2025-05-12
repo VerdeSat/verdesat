@@ -10,14 +10,15 @@ from verdesat.visualization._collect import collect_assets
 def build_report(
     geojson_path: str,
     timeseries_csv: str,
-    decomposition_dir: str,
-    chips_dir: str,
-    timeseries_html: Optional[str] = None,
+    timeseries_html: str,
     gifs_dir: Optional[str] = None,
+    decomposition_dir: [str] = None,
+    chips_dir: [str] = None,
     map_png: str = None,
     output_path: str = None,
     title: str = "VerdeSat Report",
 ):
+
     # 1. Load data
     with open(geojson_path) as f:
         gj = json.load(f)

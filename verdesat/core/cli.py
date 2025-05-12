@@ -604,12 +604,7 @@ def gallery(chips_dir, template, output, title):
 @cli.command(name="report")
 @click.argument("geojson", type=click.Path(exists=True))
 @click.argument("timeseries_csv", type=click.Path(exists=True))
-@click.option(
-    "--timeseries-html", "-t",
-    type=click.Path(exists=True),
-    required=True,
-    help="Path to interactive time-series HTML to embed"
-)
+@click.argument("timeseries_html", type=click.Path(exists=True))
 @click.option("--gifs-dir", "-g",
               type=click.Path(exists=True),
               default=None,
