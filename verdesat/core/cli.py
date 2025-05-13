@@ -88,7 +88,7 @@ def download():
     "--agg",
     "-a",
     type=click.Choice(["D", "M", "Y"]),
-    default="D",
+    default="M",
     help="Temporal aggregation: D,M,Y",
 )
 @click.option(
@@ -675,6 +675,122 @@ def report(
     except Exception as e:
         echo(f"❌  Failed to build report: {e}")
         sys.exit(1)
+
+
+@cli.group()
+def pipeline():
+    """High-level workflows that glue together multiple commands."""
+
+
+from datetime import datetime
+
+
+@pipeline.command("report")
+@click.option("--geojson", "-g", required=True, help="AOI GeoJSON")
+@click.option("--start", "-s", required=True, help="Start date (YYYY-MM-DD)")
+@click.option("--end", "-e", required=True, help="End date (YYYY-MM-DD)")
+@click.option("--out-dir", "-o", default="verdesat_output", help="Output folder")
+@click.option("--map-png", help="Optional map PNG to embed")
+@click.option("--title", "-t", default="VerdeSat Report", help="Report title")
+def pipeline_report(geojson, start, end, out_dir, map_png, title):
+    """Run full NDVI → report pipeline in one go."""
+    ctx = click.get_current_context()
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
+    ctx = click.get_current_context()
+
+    # 1. Time series
+    timeseries_csv = os.path.join(out_dir, "timeseries.csv")
+    # ctx.invoke(
+    #     timeseries,
+    #     geojson=geojson,
+    #     start=start,
+    #     end=end,
+    #     agg="M",
+    #     output=timeseries_csv,
+    # )
+    # 2. Aggregate & fill
+    monthly_csv = os.path.join(out_dir, "timeseries_monthly.csv")
+    ctx.invoke(aggregate, input_csv=timeseries_csv, freq="M", output=monthly_csv)
+    ctx.invoke(
+        fill_gaps_cmd,
+        input_csv=monthly_csv,
+        output=os.path.join(out_dir, "timeseries_filled.csv"),
+    )
+    # 3. Decompose
+    decomp_dir = os.path.join(out_dir, "decomp")
+    ctx.invoke(
+        decompose,
+        input_csv=os.path.join(out_dir, "timeseries_filled.csv"),
+        output_dir=decomp_dir,
+    )
+
+    # 4. Annual image chips (NDVI per year)
+    annual_chips_dir = os.path.join(out_dir, "chips_annual")
+    # ctx.invoke(
+    #     chips,
+    #     geojson=geojson,
+    #     start=start,
+    #     end=end,
+    #     period="Y",
+    #     chip_type="ndvi",
+    #     format="png",
+    #     out_dir=annual_chips_dir,
+    # )
+
+    # 5. Monthly composites for GIFs
+    monthly_chips_dir = os.path.join(out_dir, "chips_monthly")
+    # ctx.invoke(
+    #     chips,
+    #     geojson=geojson,
+    #     start=start,
+    #     end=end,
+    #     period="M",
+    #     chip_type="ndvi",
+    #     format="png",
+    #     out_dir=monthly_chips_dir,
+    # )
+
+    # 6. Animated GIFs: one per site per year
+    gifs_dir = os.path.join(out_dir, "gifs")
+    # start_year = datetime.strptime(start, "%Y-%m-%d").year
+    # end_year = datetime.strptime(end, "%Y-%m-%d").year
+    # for year in range(start_year, end_year + 1):
+    #     year_pattern = f"*_{year}-*.png"
+    #     year_gif_dir = os.path.join(gifs_dir, str(year))
+    #     ctx.invoke(
+    #         animate,
+    #         images_dir=monthly_chips_dir,
+    #         pattern=year_pattern,
+    #         output_dir=year_gif_dir,
+    #     )
+
+    # Generate combined interactive time series plot for all sites
+    timeseries_all_html = os.path.join(out_dir, "timeseries_all.html")
+    ctx.invoke(
+        plot,
+        datafile=timeseries_csv,
+        index_col="mean_ndvi",
+        agg_freq="M",
+        interactive=True,
+        output=timeseries_all_html,
+    )
+
+    # 7. Final report
+    report_html = os.path.join(out_dir, "report.html")
+    ctx.invoke(
+        report,
+        geojson=geojson,
+        timeseries_csv=os.path.join(out_dir, "timeseries_filled.csv"),
+        timeseries_html=timeseries_all_html,
+        gifs_dir=gifs_dir,
+        decomposition_dir=decomp_dir,
+        chips_dir=annual_chips_dir,
+        map_png=map_png,
+        title=title,
+        output=report_html,
+    )
+    click.echo(f"\n✅  All done! Your full report is here: {report_html}")
 
 
 if __name__ == "__main__":
