@@ -711,19 +711,19 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
     # )
     # 2. Aggregate & fill
     monthly_csv = os.path.join(out_dir, "timeseries_monthly.csv")
-    ctx.invoke(aggregate, input_csv=timeseries_csv, freq="M", output=monthly_csv)
-    ctx.invoke(
-        fill_gaps_cmd,
-        input_csv=monthly_csv,
-        output=os.path.join(out_dir, "timeseries_filled.csv"),
-    )
+    # ctx.invoke(aggregate, input_csv=timeseries_csv, freq="M", output=monthly_csv)
+    # ctx.invoke(
+    #     fill_gaps_cmd,
+    #     input_csv=monthly_csv,
+    #     output=os.path.join(out_dir, "timeseries_filled.csv"),
+    # )
     # 3. Decompose
     decomp_dir = os.path.join(out_dir, "decomp")
-    ctx.invoke(
-        decompose,
-        input_csv=os.path.join(out_dir, "timeseries_filled.csv"),
-        output_dir=decomp_dir,
-    )
+    # ctx.invoke(
+    #     decompose,
+    #     input_csv=os.path.join(out_dir, "timeseries_filled.csv"),
+    #     output_dir=decomp_dir,
+    # )
 
     # 4. Annual image chips (NDVI per year)
     annual_chips_dir = os.path.join(out_dir, "chips_annual")
@@ -767,14 +767,14 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
 
     # Generate combined interactive time series plot for all sites
     timeseries_all_html = os.path.join(out_dir, "timeseries_all.html")
-    ctx.invoke(
-        plot,
-        datafile=timeseries_csv,
-        index_col="mean_ndvi",
-        agg_freq="M",
-        interactive=True,
-        output=timeseries_all_html,
-    )
+    # ctx.invoke(
+    #     plot,
+    #     datafile=os.path.join(out_dir, "timeseries_filled.csv"),
+    #     index_col="mean_ndvi",
+    #     agg_freq="M",
+    #     interactive=True,
+    #     output=timeseries_all_html,
+    # )
 
     # 7. Final report
     report_html = os.path.join(out_dir, "report.html")

@@ -16,7 +16,7 @@ def collect_assets(
     """
     pattern = re.compile(filename_regex)
     by_id: Dict[str, List[Tuple[str, str]]] = {}
-    for p in Path(base_dir).glob("*"):
+    for p in Path(base_dir).rglob("*"):
         m = pattern.match(p.name)
         if not m:
             continue

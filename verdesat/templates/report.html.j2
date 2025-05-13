@@ -1,4 +1,10 @@
 <h1>{{ title }}</h1>
+<style>
+  .thumb { display:inline-block; margin:4px; }
+  .thumb img { max-width:200px; border:1px solid #ccc; }
+  .caption { text-align:center; font-size:0.8em; }
+  .year { text-align:center; font-size:0.7em; color:#666; }
+</style>
 <p>
     <em>Generated on {{ run_date }}</em>
 </p>
@@ -6,7 +12,7 @@
     <h2>Project Area Map</h2>
     <img src="{{ map_png }}"
          alt="Project Area Map"
-         style="max-width:600px;
+         style="max-width:800px;
                 border:1px solid #ccc">
 {% endif %}
 <h2>Summary Statistics</h2>
@@ -75,7 +81,7 @@
         {% for label, path in site_decomp %}
             <img src="{{ path }}"
                  alt="Decomposition {{ pid }}"
-                 style="max-width:600px;
+                 style="max-width:800px;
                         margin:4px">
         {% endfor %}
     {% else %}
@@ -83,28 +89,44 @@
             <em>No decomposition plots available for this site.</em>
         </p>
     {% endif %}
-    <h3>Image Chips</h3>
-    {% set site_gallery = gallery.get(pid, gallery.get(pid|string, [])) %}
-    {% if site_gallery %}
-        {% for label, path in site_gallery %}
-            <img src="{{ path }}"
-                 alt="Chip {{ pid }} {{ label }}"
-                 style="max-width:200px;
-                        margin:4px">
+    <h3>Image Chips and Animations</h3>
+    <table class="site-chips" style="border-collapse: collapse;">
+      <tr>
+        {# Row of chip images #}
+        {% set site_chips_by_year = gallery_by_year.get(pid|string, gallery_by_year.get(pid, {})) %}
+        {% for year, chips in site_chips_by_year|dictsort %}
+          {% for date, img_path in chips %}
+            <td style="padding:4px;"><img src="{{ img_path }}" alt="Chip {{ pid }} {{ date }}"></td>
+          {% endfor %}
         {% endfor %}
-    {% else %}
-        <p>
-            <em>No chips available for this site.</em>
-        </p>
-    {% endif %}
-    {% set site_gifs = (gifs.get(pid, gifs.get(pid|string, [])) if gifs is defined else []) %}
-    {% if site_gifs %}
-        <h3>Animations</h3>
-        {% for label, path in site_gifs %}
-            <img src="{{ path }}"
-                 alt="GIF {{ pid }} {{ label }}"
-                 style="max-width:200px;
-                        margin:4px">
+      </tr>
+      <tr>
+        {# Row of chip dates #}
+        {% for year, chips in site_chips_by_year|dictsort %}
+          {% for date, img_path in chips %}
+            <td style="padding:4px; text-align:center;">{{ date }}</td>
+          {% endfor %}
         {% endfor %}
-    {% endif %}
+      </tr>
+      {# Only include animations if available #}
+      {% set site_gifs_by_year = gifs_by_year.get(pid|string, gifs_by_year.get(pid, {})) %}
+      {% if site_gifs_by_year %}
+      <tr>
+        {# Row of GIF frames #}
+        {% for year, gifs in site_gifs_by_year|dictsort %}
+          {% for label, gif_path in gifs %}
+            <td style="padding:4px;"><img src="{{ gif_path }}" alt="GIF {{ pid }} {{ label }}"></td>
+          {% endfor %}
+        {% endfor %}
+      </tr>
+      <tr>
+        {# Row of GIF labels #}
+        {% for year, gifs in site_gifs_by_year|dictsort %}
+          {% for label, gif_path in gifs %}
+            <td style="padding:4px; text-align:center;">{{ label }}</td>
+          {% endfor %}
+        {% endfor %}
+      </tr>
+      {% endif %}
+    </table>
 {% endfor %}
