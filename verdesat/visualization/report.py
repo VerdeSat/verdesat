@@ -41,20 +41,23 @@ def build_report(
         )
 
     # 4. Discover chips gallery (annual PNGs)
-    gallery = collect_assets(
-        base_dir=chips_dir,
-        filename_regex=r"NDVI_(?P<id>\d+)_(?P<date>\d{4}-\d{2}-\d{2})\.png$",
-        key_fn=lambda m: m.group("id"),
-        date_fn=lambda m: m.group("date"),
-    )
-    # 4.1 Group gallery files by year per site
     gallery_by_year: dict[str, dict[str, list[tuple[str, str]]]] = defaultdict(
         lambda: defaultdict(list)
     )
-    for site, items in gallery.items():
-        for date, path in items:
-            year = date[:4]
-            gallery_by_year[site][year].append((date, path))
+    if chips_dir:
+        gallery = collect_assets(
+            base_dir=chips_dir,
+            filename_regex=r"NDVI_(?P<id>\d+)_(?P<date>\d{4}-\d{2}-\d{2})\.png$",
+            key_fn=lambda m: m.group("id"),
+            date_fn=lambda m: m.group("date"),
+        )
+        # 4.1 Group gallery files by year per site
+        for site, items in gallery.items():
+            for date, path in items:
+                year = date[:4]
+                gallery_by_year[site][year].append((date, path))
+    else:
+        gallery_by_year = {}
 
     # 4.2 Discover and group animated GIFs by year per site
     gifs_base = Path(output_path).parent / "gifs"
