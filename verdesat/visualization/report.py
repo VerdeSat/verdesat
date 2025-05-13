@@ -48,7 +48,9 @@ def build_report(
         date_fn=lambda m: m.group("date"),
     )
     # 4.1 Group gallery files by year per site
-    gallery_by_year: dict[str, dict[str, list[tuple[str, str]]]] = defaultdict(lambda: defaultdict(list))
+    gallery_by_year: dict[str, dict[str, list[tuple[str, str]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     for site, items in gallery.items():
         for date, path in items:
             year = date[:4]
@@ -62,7 +64,9 @@ def build_report(
         key_fn=lambda m: m.group("id"),
         date_fn=lambda m: m.group("year"),
     )
-    gifs_by_year: dict[str, dict[str, list[tuple[str, str]]]] = defaultdict(lambda: defaultdict(list))
+    gifs_by_year: dict[str, dict[str, list[tuple[str, str]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     for site, items in gifs.items():
         for year, path in items:
             gifs_by_year[site][year].append((year, path))
