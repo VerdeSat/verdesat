@@ -1,10 +1,12 @@
 import os, json
+import re
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional
 from jinja2 import Environment, FileSystemLoader
 from verdesat.analytics.stats import compute_summary_stats
 from verdesat.visualization._collect import collect_assets
+from collections import defaultdict
 
 
 def build_report(
@@ -18,6 +20,8 @@ def build_report(
     output_path: str = "verdesat_report.html",
     title: str = "VerdeSat Report",
 ):
+
+    html_dir = Path(output_path).parent
 
     # 1. Load data
     with open(geojson_path) as f:
@@ -36,35 +40,71 @@ def build_report(
             date_fn=lambda m: "decomposition",
         )
 
-    # 4. Discover chips gallery: files like "NDVI_<id>_<YYYY-MM-DD>.png"
-    gallery_pattern = r"^[^_]+_(?P<id>\d+)_(?P<date>\d{4}-\d{2}-\d{2})\.png$"
-    gallery = {}
+    # 4. Discover chips gallery (annual PNGs)
+    gallery_by_year: dict[str, dict[str, list[tuple[str, str]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     if chips_dir:
         gallery = collect_assets(
             base_dir=chips_dir,
-            filename_regex=gallery_pattern,
-            key_fn=lambda m: int(m.group("id")),
+            filename_regex=r"NDVI_(?P<id>\d+)_(?P<date>\d{4}-\d{2}-\d{2})\.png$",
+            key_fn=lambda m: m.group("id"),
+            date_fn=lambda m: m.group("date"),
         )
-    # Collect GIFs if provided
-    gifs = {}
-    if gifs_dir:
-        gif_pattern = r"(?P<id>\d+)_.*\.gif"
-        gifs = collect_assets(
-            base_dir=gifs_dir,
-            filename_regex=gif_pattern,
-            key_fn=lambda m: int(m.group("id")),
-            date_fn=lambda m: m.group(0),
-        )
+        # 4.1 Group gallery files by year per site
+        for site, items in gallery.items():
+            for date, path in items:
+                year = date[:4]
+                gallery_by_year[site][year].append((date, path))
+    else:
+        gallery_by_year = {}
+
+    # 4.2 Discover and group animated GIFs by year per site
+    gifs_base = Path(output_path).parent / "gifs"
+    gifs = collect_assets(
+        base_dir=str(gifs_base),
+        filename_regex=r"(?P<id>\d+)___(?P<year>\d{4})_png\.gif",
+        key_fn=lambda m: m.group("id"),
+        date_fn=lambda m: m.group("year"),
+    )
+    gifs_by_year: dict[str, dict[str, list[tuple[str, str]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    for site, items in gifs.items():
+        for year, path in items:
+            gifs_by_year[site][year].append((year, path))
+
+    # Rebase all asset paths to be relative to the report HTML
+    for site, items in decomp_images.items():
+        decomp_images[site] = [
+            (date, str(Path(path).relative_to(html_dir))) for date, path in items
+        ]
+
+    for site, yearly in gallery_by_year.items():
+        gallery_by_year[site] = {
+            year: [
+                (date, str(Path(path).relative_to(html_dir))) for date, path in items
+            ]
+            for year, items in yearly.items()
+        }
+
+    for site, yearly in gifs_by_year.items():
+        gifs_by_year[site] = {
+            year: [
+                (label, str(Path(path).relative_to(html_dir))) for label, path in items
+            ]
+            for year, items in yearly.items()
+        }
+
     # Load single interactive time-series plot (if provided)
     timeseries_html_div = None
     if timeseries_html:
-        from pathlib import Path
-
         timeseries_html_div = Path(timeseries_html).read_text()
     # 6. Render Jinja
     env = Environment(
         loader=FileSystemLoader(searchpath=Path(__file__).parent.parent / "templates")
     )
+
     tmpl = env.get_template("report.html.j2")
     html = tmpl.render(
         title=title,
@@ -73,8 +113,8 @@ def build_report(
         map_png=map_png,
         timeseries_html=timeseries_html_div,
         decomp=decomp_images,
-        gallery=gallery,
-        gifs=gifs,
+        gallery_by_year=gallery_by_year,
+        gifs_by_year=gifs_by_year,
     )
     os.makedirs(Path(output_path).parent, exist_ok=True)
     with open(output_path, "w") as f:
