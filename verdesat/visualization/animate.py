@@ -30,7 +30,7 @@ def make_gif(
         raise FileNotFoundError(f"No files matching {pattern!r} in {images_dir}")
 
     # Annotate and collect frames
-    frames: list[np.ndarray] = []
+    frames: list[Image.Image] = []
     for img_path in files:
         arr = imageio.imread(str(img_path))
         im = Image.fromarray(arr)
@@ -53,16 +53,21 @@ def make_gif(
         draw.rectangle([5, 5, 5 + text_width, 5 + text_height], fill="black")
         # Draw white text
         draw.text((5, 5), date_text, fill="white", font_size=14)
-        frames.append(np.array(im))
+        frames.append(im.copy())
 
     # ensure parent folder exists
     os.makedirs(Path(output_path).parent, exist_ok=True)
     # Write GIF with correct duration and loop settings
-    with imageio.get_writer(
-        str(output_path), mode="I", duration=duration, loop=loop
-    ) as writer:
-        for frame in frames:
-            writer.append_data(frame)
+    # Save GIF using Pillow to ensure proper palette and avoid corruption
+    if frames:
+        frames[0].save(
+            str(output_path),
+            format="GIF",
+            save_all=True,
+            append_images=frames[1:],
+            duration=int(duration * 1000),
+            loop=loop,
+        )
 
 
 # New function: make_gifs_per_site
@@ -98,7 +103,7 @@ def make_gifs_per_site(
         out_name = f"{site}_{safe_pattern}.gif"
         out_path = Path(output_dir) / out_name
         # Annotate frames
-        frames: list[np.ndarray] = []
+        frames: list[Image.Image] = []
         for p in paths:
             arr = imageio.imread(str(p))
             im = Image.fromarray(arr)
@@ -121,13 +126,18 @@ def make_gifs_per_site(
             draw.rectangle([3, 5, 45 + text_width, 20 + text_height], fill="black")
             # Draw white text
             draw.text((5, 5), date_text, fill="white", font_size=18)
-            frames.append(np.array(im))
+            frames.append(im.copy())
         # ensure output directory exists
         os.makedirs(Path(output_dir), exist_ok=True)
         # Write GIF
-        with imageio.get_writer(
-            str(out_path), mode="I", duration=duration, loop=loop
-        ) as writer:
-            for frame in frames:
-                writer.append_data(frame)
+        # Save GIF using Pillow to ensure proper palette and avoid corruption
+        if frames:
+            frames[0].save(
+                str(out_path),
+                format="GIF",
+                save_all=True,
+                append_images=frames[1:],
+                duration=int(duration * 1000),
+                loop=loop,
+            )
         print(f"✅  Wrote GIF for site {site} → {out_path}")

@@ -701,80 +701,80 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
 
     # 1. Time series
     timeseries_csv = os.path.join(out_dir, "timeseries.csv")
-    # ctx.invoke(
-    #     timeseries,
-    #     geojson=geojson,
-    #     start=start,
-    #     end=end,
-    #     agg="M",
-    #     output=timeseries_csv,
-    # )
+    ctx.invoke(
+        timeseries,
+        geojson=geojson,
+        start=start,
+        end=end,
+        agg="M",
+        output=timeseries_csv,
+    )
     # 2. Aggregate & fill
     monthly_csv = os.path.join(out_dir, "timeseries_monthly.csv")
-    # ctx.invoke(aggregate, input_csv=timeseries_csv, freq="M", output=monthly_csv)
-    # ctx.invoke(
-    #     fill_gaps_cmd,
-    #     input_csv=monthly_csv,
-    #     output=os.path.join(out_dir, "timeseries_filled.csv"),
-    # )
+    ctx.invoke(aggregate, input_csv=timeseries_csv, freq="M", output=monthly_csv)
+    ctx.invoke(
+        fill_gaps_cmd,
+        input_csv=monthly_csv,
+        output=os.path.join(out_dir, "timeseries_filled.csv"),
+    )
     # 3. Decompose
     decomp_dir = os.path.join(out_dir, "decomp")
-    # ctx.invoke(
-    #     decompose,
-    #     input_csv=os.path.join(out_dir, "timeseries_filled.csv"),
-    #     output_dir=decomp_dir,
-    # )
+    ctx.invoke(
+        decompose,
+        input_csv=os.path.join(out_dir, "timeseries_filled.csv"),
+        output_dir=decomp_dir,
+    )
 
     # 4. Annual image chips (NDVI per year)
     annual_chips_dir = os.path.join(out_dir, "chips_annual")
-    # ctx.invoke(
-    #     chips,
-    #     geojson=geojson,
-    #     start=start,
-    #     end=end,
-    #     period="Y",
-    #     chip_type="ndvi",
-    #     format="png",
-    #     out_dir=annual_chips_dir,
-    # )
+    ctx.invoke(
+        chips,
+        geojson=geojson,
+        start=start,
+        end=end,
+        period="Y",
+        chip_type="ndvi",
+        format="png",
+        out_dir=annual_chips_dir,
+    )
 
     # 5. Monthly composites for GIFs
     monthly_chips_dir = os.path.join(out_dir, "chips_monthly")
-    # ctx.invoke(
-    #     chips,
-    #     geojson=geojson,
-    #     start=start,
-    #     end=end,
-    #     period="M",
-    #     chip_type="ndvi",
-    #     format="png",
-    #     out_dir=monthly_chips_dir,
-    # )
+    ctx.invoke(
+        chips,
+        geojson=geojson,
+        start=start,
+        end=end,
+        period="M",
+        chip_type="ndvi",
+        format="png",
+        out_dir=monthly_chips_dir,
+    )
 
     # 6. Animated GIFs: one per site per year
     gifs_dir = os.path.join(out_dir, "gifs")
-    # start_year = datetime.strptime(start, "%Y-%m-%d").year
-    # end_year = datetime.strptime(end, "%Y-%m-%d").year
-    # for year in range(start_year, end_year + 1):
-    #     year_pattern = f"*_{year}-*.png"
-    #     year_gif_dir = os.path.join(gifs_dir, str(year))
-    #     ctx.invoke(
-    #         animate,
-    #         images_dir=monthly_chips_dir,
-    #         pattern=year_pattern,
-    #         output_dir=year_gif_dir,
-    #     )
+    start_year = datetime.strptime(start, "%Y-%m-%d").year
+    end_year = datetime.strptime(end, "%Y-%m-%d").year
+    for year in range(start_year, end_year + 1):
+        year_pattern = f"*_{year}-*.png"
+        year_gif_dir = os.path.join(gifs_dir, str(year))
+        ctx.invoke(
+            animate,
+            images_dir=monthly_chips_dir,
+            pattern=year_pattern,
+            output_dir=year_gif_dir,
+        )
 
     # Generate combined interactive time series plot for all sites
     timeseries_all_html = os.path.join(out_dir, "timeseries_all.html")
-    # ctx.invoke(
-    #     plot,
-    #     datafile=os.path.join(out_dir, "timeseries_filled.csv"),
-    #     index_col="mean_ndvi",
-    #     agg_freq="M",
-    #     interactive=True,
-    #     output=timeseries_all_html,
-    # )
+    ctx.invoke(
+        plot,
+        datafile=os.path.join(out_dir, "timeseries_filled.csv"),
+        index_col="mean_ndvi",
+        agg_freq="M",
+        interactive=True,
+        output=timeseries_all_html,
+    )
 
     # 7. Final report
     report_html = os.path.join(out_dir, "report.html")
