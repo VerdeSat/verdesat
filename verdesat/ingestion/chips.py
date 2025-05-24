@@ -1,10 +1,14 @@
 import os
 import logging
 from typing import Literal, Optional, Union, Any
-from ee import ImageCollection
+from ee import ImageCollection, EEException
 import ee
 import math
-from verdesat.ingestion.downloader import initialize, get_image_collection
+from verdesat.ingestion.downloader import (
+    initialize,
+    get_image_collection,
+    safe_get_info,
+)
 from verdesat.ingestion.indices import compute_index
 
 logger = logging.getLogger(__name__)
@@ -57,13 +61,15 @@ def calc_percentile_stretch(
         {"type": "FeatureCollection", "features": features}
     ).geometry()
     reducer = ee.Reducer.percentile([low, high])
-    stats = img.reduceRegion(
-        reducer=reducer,
-        geometry=region,
-        scale=scale,
-        bestEffort=True,
-        maxPixels=1e12,
-    ).getInfo()
+    stats = safe_get_info(
+        img.reduceRegion(
+            reducer=reducer,
+            geometry=region,
+            scale=scale,
+            bestEffort=True,
+            maxPixels=1e12,
+        )
+    )
     mins, maxs = [], []
     for band in bands:
         key_low = f"{band}_p{int(low)}"
@@ -120,9 +126,15 @@ def export_one_thumbnail(
     props = feat.get("properties", {})
     pid = props.get("id") or props.get("system:index")
     geom_json = feat.get("geometry")
-    url = (
-        img.getThumbURL(params) if fmt.lower() == "png" else img.getDownloadURL(params)
-    )
+    try:
+        url = (
+            img.getThumbURL(params)
+            if fmt.lower() == "png"
+            else img.getDownloadURL(params)
+        )
+    except EEException as e:
+        logger.error("Failed to get download URL for %s: %s", date, e)
+        return
     ext = "png" if fmt.lower() == "png" else "tiff"
     path = os.path.join(out_dir, f"{com_type}_{pid}_{date}.{ext}")
 
@@ -259,7 +271,7 @@ def get_composite(
     composites = ee.ImageCollection.fromImages(offsets.map(make_periodic_image))
 
     # DEBUG: number of composites
-    total = ee.List.sequence(0, count.subtract(1)).size().getInfo()
+    total = safe_get_info(ee.List.sequence(0, count.subtract(1)).size())
     logger.info("▶ get_composite: total composites to generate: %d", total)
 
     return composites
@@ -313,7 +325,7 @@ def export_composites_to_png(
 
     # buffer_m = compute_buffer(features, buffer, buffer_percent)
 
-    count = composites.size().getInfo()
+    count = safe_get_info(composites.size())
     if not isinstance(count, int) or count <= 0:
         raise ValueError("No composites to export (empty collection).")
 
@@ -329,10 +341,11 @@ def export_composites_to_png(
     img_list = composites.toList(count)
     for i in range(count):
         img = ee.Image(img_list.get(i))
-        logger.info("  • Composite #%d, bands: %s", i, img.bandNames().getInfo())
-        date = ee.Date(img.get("system:time_start")).format("YYYY-MM-dd").getInfo()
+        bands_list = safe_get_info(img.bandNames())
+        logger.info("  • Composite #%d, bands: %s", i, bands_list)
+        date = safe_get_info(ee.Date(img.get("system:time_start")).format("YYYY-MM-dd"))
         logger.info("    – date=%s", date)
-        if img.bandNames().size().getInfo() == 0:
+        if safe_get_info(img.bandNames().size()) == 0:
             continue
 
         min_val_i, max_val_i = min_val, max_val
@@ -358,7 +371,7 @@ def export_composites_to_png(
             )
             # Compute bounding box of buffered geometry for thumbnail region
             bounds = geom.bounds()
-            bounds_info = bounds.getInfo()
+            bounds_info = safe_get_info(bounds)
             # Extract the corner coordinates ring
             coords = bounds_info.get("coordinates", [[]])[0]
             xs = [pt[0] for pt in coords]
