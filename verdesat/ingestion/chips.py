@@ -4,7 +4,11 @@ from typing import Literal, Optional, Union, Any
 from ee import ImageCollection, EEException
 import ee
 import math
-from verdesat.ingestion.downloader import initialize, get_image_collection, safe_get_info
+from verdesat.ingestion.downloader import (
+    initialize,
+    get_image_collection,
+    safe_get_info,
+)
 from verdesat.ingestion.indices import compute_index
 
 logger = logging.getLogger(__name__)
@@ -57,13 +61,15 @@ def calc_percentile_stretch(
         {"type": "FeatureCollection", "features": features}
     ).geometry()
     reducer = ee.Reducer.percentile([low, high])
-    stats = safe_get_info(img.reduceRegion(
-        reducer=reducer,
-        geometry=region,
-        scale=scale,
-        bestEffort=True,
-        maxPixels=1e12,
-    ))
+    stats = safe_get_info(
+        img.reduceRegion(
+            reducer=reducer,
+            geometry=region,
+            scale=scale,
+            bestEffort=True,
+            maxPixels=1e12,
+        )
+    )
     mins, maxs = [], []
     for band in bands:
         key_low = f"{band}_p{int(low)}"
@@ -121,7 +127,11 @@ def export_one_thumbnail(
     pid = props.get("id") or props.get("system:index")
     geom_json = feat.get("geometry")
     try:
-        url = (img.getThumbURL(params) if fmt.lower() == "png" else img.getDownloadURL(params))
+        url = (
+            img.getThumbURL(params)
+            if fmt.lower() == "png"
+            else img.getDownloadURL(params)
+        )
     except EEException as e:
         logger.error("Failed to get download URL for %s: %s", date, e)
         return
