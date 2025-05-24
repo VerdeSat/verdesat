@@ -1,4 +1,8 @@
 import os
+import logging
+
+logger = logging.getLogger(__name__)
+import time
 import ee
 from verdesat.ingestion.mask import mask_fmask_bits
 from ee import EEException
@@ -23,6 +27,43 @@ def initialize(
     except EEException:
         ee.Authenticate()
         ee.Initialize(project=project)
+
+
+def safe_get_info(obj, max_retries=3):
+    """
+    Wrapper for obj.getInfo() that:
+      - retries transient errors
+      - on PERMISSION_DENIED, forces a re-auth + re-init and retries once
+      - raises after max_retries
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            return obj.getInfo()
+        except EEException as e:
+            msg = str(e)
+            # Permission issue: ask user to re-auth
+            if "PERMISSION_DENIED" in msg:
+                logger.error("Earth Engine permission denied. Re-authenticating...")
+                ee.Authenticate()  # opens browser/window once
+                initialize()  # re-init via our wrapper with credentials/project
+                # only retry once after auth
+                if attempt == 1:
+                    continue
+            # Transient error? retry with backoff
+            if attempt < max_retries:
+                backoff = 2 ** (attempt - 1)
+                logger.warning(
+                    "Transient EE error (attempt %d/%d): %s – retrying in %ds",
+                    attempt,
+                    max_retries,
+                    msg,
+                    backoff,
+                )
+                time.sleep(backoff)
+                continue
+            # Give up
+            logger.error("Failed to getInfo() after %d attempts: %s", attempt, msg)
+            raise
 
 
 def get_image_collection(
