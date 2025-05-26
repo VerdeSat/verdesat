@@ -701,42 +701,42 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
 
     # 1. Time series
     timeseries_csv = os.path.join(out_dir, "timeseries.csv")
-    # ctx.invoke(
-    #     timeseries,
-    #     geojson=geojson,
-    #     start=start,
-    #     end=end,
-    #     agg="M",
-    #     output=timeseries_csv,
-    # )
+    ctx.invoke(
+        timeseries,
+        geojson=geojson,
+        start=start,
+        end=end,
+        agg="M",
+        output=timeseries_csv,
+    )
     # 2. Aggregate & fill
     monthly_csv = os.path.join(out_dir, "timeseries_monthly.csv")
-    # ctx.invoke(aggregate, input_csv=timeseries_csv, freq="M", output=monthly_csv)
-    # ctx.invoke(
-    #     fill_gaps_cmd,
-    #     input_csv=monthly_csv,
-    #     output=os.path.join(out_dir, "timeseries_filled.csv"),
-    # )
+    ctx.invoke(aggregate, input_csv=timeseries_csv, freq="M", output=monthly_csv)
+    ctx.invoke(
+        fill_gaps_cmd,
+        input_csv=monthly_csv,
+        output=os.path.join(out_dir, "timeseries_filled.csv"),
+    )
     # 3. Decompose
     decomp_dir = os.path.join(out_dir, "decomp")
-    # ctx.invoke(
-    #     decompose,
-    #     input_csv=os.path.join(out_dir, "timeseries_filled.csv"),
-    #     output_dir=decomp_dir,
-    # )
+    ctx.invoke(
+        decompose,
+        input_csv=os.path.join(out_dir, "timeseries_filled.csv"),
+        output_dir=decomp_dir,
+    )
 
     # 4. Annual image chips (NDVI per year)
     annual_chips_dir = os.path.join(out_dir, "chips_annual")
-    # ctx.invoke(
-    #     chips,
-    #     geojson=geojson,
-    #     start=start,
-    #     end=end,
-    #     period="Y",
-    #     chip_type="ndvi",
-    #     format="png",
-    #     out_dir=annual_chips_dir,
-    # )
+    ctx.invoke(
+        chips,
+        geojson=geojson,
+        start=start,
+        end=end,
+        period="Y",
+        chip_type="ndvi",
+        format="png",
+        out_dir=annual_chips_dir,
+    )
 
     # 5. Monthly composites for GIFs
     monthly_chips_dir = os.path.join(out_dir, "chips_monthly")
