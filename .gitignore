@@ -43,5 +43,11 @@ venv/
 # OS temp files
 *.swp
 
+# Mypy cache
+.mypy_cache/
+
+# JetBrains IDEs
+.idea/
+
 # Data
 data/
