@@ -15,6 +15,6 @@ setup(
     packages=find_packages(include=["verdesat", "verdesat.*"]),
     install_requires=parse_reqs(),
     include_package_data=True,
-    python_requires=">=3.8",
+    python_requires=">=3.11",
     entry_points={"console_scripts": ["verdesat=verdesat.core.cli:cli"]},
 )
