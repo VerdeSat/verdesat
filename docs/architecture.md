@@ -17,7 +17,7 @@ The VerdeSat MVP is structured to enable scalable, modular, and maintainable geo
 
 ```
 VerdeSatProject
-├── GeoObject [1..N]
+├── AOI [1..N]
 │   ├── static_props (dict)
 │   ├── geometry (Polygon/MultiPolygon)
 │   └── timeseries: {variable: TimeSeries}
@@ -34,7 +34,7 @@ VerdeSatProject
 ### Module Mapping
 
 - `core/` — config, logging, cli glue, utils
-- `project/` — project and geoobject management
+- `project/` — project and aoi management
 - `geo/` — geometric and AOI logic
 - `ingestion/` — data download, sensor specs, cloud masking
 - `analytics/` — time series, indices, filling, trend, decomposition
@@ -73,10 +73,10 @@ class Logger:
 ```python
 class VerdeSatProject:
     """
-    Represents a client project. Holds multiple GeoObjects and project-level metadata.
+    Represents a client project. Holds multiple AOIs and project-level metadata.
     Responsible for loading/saving project data and batch operations.
     """
-    def __init__(self, name, customer, geoobjects: List['GeoObject'], config: ConfigManager):
+    def __init__(self, name, customer, aois: List['AOI'], config: ConfigManager):
         ...
 ```
 
@@ -84,19 +84,19 @@ class VerdeSatProject:
 
 ### geo/
 
-#### `GeoObject`
+#### `AOI`
 ```python
-class GeoObject:
+class AOI:
     """
-    One area-of-interest (field, forest, wetland, etc). Has static metadata and dynamic time series.
-    - geometry: shapely Polygon/MultiPolygon
-    - static_props: dict (name, climate_zone, etc.)
-    - timeseries: Dict[str, TimeSeries] (e.g., {"ndvi": TimeSeries, "precip": TimeSeries})
+    Area of Interest (AOI): one polygon/multipolygon, with static metadata and time series for each dynamic property.
     """
-    def __init__(self, geometry, static_props, timeseries=None):
-        ...
-    def add_timeseries(self, key: str, ts: 'TimeSeries'):
-        ...
+    def __init__(self, geometry: Polygon or MultiPolygon, static_props: dict, timeseries: Dict[str, TimeSeries] = None):
+        self.geometry = geometry
+        self.static_props = static_props
+        self.timeseries = timeseries or {}
+
+    def add_timeseries(self, variable: str, ts: TimeSeries):
+        self.timeseries[variable] = ts
 ```
 
 ---
@@ -157,7 +157,7 @@ class DataIngestor:
     """
     Abstract base class for data ingestion. Subclass for EarthEngine, openEO, local, etc.
     """
-    def download_timeseries(self, geoobject: 'GeoObject', sensor: 'SensorSpec', index: str, ...):
+    def download_timeseries(self, aoi: 'AOI', sensor: 'SensorSpec', index: str, ...):
         raise NotImplementedError()
 ```
 
@@ -221,7 +221,7 @@ class Visualizer:
 ## 6. OOP Best Practices & Recommendations
 
 - Each class should have a single responsibility.
-- Favor composition (GeoObject contains TimeSeries, not inheritance).
+- Favor composition (AOI contains TimeSeries, not inheritance).
 - Use abstract base classes for extensibility (e.g., DataIngestor, ForecastModel).
 - Avoid global variables/magic constants — use config/resource files.
 - All major classes and public methods must have docstrings.
@@ -244,16 +244,24 @@ class Visualizer:
 ```python
 config = ConfigManager.load("config.toml")
 project = VerdeSatProject("ClientXYZ", "Acme Corp", [], config)
-geo = GeoObject(geometry, {"name": "Field1", "climate_zone": "temperate"})
+aoi = AOI(geometry, {"name": "Field1", "climate_zone": "temperate"})
 ts = TimeSeries("ndvi", "unitless", "monthly", df)
-geo.add_timeseries("ndvi", ts)
-project.geoobjects.append(geo)
+aoi.add_timeseries("ndvi", ts)
+project.aois.append(aoi)
 
 data_ingestor = EarthEngineIngestor(sensor_spec, config)
-data_ingestor.download_timeseries(geo, sensor_spec, "ndvi", ...)
+data_ingestor.download_timeseries(aoi, sensor_spec, "ndvi", ...)
 ```
 
 ---
+# 9. External Solutions Integration
 
+- EODAG: Provides standardized search/download for Sentinel, Landsat, and more. Consider implementing an EODAGDataIngestor to avoid custom download scripts.
+- openEO: For future cloud-scale processing, add an OpenEODataIngestor subclass and offer as backend option.
+- Index formulas: Move all index calculation formulas to a resource file (JSON/YAML), editable by user. Evaluate [spectral] or other open source registries for expansion.
+- Cloud masking: For Sentinel-2, offer s2cloudless as an option. Wrap it as a cloud mask strategy in SensorSpec or DataIngestor.
+- Visualization: geemap is recommended for future interactive visualizations in notebooks, but static plotting is prioritized for the CLI MVP.
+
+---
 **This architecture supports scalable land/EO analytics, new features, cloud migration, and OOP clarity.**  
 Edit and expand as needed!
