@@ -1,14 +1,22 @@
+"""
+Module `ingestion.sensorspec` defines the SensorSpec class, which encapsulates
+sensor metadata (band mappings, resolutions, and mask strategies) and provides
+cloud masking and spectral index computation.
+"""
+
 import json
 from pathlib import Path
+from typing import Optional
 import ee
 from .indices import compute_index
 
 
 class SensorSpec:
-    _registry: dict = None
     """
     Holds metadata for a sensor (bands, collection ID, etc).
     """
+
+    _registry: Optional[dict] = None
 
     def __init__(
         self,
@@ -68,7 +76,7 @@ class SensorSpec:
             # Path to resource file
             base = Path(__file__).resolve().parent.parent
             spec_file = base / "resources" / "sensor_specs.json"
-            with open(spec_file, "r") as f:
+            with open(spec_file, "r", encoding="utf-8") as f:
                 cls._registry = json.load(f)
         return cls._registry
 

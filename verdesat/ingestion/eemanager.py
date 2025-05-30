@@ -1,13 +1,19 @@
+"""
+Module `ingestion.eemanager` provides the EarthEngineManager class to
+encapsulate Google Earth Engine initialization, retries, and image collection retrieval.
+"""
+
 import os
+import time
 import logging
 
-logger = logging.getLogger(__name__)
-import time
 import ee
-
 from ee import EEException
 from typing import Optional
-from verdesat.ingestion.mask import mask_fmask_bits
+
+from .mask import mask_fmask_bits
+
+logger = logging.getLogger(__name__)
 
 
 class EarthEngineManager:
@@ -29,7 +35,8 @@ class EarthEngineManager:
         project = self.project
         try:
             if self.credential_path:
-                creds = ee.ServiceAccountCredentials(None, self.credential_path)
+                # type: ignore[arg-type]
+                creds = ee.ServiceAccountCredentials(None, self.credential_path)  # type: ignore[arg-type]
                 ee.Initialize(creds, project=project)
             else:
                 ee.Initialize(project=project)

@@ -1,5 +1,11 @@
-import pandas as pd
+"""
+Module `analytics.timeseries` provides the TimeSeries class, which wraps
+a pandas DataFrame of spectral index time series and supports aggregation.
+"""
+
 from typing import Literal
+
+import pandas as pd
 
 
 class TimeSeries:

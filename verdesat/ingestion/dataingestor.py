@@ -1,14 +1,20 @@
-from ..analytics.timeseries import TimeSeries
+"""
+DataIngestor: download and aggregate spectral index time series and image chips from Earth Engine.
+Provides chunking, daily retrieval, and aggregation functionality.
+"""
+
 import logging
-from .indices import compute_index
+from typing import Literal
+from typing import Optional
 import pandas as pd
-from typing import Literal, List
-from shapely.geometry import mapping
-from shapely.geometry import mapping  # (Retain, but will comment out if not used below)
+import ee
+from verdesat.geo.aoi import AOI
 from .eemanager import ee_manager
 from .sensorspec import SensorSpec
-from verdesat.geo.aoi import AOI
-import ee
+from .indices import compute_index
+from ..analytics.timeseries import TimeSeries
+
+logger = logging.getLogger(__name__)
 
 
 class DataIngestor:
@@ -31,14 +37,28 @@ class DataIngestor:
         end_date: str,
         scale: int,
         index: str,
-        freq: Literal["D", "M", "Y"] = "M",
+        chunk_freq: Literal["D", "M", "Y"] = "Y",
+        freq: Optional[Literal["D", "M", "Y"]] = None,
     ) -> pd.DataFrame:
         """
-        Download & aggregate the index time series for the AOI.
-        Returns a DataFrame with columns ['id','date',f'mean_{index}'].
+        Download & optionally aggregate the index time series for an AOI.
+
+        Args:
+            aoi: AOI instance to process.
+            start_date: Start date (YYYY-MM-DD).
+            end_date: End date (YYYY-MM-DD).
+            scale: Spatial resolution in meters.
+            index: Spectral index name (e.g., 'ndvi').
+            chunk_freq: Frequency for chunking requests to Earth Engine ('D','M','Y').
+            freq: Aggregation frequency for output ('D','M','Y'). If None, no aggregation.
+
+        Returns:
+            pd.DataFrame with columns ['id','date',f'mean_{index}'].
         """
         # 1. Fetch raw daily values in chunks
-        raw_df = self._chunked_timeseries(aoi, start_date, end_date, scale, index)
+        raw_df = self._chunked_timeseries(
+            aoi, start_date, end_date, scale, index, chunk_freq
+        )
         # 2. Aggregate by frequency if needed
         if freq:
             ts = TimeSeries.from_dataframe(raw_df, index=index)
@@ -47,25 +67,42 @@ class DataIngestor:
         return raw_df
 
     def _chunked_timeseries(
-        self, aoi: AOI, start_date: str, end_date: str, scale: int, index: str
+        self,
+        aoi: AOI,
+        start_date: str,
+        end_date: str,
+        scale: int,
+        index: str,
+        chunk_freq: str,
     ) -> pd.DataFrame:
         """
-        Break date range into chunks and fetch daily time series for each,
-        then concatenate results to avoid GEE limits.
+        Break date range into smaller chunks and fetch daily time series to avoid GEE limits.
+
+        Args:
+            aoi: AOI instance.
+            start_date: Chunk start date (YYYY-MM-DD).
+            end_date: Chunk end date (YYYY-MM-DD).
+            scale: Spatial resolution in meters.
+            index: Spectral index name.
+            chunk_freq: Frequency string for chunk boundaries ('D','M','Y').
+
+        Returns:
+            Concatenated pd.DataFrame of daily time series.
         """
         # 1. Build chunk boundaries
-        dates = pd.date_range(start=start_date, end=end_date, freq="M")
+        dates = pd.date_range(start=start_date, end=end_date, freq=chunk_freq)
         bounds = zip(
             [start_date] + list(dates.strftime("%Y-%m-%d")),
             list(dates.strftime("%Y-%m-%d")) + [end_date],
         )
         dfs = []
         for s, e in bounds:
+            # pylint: disable=broad-exception-caught
             try:
                 df_chunk = self._daily_timeseries(aoi, s, e, scale, index)
                 dfs.append(df_chunk)
             except Exception as err:
-                logging.warning(f"Chunk {s}–{e} failed: {err}")
+                logger.warning("Chunk %s–%s failed: %s", s, e, err)
         if not dfs:
             raise RuntimeError("All chunks failed for time series retrieval")
         return pd.concat(dfs, ignore_index=True)
@@ -74,8 +111,17 @@ class DataIngestor:
         self, aoi: AOI, start_date: str, end_date: str, scale: int, index: str
     ) -> pd.DataFrame:
         """
-        Fetch the index values for each date in the range [start_date, end_date].
-        Returns a DataFrame with columns ['id', 'date', f'mean_{index}'].
+        Fetch the index values for each date in the given date range.
+
+        Args:
+            aoi: AOI instance.
+            start_date: Start date (YYYY-MM-DD).
+            end_date: End date (YYYY-MM-DD).
+            scale: Spatial resolution in meters.
+            index: Spectral index name.
+
+        Returns:
+            pd.DataFrame with ['id','date',f'mean_{index}'].
         """
         # Ensure Earth Engine is initialized
         self.ee.initialize()

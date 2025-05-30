@@ -1,9 +1,11 @@
 import pandas as pd
 
+
 class TimeSeries:
     """
     Holds a time-indexed DataFrame for one variable (e.g., NDVI).
     """
+
     def __init__(self, variable: str, units: str, freq: str, df: pd.DataFrame):
         self.variable = variable
         self.units = units

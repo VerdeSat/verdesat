@@ -1,16 +1,21 @@
+"""
+VerdeSat CLI entrypoint — defines commands for vector preprocessing, time series download,
+and basic workflows. Dynamically loads available indices from the registry.
+"""
 import os
 import sys
 import json
+import logging
 import pandas as pd
 import click  # type: ignore
 import ee  # keep EE import if needed for other commands
-import logging
 from click import echo
 from verdesat.core import utils
 from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
 from verdesat.geo.aoi import AOI
 from verdesat.ingestion.sensorspec import SensorSpec
 from verdesat.ingestion.dataingestor import DataIngestor
+from verdesat.ingestion.indices import INDEX_FUNCTIONS
 from verdesat.ingestion.chips import get_composite, export_composites_to_png
 from verdesat.analytics.timeseries import TimeSeries
 from verdesat.visualization.static_viz import plot_decomposition
@@ -22,7 +27,6 @@ from verdesat.visualization.static_viz import plot_time_series
 from verdesat.visualization.gallery import build_gallery
 from verdesat.visualization.animate import make_gifs_per_site
 from verdesat.ingestion.eemanager import ee_manager
-from verdesat.ingestion.indices import compute_index
 
 # Predefined NDVI color palettes
 PRESET_PALETTES = {
@@ -67,7 +71,6 @@ def forecast():
 @cli.group()
 def download():
     """Data ingestion commands."""
-    pass
 
 
 @download.command(name="timeseries")
@@ -84,16 +87,23 @@ def download():
 @click.option(
     "--index",
     "-i",
-    type=click.Choice(["ndvi", "evi"]),
+    type=click.Choice(list(INDEX_FUNCTIONS.keys())),
     default="ndvi",
-    help="Spectral index to compute",
+    help=f"Spectral index to compute (choices: {', '.join(INDEX_FUNCTIONS.keys())})",
 )
 @click.option(
     "--agg",
     "-a",
-    type=click.Choice(["D", "M", "Y"]),
-    default="M",
+    type=click.Choice(["D", "ME", "YE"]),
+    default=None,
     help="Temporal aggregation: D,M,Y",
+)
+@click.option(
+    "--chunk_freq",
+    "-ch",
+    default="YE",
+    type=click.Choice(["D", "ME", "YE"]),
+    help="Chunk frequency: D,M,Y",
 )
 @click.option(
     "--output",
@@ -102,7 +112,7 @@ def download():
     default="timeseries.csv",
     help="Output CSV path",
 )
-def timeseries(geojson, collection, start, end, scale, index, agg, output):
+def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, output):
     """
     Download and aggregate spectral index timeseries for polygons in GEOJSON.
     """
@@ -113,12 +123,15 @@ def timeseries(geojson, collection, start, end, scale, index, agg, output):
         ingestor = DataIngestor(sensor)
         df_list = []
         for aoi in aois:
-            df = ingestor.download_timeseries(aoi, start, end, scale, index, agg)
+            df = ingestor.download_timeseries(
+                aoi, start, end, scale, index, chunk_freq, agg
+            )
             df_list.append(df)
         result = pd.concat(df_list, ignore_index=True)
         echo(f"Saving results to {output}...")
         result.to_csv(output, index=False)
         echo("Done.")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Timeseries command failed", exc_info=True)
         echo(f"❌  Timeseries download failed: {e}", err=True)
