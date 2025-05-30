@@ -194,9 +194,9 @@ class Visualizer:
 
 ### resources/
 
-- `palettes.yaml` — Color palettes for indices, customizable.
-- `sensor_specs.json` — Sensor/band/collection metadata.
-- `index_formulas.json` — List of spectral index formulas, user-extendable.
+- `palettes.yaml` — Color palettes for spectral indices, user-customizable.
+- `sensor_specs.json` — Sensor and band registry (collection IDs, band aliases, native resolutions, cloud-mask methods).
+- `index_formulas.json` — List of spectral index formulas (expressions, parameters), user-extendable.
 
 ---
 

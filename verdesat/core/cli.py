@@ -3,13 +3,16 @@ import sys
 import json
 import pandas as pd
 import click  # type: ignore
-import ee
+import ee  # keep EE import if needed for other commands
 import logging
 from click import echo
 from verdesat.core import utils
-from verdesat.ingestion.shapefile_preprocessor import ShapefilePreprocessor
+from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
+from verdesat.geo.aoi import AOI
+from verdesat.ingestion.sensorspec import SensorSpec
+from verdesat.ingestion.dataingestor import DataIngestor
 from verdesat.ingestion.chips import get_composite, export_composites_to_png
-from verdesat.analytics.timeseries import chunked_timeseries, aggregate_timeseries
+from verdesat.analytics.timeseries import TimeSeries
 from verdesat.visualization.static_viz import plot_decomposition
 from verdesat.analytics.decomposition import decompose_each
 from verdesat.analytics.trend import compute_trend
@@ -18,7 +21,7 @@ from verdesat.visualization.plotly_viz import plot_timeseries_html
 from verdesat.visualization.static_viz import plot_time_series
 from verdesat.visualization.gallery import build_gallery
 from verdesat.visualization.animate import make_gifs_per_site
-from verdesat.ingestion.downloader import initialize, get_image_collection
+from verdesat.ingestion.eemanager import ee_manager
 from verdesat.ingestion.indices import compute_index
 
 # Predefined NDVI color palettes
@@ -42,12 +45,13 @@ def cli():
 @click.argument("input_dir", type=click.Path(exists=True))
 def prepare(input_dir):
     """Process all vector files in INPUT_DIR into a single, clean GeoJSON."""
-    processor = ShapefilePreprocessor(input_dir)
     try:
-        processor.run()
+        vp = VectorPreprocessor(input_dir)
+        gdf = vp.run()
         output_path = os.path.join(
             input_dir, f"{os.path.basename(input_dir)}_processed.geojson"
         )
+        gdf.to_file(output_path, driver="GeoJSON")
         echo(f"✅  GeoJSON written to `{output_path}`")
     except Exception as e:
         echo(f"❌  Processing failed: {e}", err=True)
@@ -101,19 +105,19 @@ def download():
 def timeseries(geojson, collection, start, end, scale, index, agg, output):
     """
     Download and aggregate spectral index timeseries for polygons in GEOJSON.
-    Uses --index to select the spectral index (e.g., ndvi, evi).
     """
     try:
-        echo(f"Loading {geojson}...")
-        with open(geojson) as f:
-            gj = json.load(f)
-
-        df = chunked_timeseries(
-            gj, collection, start, end, scale=scale, freq=agg, index=index
-        )
-
-        echo(f"Saving to {output}...")
-        df.to_csv(output, index=False)
+        echo(f"Loading AOIs from {geojson}...")
+        aois = AOI.from_geojson(geojson, id_col="id")
+        sensor = SensorSpec.from_collection_id(collection)
+        ingestor = DataIngestor(sensor)
+        df_list = []
+        for aoi in aois:
+            df = ingestor.download_timeseries(aoi, start, end, scale, index, agg)
+            df_list.append(df)
+        result = pd.concat(df_list, ignore_index=True)
+        echo(f"Saving results to {output}...")
+        result.to_csv(output, index=False)
         echo("Done.")
     except Exception as e:
         logger.error("Timeseries command failed", exc_info=True)
@@ -231,11 +235,14 @@ def chips(
     try:
         with open(geojson) as f:
             gj = json.load(f)
-        initialize(project=ee_project)
+        # Initialize Earth Engine with optional project override
+        if ee_project:
+            ee_manager.project = ee_project
+        ee_manager.initialize()
         echo("Initializing Earth Engine and fetching collection...")
         # Use GEE helper to fetch raw image collection
         aoi = ee.FeatureCollection(gj)
-        coll = get_image_collection(
+        coll = ee_manager.get_image_collection(
             collection, start, end, aoi, mask_clouds=mask_clouds
         )
         # If NDVI, map compute_index
@@ -329,7 +336,8 @@ def aggregate(input_csv, index, freq, output):
     echo(f"Loading {input_csv}...")
     df = pd.read_csv(input_csv, parse_dates=["date"])
     echo(f"Aggregating by frequency '{freq}' for index '{index}'...")
-    df_agg = aggregate_timeseries(df, freq=freq, index=index)
+    ts = TimeSeries.from_dataframe(df, index=index)
+    df_agg = ts.aggregate(freq).df
     echo(f"Saving aggregated data to {output}...")
     df_agg.to_csv(output, index=False)
     echo("Done.")

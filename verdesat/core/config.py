@@ -3,6 +3,7 @@ class ConfigManager:
     Loads and manages configuration from file, environment, CLI, or defaults.
     Provides a central entry point for parameterization and global options.
     """
+
     def __init__(self, config_path=None):
         self.config = {}  # Dict of all config params
         if config_path:

@@ -1,0 +1,154 @@
+{
+    "NASA/HLS/HLSL30/v002": {
+        "bands": {
+            "coastal": "B1",
+            "blue": "B2",
+            "green": "B3",
+            "red": "B4",
+            "nir": "B5",
+            "swir1": "B6",
+            "swir2": "B7",
+            "qa": "Fmask"
+        },
+        "native_resolution": 30,
+        "cloud_mask_method": "fmask",
+        "fmask_exclude": [1, 2, 4, 8, 16]
+    },
+    "COPERNICUS/S2_SR": {
+        "bands": {
+            "coastal": "B1",
+            "blue": "B2",
+            "green": "B3",
+            "red": "B4",
+            "rededge1": "B5",
+            "rededge2": "B6",
+            "rededge3": "B7",
+            "nir": "B8",
+            "rededge4": "B8A",
+            "water_vapor": "B9",
+            "cirrus": "B10",
+            "swir1": "B11",
+            "swir2": "B12",
+            "scl": "SCL"
+        },
+        "native_resolution": 10,
+        "cloud_mask_method": "s2_scl",
+        "scl_exclude": [3, 7, 8, 9, 10]
+    },
+    "COPERNICUS/S2": {
+        "bands": {
+            "coastal": "B1",
+            "blue": "B2",
+            "green": "B3",
+            "red": "B4",
+            "rededge1": "B5",
+            "rededge2": "B6",
+            "rededge3": "B7",
+            "nir": "B8",
+            "rededge4": "B8A",
+            "water_vapor": "B9",
+            "cirrus": "B10",
+            "swir1": "B11",
+            "swir2": "B12",
+            "qa": "QA60"
+        },
+        "native_resolution": 10,
+        "cloud_mask_method": "none",
+        "scl_exclude": [3, 7, 8, 9, 10]
+    },
+    "LANDSAT/LC08/C02/T1_L2": {
+        "bands": {
+            "coastal": "B1",
+            "blue": "B2",
+            "green": "B3",
+            "red": "B4",
+            "nir": "B5",
+            "swir1": "B6",
+            "swir2": "B7",
+            "pan": "B8",
+            "cirrus": "B9",
+            "tir1": "B10",
+            "tir2": "B11",
+            "pixel_qa": "QA_PIXEL"
+        },
+        "native_resolution": 30,
+        "cloud_mask_method": "fmask",
+        "fmask_exclude": [1, 2, 4, 8, 16]
+    },
+    "LANDSAT/LE07/C02/T1_L2": {
+        "bands": {
+            "blue": "B1",
+            "green": "B2",
+            "red": "B3",
+            "nir": "B4",
+            "swir1": "B5",
+            "tir": "B6",
+            "swir2": "B7",
+            "pixel_qa": "QA_PIXEL"
+        },
+        "native_resolution": 30,
+        "cloud_mask_method": "fmask",
+        "fmask_exclude": [1, 2, 4, 8, 16]
+    },
+    "LANDSAT/LT05/C02/T1_L2": {
+        "bands": {
+            "blue": "B1",
+            "green": "B2",
+            "red": "B3",
+            "nir": "B4",
+            "swir1": "B5",
+            "tir": "B6",
+            "swir2": "B7",
+            "pixel_qa": "QA_PIXEL"
+        },
+        "native_resolution": 30,
+        "cloud_mask_method": "fmask",
+        "fmask_exclude": [1, 2, 4, 8, 16]
+    },
+    "COPERNICUS/S1_GRD": {
+        "bands": {
+            "vv": "VV",
+            "vh": "VH",
+            "angle": "angle"
+        },
+        "native_resolution": 20,
+        "cloud_mask_method": "none"
+    },
+    "MODIS/006/MOD09GA": {
+        "bands": {
+            "red": "sur_refl_b01",
+            "nir": "sur_refl_b02",
+            "blue": "sur_refl_b03",
+            "green": "sur_refl_b04",
+            "swir1": "sur_refl_b05",
+            "swir2": "sur_refl_b06",
+            "swir3": "sur_refl_b07",
+            "qa": "QC_500m"
+        },
+        "native_resolution": 500,
+        "cloud_mask_method": "QC_500m"
+    },
+    "MODIS/006/MOD13Q1": {
+        "bands": {
+            "ndvi": "NDVI",
+            "evi": "EVI",
+            "pixel_reliability": "DetailedQA"
+        },
+        "native_resolution": 250,
+        "cloud_mask_method": "DetailedQA"
+    },
+    "MODIS/006/MYD09GA": {
+        "bands": {
+            "red": "sur_refl_b01",
+            "nir": "sur_refl_b02",
+            "blue": "sur_refl_b03",
+            "green": "sur_refl_b04",
+            "swir1": "sur_refl_b05",
+            "swir2": "sur_refl_b06",
+            "swir3": "sur_refl_b07",
+            "qa": "QC_500m"
+        },
+        "native_resolution": 500,
+        "cloud_mask_method": "QC_500m"
+    }
+}
