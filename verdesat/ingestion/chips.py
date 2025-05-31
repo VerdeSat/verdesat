@@ -4,11 +4,7 @@ from typing import Literal, Optional, Union, Any
 from ee import ImageCollection, EEException
 import ee
 import math
-from verdesat.ingestion.downloader import (
-    initialize,
-    get_image_collection,
-    safe_get_info,
-)
+from verdesat.ingestion.eemanager import EarthEngineManager
 from verdesat.ingestion.indices import compute_index
 
 logger = logging.getLogger(__name__)
