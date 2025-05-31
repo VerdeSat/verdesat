@@ -97,14 +97,14 @@ def download():
     "-a",
     type=click.Choice(["D", "ME", "YE"]),
     default=None,
-    help="Temporal aggregation: D,M,Y",
+    help="Temporal aggregation: D, ME, YE",
 )
 @click.option(
     "--chunk_freq",
     "-ch",
     default="YE",
     type=click.Choice(["D", "ME", "YE"]),
-    help="Chunk frequency: D,M,Y",
+    help="Chunk frequency: D, ME, YE",
 )
 @click.option(
     "--output",

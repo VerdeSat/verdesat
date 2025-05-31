@@ -10,8 +10,8 @@ from typing import Optional
 
 import ee
 from ee import EEException
+from .sensorspec import SensorSpec
 
-from .mask import mask_fmask_bits
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class EarthEngineManager:
         mask_clouds: bool = True,
     ) -> ee.ImageCollection:
         """
-        Return an ImageCollection filtered by date and bounds.
+        Return an EE ImageCollection filtered by date and region, with optional cloud masking.
         """
         coll = (
             ee.ImageCollection(collection_id)
@@ -99,7 +99,9 @@ class EarthEngineManager:
             .filterBounds(region)
         )
         if mask_clouds:
-            coll = coll.map(mask_fmask_bits)
+            # Use SensorSpec to apply correct cloud mask for this collection
+            sensor = SensorSpec.from_collection_id(collection_id)
+            coll = coll.map(sensor.cloud_mask)
         return coll
 
 
