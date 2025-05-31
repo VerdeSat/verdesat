@@ -1,3 +1,8 @@
+"""
+Module `ingestion.vector_preprocessor` defines the VectorPreprocessor class,
+which processes a directory of vector files into a cleaned GeoDataFrame.
+"""
+
 import os
 import logging
 import zipfile
@@ -76,19 +81,20 @@ class VectorPreprocessor:
         files = self.collect_files()
         if not files:
             raise RuntimeError(f"No supported vector files found in {self.input_dir}")
-        logger.info(f"Loading vector files: {files}")
+        logger.info("Loading vector files: %s", files)
 
         gdfs = []
         for fp in files:
             try:
                 gdf = self._read_file(fp)
                 if gdf.crs is None:
-                    logger.warning(f"No CRS on {fp}, assuming {self.target_crs}")
+                    logger.warning("No CRS on %s, assuming %s", fp, self.target_crs)
                     gdf = gdf.set_crs(self.target_crs)
                 gdf = gdf.to_crs(self.target_crs)
                 gdfs.append(gdf)
+            # pylint: disable=broad-exception-caught
             except Exception as e:
-                logger.warning(f"Skipping file {fp}: {e}")
+                logger.warning("Skipping file %s: %s", fp, e)
 
         if not gdfs:
             raise RuntimeError("All vector files failed to load or no valid geometries")
