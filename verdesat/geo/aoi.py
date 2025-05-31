@@ -1,5 +1,10 @@
+"""
+Module `geo.aoi` defines the AOI (Area of Interest) class, which holds a single
+geographic feature (Polygon/MultiPolygon), its static properties, and associated time series.
+"""
+
 import json
-from typing import List, Union, Dict
+from typing import List, Union, Dict, Optional, Any
 from shapely.geometry import shape, Polygon, MultiPolygon
 import geopandas as gpd
 from verdesat.analytics.timeseries import TimeSeries
@@ -7,7 +12,8 @@ from verdesat.analytics.timeseries import TimeSeries
 
 class AOI:
     """
-    Area of Interest (AOI): represents one field, forest, or custom polygon with static and dynamic properties.
+    Area of Interest (AOI): represents one field, forest, or custom polygon
+    with static and dynamic properties.
     - geometry: shapely Polygon or MultiPolygon
     - static_props: dict (name, climate_zone, etc.)
     - timeseries: Dict[str, TimeSeries] (e.g. {"ndvi": TimeSeries, ...})
@@ -15,15 +21,18 @@ class AOI:
 
     def __init__(
         self,
-        geometry: Polygon or MultiPolygon,
-        static_props: dict,
-        timeseries: Dict[str, TimeSeries] = None,
+        geometry: Union[Polygon, MultiPolygon],
+        static_props: Dict[str, Any],
+        timeseries: Optional[Dict[str, TimeSeries]] = None,
     ):
         self.geometry = geometry
         self.static_props = static_props
         self.timeseries = timeseries or {}
 
     def add_timeseries(self, variable: str, ts: TimeSeries):
+        """
+        Attach a TimeSeries object to this AOI under the given variable name.
+        """
         self.timeseries[variable] = ts
 
     @classmethod
@@ -37,8 +46,11 @@ class AOI:
 
     @classmethod
     def from_geojson(cls, geojson: Union[str, dict], id_col: str = "id") -> List["AOI"]:
+        """
+        Parse a GeoJSON object (or path to a GeoJSON file) and return AOI instances.
+        """
         if isinstance(geojson, str):
-            with open(geojson, "r") as f:
+            with open(geojson, "r", encoding="utf-8") as f:
                 data = json.load(f)
         else:
             data = geojson

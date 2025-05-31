@@ -3,13 +3,13 @@ Module `ingestion.eemanager` provides the EarthEngineManager class to
 encapsulate Google Earth Engine initialization, retries, and image collection retrieval.
 """
 
+import logging
 import os
 import time
-import logging
+from typing import Optional
 
 import ee
 from ee import EEException
-from typing import Optional
 
 from .mask import mask_fmask_bits
 
@@ -36,7 +36,9 @@ class EarthEngineManager:
         try:
             if self.credential_path:
                 # type: ignore[arg-type]
-                creds = ee.ServiceAccountCredentials(None, self.credential_path)  # type: ignore[arg-type]
+                creds = ee.ServiceAccountCredentials(
+                    None, self.credential_path  # type: ignore[arg-type]
+                )
                 ee.Initialize(creds, project=project)
             else:
                 ee.Initialize(project=project)
