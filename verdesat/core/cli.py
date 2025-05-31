@@ -2,6 +2,7 @@
 VerdeSat CLI entrypoint — defines commands for vector preprocessing, time series download,
 and basic workflows. Dynamically loads available indices from the registry.
 """
+
 import os
 import sys
 import json
@@ -15,7 +16,7 @@ from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
 from verdesat.geo.aoi import AOI
 from verdesat.ingestion.sensorspec import SensorSpec
 from verdesat.ingestion.dataingestor import DataIngestor
-from verdesat.ingestion.indices import INDEX_FUNCTIONS
+from verdesat.ingestion.indices import INDEX_REGISTRY
 from verdesat.ingestion.chips import get_composite, export_composites_to_png
 from verdesat.analytics.timeseries import TimeSeries
 from verdesat.visualization.static_viz import plot_decomposition
@@ -87,9 +88,9 @@ def download():
 @click.option(
     "--index",
     "-i",
-    type=click.Choice(list(INDEX_FUNCTIONS.keys())),
+    type=click.Choice(list(INDEX_REGISTRY.keys())),
     default="ndvi",
-    help=f"Spectral index to compute (choices: {', '.join(INDEX_FUNCTIONS.keys())})",
+    help=f"Spectral index to compute (choices: {', '.join(INDEX_REGISTRY.keys())})",
 )
 @click.option(
     "--agg",

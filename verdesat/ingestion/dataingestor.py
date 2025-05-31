@@ -4,15 +4,17 @@ Provides chunking, daily retrieval, and aggregation functionality.
 """
 
 import logging
-from typing import Literal
-from typing import Optional
-import pandas as pd
+from datetime import timedelta
+from typing import Literal, Optional
+
 import ee
+import pandas as pd
+
 from verdesat.geo.aoi import AOI
+
+from ..analytics.timeseries import TimeSeries
 from .eemanager import ee_manager
 from .sensorspec import SensorSpec
-from .indices import compute_index
-from ..analytics.timeseries import TimeSeries
 
 logger = logging.getLogger(__name__)
 
@@ -89,12 +91,25 @@ class DataIngestor:
         Returns:
             Concatenated pd.DataFrame of daily time series.
         """
-        # 1. Build chunk boundaries
+        # 1. Build chunk boundaries using period end dates
         dates = pd.date_range(start=start_date, end=end_date, freq=chunk_freq)
-        bounds = zip(
-            [start_date] + list(dates.strftime("%Y-%m-%d")),
-            list(dates.strftime("%Y-%m-%d")) + [end_date],
-        )
+        boundaries = list(dates)
+
+        # Initialize
+        bounds = []
+        prev_start = pd.to_datetime(start_date)
+
+        for b in boundaries:
+            end_chunk = b
+            # Convert to strings for EE calls
+            bounds.append((prev_start.strftime("%Y-%m-%d"), end_chunk.strftime("%Y-%m-%d")))
+            # Next chunk starts the day after this boundary
+            prev_start = b + timedelta(days=1)
+
+        # If last boundary day is before end_date, add final chunk
+        if prev_start <= pd.to_datetime(end_date):
+            bounds.append((prev_start.strftime("%Y-%m-%d"), end_date))
+
         dfs = []
         for s, e in bounds:
             # pylint: disable=broad-exception-caught
@@ -144,7 +159,7 @@ class DataIngestor:
 
         # Helper to reduce one image
         def _reduce(img):
-            idx_img = compute_index(img, index)
+            idx_img = self.sensor.compute_index(img, index)
             stats = idx_img.reduceRegions(region, ee.Reducer.mean(), scale=scale)
             date = ee.Date(img.get("system:time_start")).format("YYYY-MM-dd")
             return stats.map(lambda f: f.set("date", date))
