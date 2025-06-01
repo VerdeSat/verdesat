@@ -155,7 +155,7 @@ class ChipExporter:
 
         # 2) Compute bounding box for 'region'
         try:
-            bbox_info = ee.FeatureCollection([feature]).geometry().bounds().getInfo()
+            bbox_info = geom.bounds().getInfo()
             coords = bbox_info.get("coordinates", [[]])[0]
             xs = [pt[0] for pt in coords]
             ys = [pt[1] for pt in coords]
