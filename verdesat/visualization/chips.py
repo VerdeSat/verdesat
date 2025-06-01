@@ -1,16 +1,19 @@
+"""Module implementing ChipExporter and ChipService for exporting image chips via GEE."""
+
 import logging
 import os
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-    Union,
-)
+from typing import Any, Dict, List, Optional, Union
 
 import ee
 import requests
 from ee import EEException
+
+try:
+    import rasterio
+    from rasterio.enums import Resampling
+except ImportError:
+    rasterio = None
+    Resampling = None
 
 from verdesat.analytics.engine import AnalyticsEngine
 from verdesat.geo.aoi import AOI
@@ -29,11 +32,13 @@ class ChipExporter:
     converting them to COG).
     """
 
-    def __init__(self, out_dir: str, fmt: str) -> None:
+    def __init__(self, ee_manager: EarthEngineManager, out_dir: str, fmt: str) -> None:
         """
+        :param ee_manager: EarthEngineManager instance
         :param out_dir: directory where chips will be written
         :param fmt: 'png' or 'geotiff'
         """
+        self.ee_manager = ee_manager
         self.out_dir = out_dir
         self.fmt = fmt.lower()
         os.makedirs(self.out_dir, exist_ok=True)
@@ -46,7 +51,6 @@ class ChipExporter:
         scale: int,
         palette: Optional[List[str]],
         gamma: Optional[float],
-        dims: int = 512,
     ) -> Dict[str, Any]:
         """
         Construct the Earth Engine visualization parameters dict for a single image.
@@ -65,12 +69,11 @@ class ChipExporter:
         if self.fmt == "png":
             # For PNG, drop 'scale' and force dims=512 (old behavior)
             params.pop("scale", None)
-            params["dimensions"] = 512  # dims is always 512 for PNG
-            if palette is not None and gamma is None:
-                if len(bands) == 1:
-                    params["palette"] = palette
-                else:
-                    logger.warning("Palette ignored when multiple bands are visualized")
+            params["dimensions"] = 512
+            if palette is not None and len(bands) == 1 and gamma is None:
+                params["palette"] = palette
+            elif palette is not None and len(bands) > 1:
+                logger.warning("Palette ignored when visualizing multiple bands")
             elif palette is not None and gamma is not None:
                 logger.warning("Palette ignored because gamma correction is enabled")
         else:
@@ -84,10 +87,7 @@ class ChipExporter:
         Convert a just‐written GeoTIFF into a Cloud‐Optimized GeoTIFF (COG).
         If conversion fails, issue a warning.
         """
-        try:
-            import rasterio
-            from rasterio.enums import Resampling
-        except ImportError:
+        if rasterio is None or Resampling is None:
             logger.warning(
                 "rasterio not installed; skipping COG conversion for %s", path
             )
@@ -112,7 +112,7 @@ class ChipExporter:
                 dst.update_tags(OVR_RESAMPLING="NEAREST")
 
             logger.info("✔ Converted to COG: %s", path)
-        except Exception as cog_err:
+        except rasterio.errors.RasterioError as cog_err:
             logger.warning("⚠ COG conversion failed for %s: %s", path, cog_err)
 
     def export_one(
@@ -146,20 +146,23 @@ class ChipExporter:
 
         try:
             geom = aoi.buffered_ee_geometry(buffer_m)
-        except Exception as e:
+        except (EEException, ValueError) as e:
             logger.error("Failed to construct ee.Geometry for AOI %s: %s", pid, e)
             return
 
         clipped = img.clip(geom)
 
         try:
-            bbox_info = geom.bounds().getInfo()
+            bbox_info = self.ee_manager.safe_get_info(geom.bounds()) or {}
             coords = bbox_info.get("coordinates", [[]])[0]
             xs = [pt[0] for pt in coords]
             ys = [pt[1] for pt in coords]
             region_bbox = [min(xs), min(ys), max(xs), max(ys)]
-        except Exception as e:
-            logger.warning("Could not compute bbox for AOI %s: %s", pid, e)
+        except EEException as ee_err:
+            logger.warning("Could not compute bbox for AOI %s: %s", pid, ee_err)
+            return
+        except KeyError as key_err:
+            logger.warning("BBox info missing keys for AOI %s: %s", pid, key_err)
             return
 
         viz_params = self._build_viz_params(
@@ -185,13 +188,14 @@ class ChipExporter:
 
         filename = f"{com_type}_{pid}_{date_str}.{ext}"
         out_path = os.path.join(self.out_dir, filename)
+
         try:
             resp = requests.get(url, timeout=60)
             resp.raise_for_status()
             with open(out_path, "wb") as fh:
                 fh.write(resp.content)
             logger.info("✔ Wrote %s file: %s", ext, out_path)
-        except Exception as dl_err:
+        except requests.RequestException as dl_err:
             logger.error(
                 "Failed to download %s for %s on %s: %s", ext, pid, date_str, dl_err
             )
@@ -254,8 +258,6 @@ class ChipService:
             mask_clouds=config.mask_clouds,
         )
 
-        bands: List[str]
-
         if chip_key in INDEX_REGISTRY:
             bands = [chip_key.upper()]
             raw_coll = raw_coll.map(
@@ -295,9 +297,12 @@ class ChipService:
             scale=config.scale,
         )
 
-        exporter = ChipExporter(out_dir=config.out_dir, fmt=config.fmt)
+        exporter = ChipExporter(
+            ee_manager=self.ee_manager, out_dir=config.out_dir, fmt=config.fmt
+        )
 
-        total_count = int(composites.size().getInfo())
+        raw_count = self.ee_manager.safe_get_info(composites.size())
+        total_count = int(raw_count or 0)
         if total_count <= 0:
             raise RuntimeError("No composites generated (empty EE collection)")
 
@@ -305,13 +310,12 @@ class ChipService:
         for i in range(total_count):
             try:
                 img = ee.Image(image_list.get(i))
-                date_str: str = (
-                    ee.Date(img.get("system:time_start")).format("YYYY-MM-dd").getInfo()
-                )
+                date_obj = ee.Date(img.get("system:time_start")).format("YYYY-MM-dd")
+                date_str = self.ee_manager.safe_get_info(date_obj)
 
                 for aoi in aois:
                     buffer_m = config.buffer
-                    exporter.export_one(
+                    exporter.export_one(  # noqa: E501
                         img=img,
                         aoi=aoi,
                         date_str=date_str,
@@ -324,8 +328,13 @@ class ChipService:
                         min_val=min_val,
                         max_val=max_val,
                     )
-            except Exception as e:
-                logger.error("Failed exporting composite #%d: %s", i, e, exc_info=True)
+            except EEException as ee_err:
+                logger.error(
+                    "Failed exporting composite #%d due to EE error: %s",
+                    i,
+                    ee_err,
+                    exc_info=True,
+                )
                 continue
 
         logger.info("Finished exporting all chips to %s", config.out_dir)

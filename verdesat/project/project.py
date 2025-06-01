@@ -1,4 +1,7 @@
-from typing import List
+"""Module defining the VerdeSatProject class for managing client projects with multiple AOIs,
+ handling data ingestion, processing, and visualization."""
+
+from typing import List, Literal
 from verdesat.geo.aoi import AOI
 from verdesat.core.config import ConfigManager
 from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
@@ -22,6 +25,9 @@ class VerdeSatProject:
         self.config = config
 
     def add_aoi(self, aoi: AOI):
+        """
+        Add a new AOI to the project.
+        """
         self.aois.append(aoi)
 
     @classmethod
@@ -43,12 +49,29 @@ class VerdeSatProject:
         start_date: str,
         end_date: str,
         scale: int,
-        freq: str,
         output_dir: str,
+        freq: Literal["D", "M", "Y"] = "Y",
         report_title: str | None = None,
     ) -> None:
         """
         Execute the full workflow: download timeseries, attach to AOIs, and generate a report.
+
+        Parameters:
+            collection_id (str): Identifier for the satellite data collection.
+            index (str): The spectral or vegetation index to process (e.g., NDVI).
+            start_date (str): Start date for the timeseries data in 'YYYY-MM-DD' format.
+            end_date (str): End date for the timeseries data in 'YYYY-MM-DD' format.
+            scale (int): Spatial resolution scale in meters.
+            output_dir (str): Directory path to save the generated report.
+            freq (Literal["D", "M", "Y"], optional): Frequency of timeseries aggregation - 
+            daily, monthly, or yearly. Defaults to 'Y'.
+            report_title (str | None, optional): Custom title for the report. If None,
+            defaults to config value or 'VerdeSat Report'.
+
+        Behavior:
+            Downloads timeseries data for each AOI using the specified parameters,
+            attaches the timeseries to each AOI, and generates an HTML report saved
+            to the output directory.
         """
         # Instantiate ingestion components
         sensor = SensorSpec.from_collection_id(collection_id)
@@ -63,4 +86,4 @@ class VerdeSatProject:
         # Generate HTML report
         viz = Visualizer()
         title = report_title or self.config.get("report_title", "VerdeSat Report")
-        viz.generate_report(self, output_dir, title=title)
+        viz.generate_report(output_dir, title=title)

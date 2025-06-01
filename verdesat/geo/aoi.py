@@ -6,10 +6,9 @@ geographic feature (Polygon/MultiPolygon), its static properties, and associated
 import json
 import math
 from typing import List, Union, Dict, Optional, Any
-from shapely.geometry import shape, Polygon, MultiPolygon
+from shapely.geometry import shape, mapping, Polygon, MultiPolygon
 import geopandas as gpd
 import ee
-from shapely.geometry import mapping
 from verdesat.analytics.timeseries import TimeSeries
 
 

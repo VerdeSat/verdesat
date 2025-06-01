@@ -1,6 +1,11 @@
-# verdesat/visualization/chips_config.py
+"""
+Module `visualization._chips_config` defines `ChipsConfig`, a container for CLI parameters
+needed to generate per-AOI image chips.
+"""
 
 from typing import Optional, Sequence
+
+from verdesat.core.config import PRESET_PALETTES
 
 
 class ChipsConfig:
@@ -89,9 +94,6 @@ class ChipsConfig:
         """
         palette = None
         if palette_arg:
-
-            from verdesat.core.config import PRESET_PALETTES
-
             if palette_arg in PRESET_PALETTES:
                 palette = PRESET_PALETTES[palette_arg]
             else:

@@ -1,3 +1,10 @@
+# analytics/engine.py
+
+"""
+AnalyticsEngine
+---------------
+Contains reusable EE routines for building composites and computing indices/trends.
+"""
 from typing import List
 import ee
 from ee import Reducer
@@ -18,7 +25,7 @@ class AnalyticsEngine:
         start: str,
         end: str,
         bands: List[str],
-        scale: int,
+        scale: int,  # Not used for the moment
     ) -> ee.ImageCollection:
         """
         Build monthly ('M') or yearly ('Y') composites from base_ic, using the given reducer,

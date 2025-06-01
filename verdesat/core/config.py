@@ -1,3 +1,13 @@
+"""
+core.config
+-----------
+
+Configuration loader/manager for VerdeSat.  Provides a central API for
+loading settings from YAML/TOML/JSON (or environment/CLI) and retrieving
+them via `.get(...)`.
+"""
+
+
 class ConfigManager:
     """
     Loads and manages configuration from file, environment, CLI, or defaults.
@@ -14,6 +24,13 @@ class ConfigManager:
         pass
 
     def get(self, key, default=None):
+        """
+        Retrieve a configuration value by key, or return `default` if not present.
+
+        Args:
+            key (str): The configuration parameter to look up.
+            default:  The value to return if `key` is not found.
+        """
         return self.config.get(key, default)
 
 

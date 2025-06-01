@@ -5,14 +5,12 @@ and basic workflows. Dynamically loads available indices from the registry.
 
 import os
 import sys
-import json
 import logging
 import pandas as pd
 import click  # type: ignore
 from click import echo
 from verdesat.core import utils
 from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
-from verdesat.geo.aoi import AOI
 from verdesat.ingestion.sensorspec import SensorSpec
 from verdesat.ingestion.dataingestor import DataIngestor
 from verdesat.ingestion.indices import INDEX_REGISTRY
@@ -29,9 +27,6 @@ from verdesat.ingestion.eemanager import ee_manager
 from verdesat.visualization.chips import ChipService
 from verdesat.geo.aoi import AOI
 from verdesat.visualization._chips_config import ChipsConfig
-from verdesat.core.config import (
-    PRESET_PALETTES,
-)  # assume you have this dict of named palettes
 
 
 logger = logging.getLogger(__name__)
@@ -55,6 +50,7 @@ def prepare(input_dir):
         )
         gdf.to_file(output_path, driver="GeoJSON")
         echo(f"✅  GeoJSON written to `{output_path}`")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         echo(f"❌  Processing failed: {e}", err=True)
         sys.exit(1)
@@ -231,7 +227,12 @@ def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, o
     help="Output file format ('png' or 'geotiff').",
 )
 @click.option("--out-dir", "-o", default="chips", help="Output directory.")
-@click.option("--ee-project", default=None, help="Override Earth Engine project (GCP).")
+@click.option(
+    "--ee-project",
+    " _ee_project",
+    default=None,
+    help="Override Earth Engine project (GCP).",
+)
 def chips(
     mask_clouds,
     geojson,
@@ -251,7 +252,7 @@ def chips(
     palette_arg,
     fmt,
     out_dir,
-    ee_project,
+    _ee_project,
 ):
     """
     Download per-polygon image chips (monthly/yearly composites).
@@ -266,7 +267,6 @@ def chips(
         aois = AOI.from_geojson(geojson, id_col="id")
 
         # 2) Initialize Earth Engine (possibly override project)
-        #ee_manager.project = ee_project  # if overriding
         ee_manager.initialize()
         echo("✔ Initialized Earth Engine…")
 
@@ -301,6 +301,7 @@ def chips(
         service.run(aois=aois, config=chips_cfg)
 
         echo(f"✅  Chips written under {out_dir}/")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Chips command failed", exc_info=True)
         echo(f"❌  Chips download failed: {e}", err=True)
@@ -571,6 +572,7 @@ def animate(images_dir, pattern, output_dir, duration, loop):
             loop=loop,
         )
         echo(f"✅  Animated GIFs written under {output_dir}")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Animate command failed", exc_info=True)
         echo(f"❌  Animation generation failed: {e}", err=True)
@@ -611,6 +613,7 @@ def gallery(chips_dir, template, output, title):
             template_path=template,
         )
         echo(f"✅  Gallery written to {output}")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Gallery command failed", exc_info=True)
         echo(f"❌  Gallery generation failed: {e}", err=True)
@@ -688,6 +691,7 @@ def report(
             title=title,
         )
         echo(f"✅  Report saved to {output}")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         echo(f"❌  Failed to build report: {e}")
         sys.exit(1)
