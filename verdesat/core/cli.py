@@ -9,7 +9,6 @@ import json
 import logging
 import pandas as pd
 import click  # type: ignore
-import ee  # keep EE import if needed for other commands
 from click import echo
 from verdesat.core import utils
 from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
@@ -17,7 +16,6 @@ from verdesat.geo.aoi import AOI
 from verdesat.ingestion.sensorspec import SensorSpec
 from verdesat.ingestion.dataingestor import DataIngestor
 from verdesat.ingestion.indices import INDEX_REGISTRY
-from verdesat.ingestion.chips import get_composite, export_composites_to_png
 from verdesat.analytics.timeseries import TimeSeries
 from verdesat.visualization.static_viz import plot_decomposition
 from verdesat.analytics.decomposition import decompose_each
@@ -28,14 +26,11 @@ from verdesat.visualization.static_viz import plot_time_series
 from verdesat.visualization.gallery import build_gallery
 from verdesat.visualization.animate import make_gifs_per_site
 from verdesat.ingestion.eemanager import ee_manager
+from verdesat.visualization.chips import ChipService
+from verdesat.core.config import (
+    PRESET_PALETTES,
+)  # assume you have this dict of named palettes
 
-# Predefined NDVI color palettes
-PRESET_PALETTES = {
-    "white-green": ["white", "green"],
-    "red-white-green": ["red", "white", "green"],
-    "brown-green": ["brown", "green"],
-    "blue-white-green": ["blue", "white", "green"],
-}
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +138,7 @@ def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, o
 @click.option(
     "--mask-clouds/--no-mask-clouds",
     default=True,
-    help="Apply Fmask-based cloud/shadow/water masking before composites",
+    help="Apply Fmask‐based cloud/shadow/water masking before composites",
 )
 @click.argument("geojson", type=click.Path(exists=True))
 @click.option(
@@ -152,8 +147,8 @@ def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, o
     default="NASA/HLS/HLSL30/v002",
     help="Earth Engine ImageCollection ID",
 )
-@click.option("--start", "-s", default="2015-01-01", help="Start date")
-@click.option("--end", "-e", default="2024-12-31", help="End date")
+@click.option("--start", "-s", default="2015-01-01", help="Start date (YYYY-MM-DD)")
+@click.option("--end", "-e", default="2024-12-31", help="End date (YYYY-MM-DD)")
 @click.option(
     "--period",
     "-p",
@@ -167,6 +162,7 @@ def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, o
     "chip_type",
     type=click.Choice(["truecolor", "ndvi"]),
     default="truecolor",
+    help="Whether to export a true‐color composite or NDVI composite",
 )
 @click.option("--scale", type=int, default=30, help="Resolution in meters")
 @click.option(
@@ -203,13 +199,13 @@ def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, o
     "--percentile-low",
     type=float,
     default=None,
-    help="Lower percentile for auto-stretch (e.g., 2)",
+    help="Lower percentile for auto‐stretch (e.g., 2)",
 )
 @click.option(
     "--percentile-high",
     type=float,
     default=None,
-    help="Upper percentile for auto-stretch (e.g., 98)",
+    help="Upper percentile for auto‐stretch (e.g., 98)",
 )
 @click.option(
     "--palette",
@@ -217,13 +213,15 @@ def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, o
     type=str,
     default=None,
     help=(
-        "NDVI palette: preset names (white-green, red-white-green, brown-green, blue-white-green)"
-        " or comma-separated colors"
+        "NDVI palette: preset names (white-green, red-white-green, brown-green, blue-white-green) "
+        "or comma-separated hex/RGB values"
     ),
 )
-@click.option("--format", "-f", default="png", help="Format of the output files")
+@click.option("--format", "-f", "fmt", default="png", help="Format: 'png' or 'geotiff'")
 @click.option("--out-dir", "-o", default="chips", help="Output directory")
-@click.option("--ee-project", default=None, help="GCP project override")
+@click.option(
+    "--ee-project", default=None, help="GCP project override (for EE initialization)"
+)
 def chips(
     mask_clouds,
     geojson,
@@ -241,60 +239,47 @@ def chips(
     percentile_low,
     percentile_high,
     palette_arg,
-    format,
+    fmt,
     out_dir,
     ee_project,
 ):
-    """Download per-polygon image chips (monthly/yearly true‐color or NDVI)."""
+    """Download per‐polygon monthly/yearly image chips (true‐color or NDVI)."""
     try:
-        with open(geojson) as f:
+        # 1) Load GeoJSON into memory:
+        with open(geojson, "r", encoding="utf-8") as f:
             gj = json.load(f)
-        # Initialize Earth Engine with optional project override
+
+        # 2) Allow overriding the Earth Engine project:
         if ee_project:
             ee_manager.project = ee_project
+
         ee_manager.initialize()
-        echo("Initializing Earth Engine and fetching collection...")
-        # Use GEE helper to fetch raw image collection
-        aoi = ee.FeatureCollection(gj)
-        coll = ee_manager.get_image_collection(
-            collection, start, end, aoi, mask_clouds=mask_clouds
-        )
-        # If NDVI, map compute_index
-        if chip_type == "ndvi":
-            bands = ["NDVI"]
-            # Determine palette
+        echo("✔ Initialized Earth Engine…")
+
+        # 3) Prepare palette list if NDVI:
+        palette: Optional[List[str]]
+        if chip_type.lower() == "ndvi":
             if palette_arg:
                 if palette_arg in PRESET_PALETTES:
                     palette = PRESET_PALETTES[palette_arg]
                 else:
                     palette = [c.strip() for c in palette_arg.split(",") if c.strip()]
             else:
-                palette = PRESET_PALETTES["white-green"]
+                palette = PRESET_PALETTES.get("white-green", None)
         else:
-            bands = ["B4", "B3", "B2"]
             palette = None
 
-        # 1) get composites
-        composites = get_composite(
-            gj,
-            collection,  # your ImageCollection ID
-            start,  # start date str
-            end,
-            reducer=ee.Reducer.mean(),
-            bands=bands,
-            scale=scale,
+        # 4) Run ChipService
+        sensor_spec = SensorSpec.from_collection_id(collection)
+        service = ChipService(ee_manager, sensor_spec)
+        echo("→ Building composites and exporting chips…")
+        service.run(
+            geojson=gj,
+            collection_id=collection,
+            start=start,
+            end=end,
             period=period,
-            base_coll=coll,
-            project=ee_project,
-        )
-
-        # 2) export
-        export_composites_to_png(
-            composites,
-            gj,
-            out_dir,
-            bands=bands,
-            palette=palette,
+            chip_type=chip_type,
             scale=scale,
             min_val=min_val,
             max_val=max_val,
@@ -303,12 +288,15 @@ def chips(
             gamma=gamma,
             percentile_low=percentile_low,
             percentile_high=percentile_high,
-            fmt=format,
+            palette=palette,
+            fmt=fmt,
+            out_dir=out_dir,
+            mask_clouds=mask_clouds,
         )
 
-        echo(f"✅  Chips written under {out_dir}/")
+        echo(f"✅  All chips written under “{out_dir}/”")
     except Exception as e:
-        logger.error("Chips command failed", exc_info=True)
+        logger.error("Chips command failed: %s", e, exc_info=True)
         echo(f"❌  Chips download failed: {e}", err=True)
         sys.exit(1)
 

@@ -27,3 +27,10 @@ SUPPORTED_INPUT_FORMATS = [
     ".kmz",  # zipped KML
     ".gml",  # Geography Markup Language
 ]
+
+PRESET_PALETTES = {
+    "white-green": ["white", "green"],
+    "red-white-green": ["red", "white", "green"],
+    "brown-green": ["brown", "green"],
+    "blue-white-green": ["blue", "white", "green"],
+}
