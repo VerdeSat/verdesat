@@ -1,22 +1,23 @@
-import os
 import logging
-import requests
+import os
 from typing import (
+    Any,
+    Dict,
     List,
     Optional,
     Union,
-    Dict,
-    Any,
 )
 
 import ee
+import requests
 from ee import EEException
 
-from verdesat.ingestion.eemanager import EarthEngineManager
-from verdesat.ingestion.sensorspec import SensorSpec
-from verdesat.ingestion.indices import compute_index, INDEX_REGISTRY
 from verdesat.analytics.engine import AnalyticsEngine
-from verdesat.geo.utils import buffer_geometry
+from verdesat.geo.aoi import AOI
+from verdesat.ingestion.eemanager import EarthEngineManager
+from verdesat.ingestion.indices import INDEX_REGISTRY
+from verdesat.ingestion.sensorspec import SensorSpec
+from verdesat.visualization._chips_config import ChipsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,10 @@ class ChipExporter:
             params.pop("scale", None)
             params["dimensions"] = 512  # dims is always 512 for PNG
             if palette is not None and gamma is None:
-                params["palette"] = palette
+                if len(bands) == 1:
+                    params["palette"] = palette
+                else:
+                    logger.warning("Palette ignored when multiple bands are visualized")
             elif palette is not None and gamma is not None:
                 logger.warning("Palette ignored because gamma correction is enabled")
         else:
@@ -114,7 +118,7 @@ class ChipExporter:
     def export_one(
         self,
         img: ee.Image,
-        feature: Dict[str, Any],
+        aoi: AOI,
         date_str: str,
         com_type: str,
         bands: List[str],
@@ -136,25 +140,18 @@ class ChipExporter:
           5) Download via HTTP and write to disk
           6) If GeoTIFF, convert to COG
         """
-        # 1) Assemble the buffered geometry
-        geom_json = feature.get("geometry")
-        feat_props = feature.get("properties", {})
-        pid = feat_props.get("id") or feat_props.get("system:index")
-        if pid is None:
-            pid = "unknown"
+        pid = aoi.static_props.get("id") or aoi.static_props.get(
+            "system:index", "unknown"
+        )
 
         try:
-            # Convert geojson dict → ee.Geometry, then buffer
-            geom = ee.Geometry(geom_json)
-            if buffer_m > 0:
-                geom = geom.buffer(buffer_m)
+            geom = aoi.buffered_ee_geometry(buffer_m)
         except Exception as e:
-            logger.error("Failed to construct ee.Geometry for feature %s: %s", pid, e)
+            logger.error("Failed to construct ee.Geometry for AOI %s: %s", pid, e)
             return
 
         clipped = img.clip(geom)
 
-        # 2) Compute bounding box for 'region'
         try:
             bbox_info = geom.bounds().getInfo()
             coords = bbox_info.get("coordinates", [[]])[0]
@@ -162,10 +159,9 @@ class ChipExporter:
             ys = [pt[1] for pt in coords]
             region_bbox = [min(xs), min(ys), max(xs), max(ys)]
         except Exception as e:
-            logger.warning("Could not compute bbox for feature %s: %s", pid, e)
+            logger.warning("Could not compute bbox for AOI %s: %s", pid, e)
             return
 
-        # 3) Build viz params (dims=512 for PNG)
         viz_params = self._build_viz_params(
             bands=bands,
             min_val=min_val,
@@ -174,10 +170,8 @@ class ChipExporter:
             palette=palette,
             gamma=gamma,
         )
-        # Add region explicitly (old logic: build dims then region)
         viz_params["region"] = region_bbox
 
-        # 4) Build URL
         try:
             if self.fmt == "png":
                 url = clipped.getThumbURL(viz_params)
@@ -189,7 +183,6 @@ class ChipExporter:
             logger.error("Failed to get URL for %s on %s: %s", pid, date_str, ee_err)
             return
 
-        # 5) Download via HTTP
         filename = f"{com_type}_{pid}_{date_str}.{ext}"
         out_path = os.path.join(self.out_dir, filename)
         try:
@@ -204,7 +197,6 @@ class ChipExporter:
             )
             return
 
-        # 6) If GeoTIFF, convert to COG
         if ext != "png":
             self._convert_to_cog(out_path)
 
@@ -223,65 +215,45 @@ class ChipService:
         self.ee_manager = ee_manager
         self.sensor_spec = sensor_spec
 
-    def run(
-        self,
-        geojson: Dict[str, Any],
-        collection_id: str,
-        start: str,
-        end: str,
-        period: str,
-        chip_type: str,
-        scale: int,
-        min_val: Optional[float],
-        max_val: Optional[float],
-        buffer: int,
-        buffer_percent: Optional[float],
-        gamma: Optional[float],
-        percentile_low: Optional[float],
-        percentile_high: Optional[float],
-        palette: Optional[List[str]],
-        fmt: str,
-        out_dir: str,
-        mask_clouds: bool,
-    ) -> None:
+    def run(self, aois: List[AOI], config: ChipsConfig) -> None:
         """
-        Main entrypoint.
+        Main entry‑point executed by the CLI.
 
-        :param geojson: loaded GeoJSON dict (with "features" list)
-        :param collection_id: Earth Engine collection string (e.g. 'NASA/HLS/HLSL30/v002')
-        :param start: 'YYYY-MM-DD'
-        :param end:   'YYYY-MM-DD'
-        :param period: 'M' or 'Y'
-        :param chip_type: 'truecolor' or the name of any index present in index_formulas.json
-        :param scale: resolution in meters
-        :param min_val, max_val: explicit min/max; if None, defaults will be used
-        :param buffer: integer meters
-        :param buffer_percent: float percentage of AOI extent
-        :param gamma: gamma correction
-        :param percentile_low/high: for auto‐stretch (unused here)
-        :param palette: list of hex/RGB strings (only used by indices, e.g. NDVI)
-        :param fmt: 'png' or 'geotiff'
-        :param out_dir: where to save files
-        :param mask_clouds: whether to call mask_fmask_bits in get_image_collection
+        Parameters
+        ----------
+        aois : List[AOI]
+            List of pre‑constructed AOI objects to export chips for.
+        config : ChipsConfig
+            Immutable configuration object carrying every parameter required
+            for chip generation (see `chips_config.py`).
         """
-        # 1) Initialize EE
-        self.ee_manager.initialize()
+        features: List[Dict[str, Any]] = []
+        for aoi in aois:
+            feat = {
+                "type": "Feature",
+                "geometry": aoi.geometry.__geo_interface__,
+                "properties": {**aoi.static_props},
+            }
+            features.append(feat)
 
-        # 2) Ensure GeoJSON has a non‐empty features list
-        features = geojson.get("features", [])
-        if not isinstance(features, list) or len(features) == 0:
-            raise ValueError("GeoJSON must have a non‐empty 'features' list")
-        ee_fc = ee.FeatureCollection(geojson)
+        if not features:
+            raise ValueError("AOI list is empty; nothing to export")
 
-        chip_key = chip_type.lower()
-        com_type = chip_key.upper().replace(",", "_")
-
-        # 3) Fetch raw ImageCollection
-        raw_coll = self.ee_manager.get_image_collection(
-            collection_id, start, end, ee_fc, mask_clouds=mask_clouds
+        ee_fc = ee.FeatureCollection(
+            {"type": "FeatureCollection", "features": features}
         )
 
-        # 4) Determine bands and possibly map compute_index
+        chip_key = config.chip_type.lower()
+        com_type = chip_key.upper().replace(",", "_")
+
+        raw_coll = self.ee_manager.get_image_collection(
+            config.collection_id,
+            config.start,
+            config.end,
+            ee_fc,
+            mask_clouds=config.mask_clouds,
+        )
+
         bands: List[str]
 
         if chip_key in INDEX_REGISTRY:
@@ -302,30 +274,29 @@ class ChipService:
             bands = actual_bands
             raw_coll = raw_coll.select(actual_bands)
 
-        # 5) Determine default min/max if not provided
-        if min_val is None or max_val is None:
+        if config.min_val is None or config.max_val is None:
             if chip_key in INDEX_REGISTRY:
                 default_min, default_max = 0.0, 1.0
             else:
                 default_min, default_max = 0.0, 0.4
-            min_val = min_val if min_val is not None else default_min
-            max_val = max_val if max_val is not None else default_max
+            min_val = config.min_val if config.min_val is not None else default_min
+            max_val = config.max_val if config.max_val is not None else default_max
+        else:
+            min_val = config.min_val
+            max_val = config.max_val
 
-        # 6) Build composites (monthly/yearly mean)
         composites = AnalyticsEngine.build_composites(
             base_ic=raw_coll,
-            period=period,
+            period=config.period,
             reducer=ee.Reducer.mean(),
-            start=start,
-            end=end,
+            start=config.start,
+            end=config.end,
             bands=bands,
-            scale=scale,
+            scale=config.scale,
         )
 
-        # 7) Instantiate exporter
-        exporter = ChipExporter(out_dir=out_dir, fmt=fmt)
+        exporter = ChipExporter(out_dir=config.out_dir, fmt=config.fmt)
 
-        # 8) Loop over composites → list, then per‐feature
         total_count = int(composites.size().getInfo())
         if total_count <= 0:
             raise RuntimeError("No composites generated (empty EE collection)")
@@ -338,20 +309,18 @@ class ChipService:
                     ee.Date(img.get("system:time_start")).format("YYYY-MM-dd").getInfo()
                 )
 
-                for feat in features:
-                    # 9) Compute buffer in metres for this feature
-                    buffer_m = buffer_geometry(feat, buffer, buffer_percent)
-
+                for aoi in aois:
+                    buffer_m = config.buffer
                     exporter.export_one(
                         img=img,
-                        feature=feat,
+                        aoi=aoi,
                         date_str=date_str,
                         com_type=com_type,
                         bands=bands,
-                        palette=palette,
-                        scale=scale,
+                        palette=config.palette,
+                        scale=config.scale,
                         buffer_m=buffer_m,
-                        gamma=gamma,
+                        gamma=config.gamma,
                         min_val=min_val,
                         max_val=max_val,
                     )
@@ -359,4 +328,4 @@ class ChipService:
                 logger.error("Failed exporting composite #%d: %s", i, e, exc_info=True)
                 continue
 
-        logger.info("Finished exporting all chips to %s", out_dir)
+        logger.info("Finished exporting all chips to %s", config.out_dir)

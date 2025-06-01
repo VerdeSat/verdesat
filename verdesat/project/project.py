@@ -1,11 +1,11 @@
 from typing import List
-from geo.aoi import AOI
-from core.config import ConfigManager
-from ingestion.vector_preprocessor import VectorPreprocessor
-from ingestion.datagingestor import DataIngestor
-from ingestion.sensorspec import SensorSpec
-from analytics.timeseries import TimeSeries
-from visualization.visualizer import Visualizer
+from verdesat.geo.aoi import AOI
+from verdesat.core.config import ConfigManager
+from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
+from verdesat.ingestion.dataingestor import DataIngestor
+from verdesat.ingestion.sensorspec import SensorSpec
+from verdesat.analytics.timeseries import TimeSeries
+from verdesat.visualization.visualizer import Visualizer
 
 
 class VerdeSatProject:

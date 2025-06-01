@@ -27,6 +27,8 @@ from verdesat.visualization.gallery import build_gallery
 from verdesat.visualization.animate import make_gifs_per_site
 from verdesat.ingestion.eemanager import ee_manager
 from verdesat.visualization.chips import ChipService
+from verdesat.geo.aoi import AOI
+from verdesat.visualization._chips_config import ChipsConfig
 from verdesat.core.config import (
     PRESET_PALETTES,
 )  # assume you have this dict of named palettes
@@ -259,54 +261,44 @@ def chips(
       • the name of any index defined in INDEX_REGISTRY (e.g. 'ndvi', 'evi').
     """
     try:
-        # 1) Load GeoJSON from disk
+        # 1) Load AOIs (list of AOI objects) from GeoJSON path
         echo(f"Loading AOIs from {geojson}...")
-        with open(geojson) as f:
-            gj = json.load(f)
+        aois = AOI.from_geojson(geojson, id_col="id")
 
         # 2) Initialize Earth Engine (possibly override project)
-        if ee_project:
-            ee_manager.project = ee_project
+        #ee_manager.project = ee_project  # if overriding
         ee_manager.initialize()
         echo("✔ Initialized Earth Engine…")
 
         # 3) Build a SensorSpec from the chosen collection ID
         sensor_spec = SensorSpec.from_collection_id(collection)
 
-        # 4) Determine palette list (if any)
-        palette: list[str] | None = None
-        if palette_arg:
-            # treat palette_arg as preset name or comma separated list
-
-            if palette_arg in PRESET_PALETTES:
-                palette = PRESET_PALETTES[palette_arg]
-            else:
-                palette = [c.strip() for c in palette_arg.split(",") if c.strip()]
-
-        echo("→ Building composites and exporting chips…")
-
-        # 5) Fire up ChipService
-        service = ChipService(ee_manager=ee_manager, sensor_spec=sensor_spec)
-        service.run(
-            geojson=gj,
-            collection_id=collection,
+        # 4) Build a ChipsConfig from all CLI options
+        chips_cfg = ChipsConfig.from_cli(
+            collection=collection,
             start=start,
             end=end,
             period=period,
             chip_type=chip_type,
             scale=scale,
-            min_val=min_val,
-            max_val=max_val,
             buffer=buffer,
             buffer_percent=buffer_percent,
+            min_val=min_val,
+            max_val=max_val,
             gamma=gamma,
             percentile_low=percentile_low,
             percentile_high=percentile_high,
-            palette=palette,
+            palette_arg=palette_arg,
             fmt=fmt,
             out_dir=out_dir,
             mask_clouds=mask_clouds,
         )
+
+        echo("→ Building composites and exporting chips…")
+
+        # 5) Fire up ChipService: now takes (ee_manager, aois, sensor_spec, chips_cfg)
+        service = ChipService(ee_manager=ee_manager, sensor_spec=sensor_spec)
+        service.run(aois=aois, config=chips_cfg)
 
         echo(f"✅  Chips written under {out_dir}/")
     except Exception as e:
