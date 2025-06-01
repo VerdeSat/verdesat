@@ -11,20 +11,6 @@ class AnalyticsEngine:
     """
 
     @staticmethod
-    def compute_index(img: ee.Image, index: str) -> ee.Image:
-        """
-        Simply wrap into your existing index‐calculation logic. For example,
-        if index=="ndvi", return the band:
-            (NIR - RED) / (NIR + RED).
-        If you already have a JSON‐driven registry, you can dynamically apply.
-        For now, we assume only 'ndvi' is needed:
-        """
-        if index.lower() == "ndvi":
-            return img.normalizedDifference(["nir", "red"]).rename("NDVI")
-        else:
-            raise ValueError(f"Unsupported index: {index}")
-
-    @staticmethod
     def build_composites(
         base_ic: ee.ImageCollection,
         period: str,

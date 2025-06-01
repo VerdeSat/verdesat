@@ -14,7 +14,7 @@ from ee import EEException
 
 from verdesat.ingestion.eemanager import EarthEngineManager
 from verdesat.ingestion.sensorspec import SensorSpec
-from verdesat.ingestion.indices import compute_index
+from verdesat.ingestion.indices import compute_index, INDEX_REGISTRY
 from verdesat.analytics.engine import AnalyticsEngine
 from verdesat.geo.utils import buffer_geometry
 
@@ -116,6 +116,7 @@ class ChipExporter:
         img: ee.Image,
         feature: Dict[str, Any],
         date_str: str,
+        com_type: str,
         bands: List[str],
         palette: Optional[List[str]],
         scale: int,
@@ -189,8 +190,7 @@ class ChipExporter:
             return
 
         # 5) Download via HTTP
-        com_type = "NDVI" if "NDVI" in bands else "RGB"
-        filename = f"{com_type}_{pid}_{date_str}.{ext}"  # ← original pattern
+        filename = f"{com_type}_{pid}_{date_str}.{ext}"
         out_path = os.path.join(self.out_dir, filename)
         try:
             resp = requests.get(url, timeout=60)
@@ -273,28 +273,38 @@ class ChipService:
             raise ValueError("GeoJSON must have a non‐empty 'features' list")
         ee_fc = ee.FeatureCollection(geojson)
 
+        chip_key = chip_type.lower()
+        com_type = chip_key.upper().replace(",", "_")
+
         # 3) Fetch raw ImageCollection
         raw_coll = self.ee_manager.get_image_collection(
             collection_id, start, end, ee_fc, mask_clouds=mask_clouds
         )
 
-        # 4) If chip_type != 'truecolor', treat as index—but first alias raw bands via SensorSpec
+        # 4) Determine bands and possibly map compute_index
         bands: List[str]
-        if chip_type.lower() != "truecolor":
-            bands = [chip_type.upper()]
+
+        if chip_key in INDEX_REGISTRY:
+            bands = [chip_key.upper()]
             raw_coll = raw_coll.map(
                 lambda img: (
-                    self.sensor_spec.compute_index(img, chip_type.lower())
-                    .rename(chip_type.upper())
+                    self.sensor_spec.compute_index(img, chip_key)
+                    .rename(chip_key.upper())
                     .copyProperties(img, ["system:time_start"])
                 )
             )
         else:
-            bands = ["B4", "B3", "B2"]  # truecolor → RGB
+            aliases = [alias.strip().lower() for alias in chip_key.split(",")]
+            invalid = [a for a in aliases if a not in self.sensor_spec.bands]
+            if invalid:
+                raise ValueError(f"Unknown band alias(es): {invalid}")
+            actual_bands = [self.sensor_spec.bands[a] for a in aliases]
+            bands = actual_bands
+            raw_coll = raw_coll.select(actual_bands)
 
         # 5) Determine default min/max if not provided
         if min_val is None or max_val is None:
-            if chip_type.lower() != "truecolor":
+            if chip_key in INDEX_REGISTRY:
                 default_min, default_max = 0.0, 1.0
             else:
                 default_min, default_max = 0.0, 0.4
@@ -336,6 +346,7 @@ class ChipService:
                         img=img,
                         feature=feat,
                         date_str=date_str,
+                        com_type=com_type,
                         bands=bands,
                         palette=palette,
                         scale=scale,
