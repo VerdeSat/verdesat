@@ -229,7 +229,7 @@ def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, o
 @click.option("--out-dir", "-o", default="chips", help="Output directory.")
 @click.option(
     "--ee-project",
-    " _ee_project",
+    "_ee_project",
     default=None,
     help="Override Earth Engine project (GCP).",
 )

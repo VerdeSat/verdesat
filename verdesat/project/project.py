@@ -1,5 +1,5 @@
 """Module defining the VerdeSatProject class for managing client projects with multiple AOIs,
- handling data ingestion, processing, and visualization."""
+handling data ingestion, processing, and visualization."""
 
 from typing import List, Literal
 from verdesat.geo.aoi import AOI
@@ -63,7 +63,7 @@ class VerdeSatProject:
             end_date (str): End date for the timeseries data in 'YYYY-MM-DD' format.
             scale (int): Spatial resolution scale in meters.
             output_dir (str): Directory path to save the generated report.
-            freq (Literal["D", "M", "Y"], optional): Frequency of timeseries aggregation - 
+            freq (Literal["D", "M", "Y"], optional): Frequency of timeseries aggregation -
             daily, monthly, or yearly. Defaults to 'Y'.
             report_title (str | None, optional): Custom title for the report. If None,
             defaults to config value or 'VerdeSat Report'.

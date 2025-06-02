@@ -1,6 +1,7 @@
 """
 Tests for SensorSpec and index registry loading, and compute_index expression generation.
 """
+
 # pylint: disable=W0621,W0613
 
 import json
@@ -25,10 +26,7 @@ def temp_index_and_sensor_specs(tmp_path, monkeypatch):
             "params": {},
         },
         "evi": {
-            "expr": (
-                "2.5 * ((NIR - RED) / "
-                "(NIR + 6 * RED - 7.5 * BLUE + 1))"
-            ),
+            "expr": ("2.5 * ((NIR - RED) / " "(NIR + 6 * RED - 7.5 * BLUE + 1))"),
             "bands": [
                 "NIR",
                 "RED",
@@ -90,7 +88,7 @@ def test_load_sensor_spec_and_index_registry(temp_index_and_sensor_specs):
         """Dummy image class to simulate select method for testing."""
 
         def select(self, *args):
-            """ Return the first band argument as a placeholder."""
+            """Return the first band argument as a placeholder."""
             return args[0]
 
     fake_img = DummyImage()
@@ -111,7 +109,7 @@ def test_compute_index_expression(temp_index_and_sensor_specs, monkeypatch):
             pass
 
         def select(self, *bands):
-            """ Return the FakeImage instance itself for chaining."""
+            """Return the FakeImage instance itself for chaining."""
             return self
 
         def expression(self, expr_str, band_mapping):
@@ -121,7 +119,7 @@ def test_compute_index_expression(temp_index_and_sensor_specs, monkeypatch):
             return self
 
         def rename(self, name):
-            """ Simulate ee.Image.rename."""
+            """Simulate ee.Image.rename."""
             return self
 
     fake_img = FakeImage()

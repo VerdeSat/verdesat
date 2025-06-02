@@ -16,7 +16,7 @@ from verdesat.ingestion.sensorspec import SensorSpec
 def mock_ee(monkeypatch):
     """
     Monkeypatch ee.Initialize, ee.ServiceAccountCredentials, and ee.ImageCollection.
-    This ensures EarthEngineManager.initialize() and get_image_collection() can run 
+    This ensures EarthEngineManager.initialize() and get_image_collection() can run
     without real GEE.
     """
     # Stub any credential calls

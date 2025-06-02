@@ -102,7 +102,9 @@ class DataIngestor:
         for b in boundaries:
             end_chunk = b
             # Convert to strings for EE calls
-            bounds.append((prev_start.strftime("%Y-%m-%d"), end_chunk.strftime("%Y-%m-%d")))
+            bounds.append(
+                (prev_start.strftime("%Y-%m-%d"), end_chunk.strftime("%Y-%m-%d"))
+            )
             # Next chunk starts the day after this boundary
             prev_start = b + timedelta(days=1)
 
