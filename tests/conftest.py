@@ -1,18 +1,13 @@
-import geopandas as gpd
-import pytest
-from shapely.geometry import Polygon
+# pylint: disable=missing-module-docstring,missing-function-docstring,invalid-name,unused-argument,redefined-outer-name
 import zipfile
 import json
 
-import io
-import os
-import types
 from unittest.mock import MagicMock
 
 import pytest
+from shapely.geometry import Polygon
+import geopandas as gpd
 import ee
-
-from verdesat.ingestion.eemanager import EarthEngineManager
 
 
 @pytest.fixture
@@ -37,41 +32,37 @@ def dummy_feat():
 
 
 @pytest.fixture
-def dummy_img(monkeypatch):
-    """
-    A bare-minimum ee.Image stub that exposes getThumbURL/getDownloadURL and
-    chainable select()/reduce()/rename()/set() so that AnalyticsEngine and
-    ChipExporter don’t choke.
-    """
-
+def dummy_img():
+    # Dummy ee.Image-like object
     class _DummyImg:
-        # constructor arg not used, but keeps interface parity
-        def __init__(self, _id="dummy"):
-            pass
+        def getInfo(self):
+            return {"bands": [{"id": "red"}, {"id": "green"}]}
 
-        # ↓ Export-URL helpers (ChipExporter uses one or the other)
+        def select(self, _bands):
+            return self
+
+        def getMapId(self, _params):
+            return {"tile_fetcher": MagicMock()}
+
+        def clip(self, _geom):
+            return self
+
+        # ChipExporter calls .clip(); return self so the chain continues
+
         def getThumbURL(self, _params):
+            # ChipExporter uses this for PNG exports
             return "http://example.com/dummy.png"
 
         def getDownloadURL(self, _params):
+            # ChipExporter uses this for GeoTIFF exports
             return "http://example.com/dummy.tif"
 
-        # ↓ The following make AnalyticsEngine happy
-        def select(self, *_a, **_kw):
-            return self
-
-        def reduce(self, _reducer):
-            return self
-
-        def rename(self, *_a):
-            return self
-
-        def set(self, *_a, **_kw):
-            return self
-
     # Give ee.Image a constructor that returns _DummyImg
-    monkeypatch.setattr(ee, "Image", _DummyImg, raising=False)
+    ee.Image = lambda *args, **kwargs: _DummyImg()
     return _DummyImg()
+
+
+# pylint: disable=protected-access,missing-docstring,unused-argument
 
 
 @pytest.fixture
