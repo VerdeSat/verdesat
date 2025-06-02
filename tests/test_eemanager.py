@@ -12,29 +12,6 @@ from verdesat.ingestion.eemanager import EarthEngineManager, ee_manager
 from verdesat.ingestion.sensorspec import SensorSpec
 
 
-
-# @pytest.fixture
-# def dummy_sensor(monkeypatch):
-#     """
-#     Create a fake SensorSpec that simply returns the input image when applying cloud_mask.
-#     """
-
-#     class DummySensor:
-#         """Dummy sensor spec for testing cloud_mask invocation."""
-
-#         def __init__(self):
-#             self.collection_id = "dummy/collection"
-
-#         @staticmethod
-#         def cloud_mask(img):
-#             """Apply a no-op cloud mask."""
-#             return img  # No-op mask
-
-#     # Override SensorSpec.from_collection_id to return DummySensor
-#     monkeypatch.setattr(SensorSpec, "from_collection_id", lambda cid: DummySensor())
-#     return DummySensor()
-
-
 def test_initialize_does_not_raise():
     """Ensure initialize() calls ee.Initialize() without error."""
     ee_manager.project = None

@@ -331,23 +331,6 @@ def dummy_aoi():
     return AOI(geometry=geom, static_props={"id": 1})
 
 
-# @pytest.fixture
-# def dummy_sensor():
-#     """
-#     Dummy sensor with minimal attributes and a pass‑through compute_index.
-#     """
-
-#     class DummySensor:
-#         def __init__(self):
-#             self.collection_id = "dummy/collection"
-
-#         @staticmethod  # noqa: D401
-#         def compute_index(img, index):  # pylint: disable=unused-argument
-#             # Return a dummy image that has a 'reduceRegions' method in get_image_collection
-#             return img
-
-#     return DummySensor()
-
 @pytest.fixture
 def dummy_sensor(monkeypatch):
     """
