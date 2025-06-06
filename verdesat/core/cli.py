@@ -5,11 +5,9 @@ and basic workflows. Dynamically loads available indices from the registry.
 
 import os
 import sys
-import logging
 import pandas as pd
 import click  # type: ignore
 from click import echo
-from verdesat.core import utils
 from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
 from verdesat.ingestion.sensorspec import SensorSpec
 from verdesat.ingestion.dataingestor import DataIngestor
@@ -27,15 +25,15 @@ from verdesat.ingestion.eemanager import ee_manager
 from verdesat.visualization.chips import ChipService
 from verdesat.geo.aoi import AOI
 from verdesat.visualization._chips_config import ChipsConfig
+from verdesat.core.logger import Logger
 
-
-logger = logging.getLogger(__name__)
+logger = Logger.get_logger(__name__)
 
 
 @click.group()
 def cli():
     """VerdeSat: remote-sensing analytics toolkit."""
-    utils.setup_logging()
+    Logger.setup()
 
 
 @cli.command()
@@ -311,7 +309,6 @@ def chips(
 @cli.group()
 def stats():
     """Statistical operations on time-series data."""
-    pass
 
 
 @stats.command(name="aggregate")
@@ -355,7 +352,6 @@ def aggregate(input_csv, index, freq, output):
 @cli.group()
 def preprocess():
     """Data transformation commands (gap-fill, resample, etc.)."""
-    pass
 
 
 @preprocess.command(name="fill-gaps")
