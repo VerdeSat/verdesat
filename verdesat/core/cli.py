@@ -1,15 +1,18 @@
+"""
+VerdeSat CLI entrypoint — defines commands for vector preprocessing, time series download,
+and basic workflows. Dynamically loads available indices from the registry.
+"""
+
 import os
 import sys
-import json
 import pandas as pd
 import click  # type: ignore
-import ee
-import logging
 from click import echo
-from verdesat.core import utils
-from verdesat.ingestion.shapefile_preprocessor import ShapefilePreprocessor
-from verdesat.ingestion.chips import get_composite, export_composites_to_png
-from verdesat.analytics.timeseries import chunked_timeseries, aggregate_timeseries
+from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
+from verdesat.ingestion.sensorspec import SensorSpec
+from verdesat.ingestion.dataingestor import DataIngestor
+from verdesat.ingestion.indices import INDEX_REGISTRY
+from verdesat.analytics.timeseries import TimeSeries
 from verdesat.visualization.static_viz import plot_decomposition
 from verdesat.analytics.decomposition import decompose_each
 from verdesat.analytics.trend import compute_trend
@@ -18,37 +21,34 @@ from verdesat.visualization.plotly_viz import plot_timeseries_html
 from verdesat.visualization.static_viz import plot_time_series
 from verdesat.visualization.gallery import build_gallery
 from verdesat.visualization.animate import make_gifs_per_site
-from verdesat.ingestion.downloader import initialize, get_image_collection
-from verdesat.ingestion.indices import compute_index
+from verdesat.ingestion.eemanager import ee_manager
+from verdesat.visualization.chips import ChipService
+from verdesat.geo.aoi import AOI
+from verdesat.visualization._chips_config import ChipsConfig
+from verdesat.core.logger import Logger
 
-# Predefined NDVI color palettes
-PRESET_PALETTES = {
-    "white-green": ["white", "green"],
-    "red-white-green": ["red", "white", "green"],
-    "brown-green": ["brown", "green"],
-    "blue-white-green": ["blue", "white", "green"],
-}
-
-logger = logging.getLogger(__name__)
+logger = Logger.get_logger(__name__)
 
 
 @click.group()
 def cli():
     """VerdeSat: remote-sensing analytics toolkit."""
-    utils.setup_logging()
+    Logger.setup()
 
 
 @cli.command()
 @click.argument("input_dir", type=click.Path(exists=True))
 def prepare(input_dir):
     """Process all vector files in INPUT_DIR into a single, clean GeoJSON."""
-    processor = ShapefilePreprocessor(input_dir)
     try:
-        processor.run()
+        vp = VectorPreprocessor(input_dir)
+        gdf = vp.run()
         output_path = os.path.join(
             input_dir, f"{os.path.basename(input_dir)}_processed.geojson"
         )
+        gdf.to_file(output_path, driver="GeoJSON")
         echo(f"✅  GeoJSON written to `{output_path}`")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         echo(f"❌  Processing failed: {e}", err=True)
         sys.exit(1)
@@ -63,7 +63,6 @@ def forecast():
 @cli.group()
 def download():
     """Data ingestion commands."""
-    pass
 
 
 @download.command(name="timeseries")
@@ -80,16 +79,23 @@ def download():
 @click.option(
     "--index",
     "-i",
-    type=click.Choice(["ndvi", "evi"]),
+    type=click.Choice(list(INDEX_REGISTRY.keys())),
     default="ndvi",
-    help="Spectral index to compute",
+    help=f"Spectral index to compute (choices: {', '.join(INDEX_REGISTRY.keys())})",
 )
 @click.option(
     "--agg",
     "-a",
-    type=click.Choice(["D", "M", "Y"]),
-    default="M",
-    help="Temporal aggregation: D,M,Y",
+    type=click.Choice(["D", "ME", "YE"]),
+    default=None,
+    help="Temporal aggregation: D, ME, YE",
+)
+@click.option(
+    "--chunk_freq",
+    "-ch",
+    default="YE",
+    type=click.Choice(["D", "ME", "YE"]),
+    help="Chunk frequency: D, ME, YE",
 )
 @click.option(
     "--output",
@@ -98,23 +104,26 @@ def download():
     default="timeseries.csv",
     help="Output CSV path",
 )
-def timeseries(geojson, collection, start, end, scale, index, agg, output):
+def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, output):
     """
     Download and aggregate spectral index timeseries for polygons in GEOJSON.
-    Uses --index to select the spectral index (e.g., ndvi, evi).
     """
     try:
-        echo(f"Loading {geojson}...")
-        with open(geojson) as f:
-            gj = json.load(f)
-
-        df = chunked_timeseries(
-            gj, collection, start, end, scale=scale, freq=agg, index=index
-        )
-
-        echo(f"Saving to {output}...")
-        df.to_csv(output, index=False)
+        echo(f"Loading AOIs from {geojson}...")
+        aois = AOI.from_geojson(geojson, id_col="id")
+        sensor = SensorSpec.from_collection_id(collection)
+        ingestor = DataIngestor(sensor)
+        df_list = []
+        for aoi in aois:
+            df = ingestor.download_timeseries(
+                aoi, start, end, scale, index, chunk_freq, agg
+            )
+            df_list.append(df)
+        result = pd.concat(df_list, ignore_index=True)
+        echo(f"Saving results to {output}...")
+        result.to_csv(output, index=False)
         echo("Done.")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Timeseries command failed", exc_info=True)
         echo(f"❌  Timeseries download failed: {e}", err=True)
@@ -125,73 +134,77 @@ def timeseries(geojson, collection, start, end, scale, index, agg, output):
 @click.option(
     "--mask-clouds/--no-mask-clouds",
     default=True,
-    help="Apply Fmask-based cloud/shadow/water masking before composites",
+    help="Apply Fmask‐based cloud/shadow/water masking before composites.",
 )
 @click.argument("geojson", type=click.Path(exists=True))
 @click.option(
     "--collection",
     "-c",
     default="NASA/HLS/HLSL30/v002",
-    help="Earth Engine ImageCollection ID",
+    help="Earth Engine ImageCollection ID.",
 )
-@click.option("--start", "-s", default="2015-01-01", help="Start date")
-@click.option("--end", "-e", default="2024-12-31", help="End date")
+@click.option("--start", "-s", default="2015-01-01", help="Start date (YYYY-MM-DD).")
+@click.option("--end", "-e", default="2024-12-31", help="End date (YYYY-MM-DD).")
 @click.option(
     "--period",
     "-p",
     type=click.Choice(["M", "Y"]),
     default="M",
-    help="Composite period: M=monthly, Y=yearly",
+    help="Composite period: M=monthly, Y=yearly.",
 )
 @click.option(
     "--type",
     "-t",
     "chip_type",
-    type=click.Choice(["truecolor", "ndvi"]),
-    default="truecolor",
+    type=str,
+    default="red,green,blue",
+    help=(
+        "Either a comma-separated list of band aliases (e.g. 'red,green,blue') "
+        "or the name of any index in INDEX_REGISTRY (e.g. 'ndvi', 'evi')."
+    ),
 )
-@click.option("--scale", type=int, default=30, help="Resolution in meters")
+@click.option("--scale", type=int, default=30, help="Resolution in meters.")
 @click.option(
     "--min-val",
     type=float,
     default=None,
-    help="Minimum stretch value (e.g. 0.0 for true color, -1.0 for NDVI)",
+    help="Minimum stretch value (overridden by defaults if not set).",
 )
 @click.option(
     "--max-val",
     type=float,
     default=None,
-    help="Maximum stretch value (e.g. 1.0)",
+    help="Maximum stretch value (overridden by defaults if not set).",
 )
 @click.option(
     "--buffer",
     type=int,
     default=0,
-    help="Buffer distance (meters) to apply around each polygon",
+    help="Buffer distance (meters) to apply around each polygon.",
 )
 @click.option(
     "--buffer-percent",
     type=float,
     default=None,
-    help="Buffer distance as a percentage of AOI size",
+    help="Buffer distance as a percentage of AOI size.",
 )
 @click.option(
     "--gamma",
     type=float,
     default=None,
-    help="Gamma correction value for visualization (e.g., 0.8)",
+    help="Gamma correction value (e.g. 0.8).",
 )
 @click.option(
     "--percentile-low",
     type=float,
     default=None,
-    help="Lower percentile for auto-stretch (e.g., 2)",
+    help="Lower percentile for auto-stretch (e.g. 2).",
 )
 @click.option(
     "--percentile-high",
     type=float,
     default=None,
-    help="Upper percentile for auto-stretch (e.g., 98)",
+    help="Upper percentile for auto-stretch (e.g. 98).",
 )
 @click.option(
     "--palette",
@@ -199,13 +212,25 @@ def timeseries(geojson, collection, start, end, scale, index, agg, output):
     type=str,
     default=None,
     help=(
-        "NDVI palette: preset names (white-green, red-white-green, brown-green, blue-white-green)"
-        " or comma-separated colors"
+        "Optional color palette for INDEX outputs. Either a preset name "
+        "(e.g. 'white-green', 'red-white-green') or a comma-separated list "
+        "of hex/RGB colors."
     ),
 )
-@click.option("--format", "-f", default="png", help="Format of the output files")
-@click.option("--out-dir", "-o", default="chips", help="Output directory")
-@click.option("--ee-project", default=None, help="GCP project override")
+@click.option(
+    "--format",
+    "-f",
+    "fmt",
+    default="png",
+    help="Output file format ('png' or 'geotiff').",
+)
+@click.option("--out-dir", "-o", default="chips", help="Output directory.")
+@click.option(
+    "--ee-project",
+    "_ee_project",
+    default=None,
+    help="Override Earth Engine project (GCP).",
+)
 def chips(
     mask_clouds,
     geojson,
@@ -223,69 +248,58 @@ def chips(
     percentile_low,
     percentile_high,
     palette_arg,
-    format,
+    fmt,
     out_dir,
-    ee_project,
+    _ee_project,
 ):
-    """Download per-polygon image chips (monthly/yearly true‐color or NDVI)."""
+    """
+    Download per-polygon image chips (monthly/yearly composites).
+
+    CHIP_TYPE may be:
+      • a comma-separated list of sensor band aliases (e.g. 'red,green,blue'), or
+      • the name of any index defined in INDEX_REGISTRY (e.g. 'ndvi', 'evi').
+    """
     try:
-        with open(geojson) as f:
-            gj = json.load(f)
-        initialize(project=ee_project)
-        echo("Initializing Earth Engine and fetching collection...")
-        # Use GEE helper to fetch raw image collection
-        aoi = ee.FeatureCollection(gj)
-        coll = get_image_collection(
-            collection, start, end, aoi, mask_clouds=mask_clouds
-        )
-        # If NDVI, map compute_index
-        if chip_type == "ndvi":
-            bands = ["NDVI"]
-            # Determine palette
-            if palette_arg:
-                if palette_arg in PRESET_PALETTES:
-                    palette = PRESET_PALETTES[palette_arg]
-                else:
-                    palette = [c.strip() for c in palette_arg.split(",") if c.strip()]
-            else:
-                palette = PRESET_PALETTES["white-green"]
-        else:
-            bands = ["B4", "B3", "B2"]
-            palette = None
+        # 1) Load AOIs (list of AOI objects) from GeoJSON path
+        echo(f"Loading AOIs from {geojson}...")
+        aois = AOI.from_geojson(geojson, id_col="id")
 
-        # 1) get composites
-        composites = get_composite(
-            gj,
-            collection,  # your ImageCollection ID
-            start,  # start date str
-            end,
-            reducer=ee.Reducer.mean(),
-            bands=bands,
-            scale=scale,
+        # 2) Initialize Earth Engine (possibly override project)
+        ee_manager.initialize()
+        echo("✔ Initialized Earth Engine…")
+
+        # 3) Build a SensorSpec from the chosen collection ID
+        sensor_spec = SensorSpec.from_collection_id(collection)
+
+        # 4) Build a ChipsConfig from all CLI options
+        chips_cfg = ChipsConfig.from_cli(
+            collection=collection,
+            start=start,
+            end=end,
             period=period,
-            base_coll=coll,
-            project=ee_project,
-        )
-
-        # 2) export
-        export_composites_to_png(
-            composites,
-            gj,
-            out_dir,
-            bands=bands,
-            palette=palette,
+            chip_type=chip_type,
             scale=scale,
-            min_val=min_val,
-            max_val=max_val,
             buffer=buffer,
             buffer_percent=buffer_percent,
+            min_val=min_val,
+            max_val=max_val,
             gamma=gamma,
             percentile_low=percentile_low,
             percentile_high=percentile_high,
-            fmt=format,
+            palette_arg=palette_arg,
+            fmt=fmt,
+            out_dir=out_dir,
+            mask_clouds=mask_clouds,
         )
 
+        echo("→ Building composites and exporting chips…")
+
+        # 5) Fire up ChipService: now takes (ee_manager, aois, sensor_spec, chips_cfg)
+        service = ChipService(ee_manager=ee_manager, sensor_spec=sensor_spec)
+        service.run(aois=aois, config=chips_cfg)
+
         echo(f"✅  Chips written under {out_dir}/")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Chips command failed", exc_info=True)
         echo(f"❌  Chips download failed: {e}", err=True)
@@ -295,7 +309,6 @@ def chips(
 @cli.group()
 def stats():
     """Statistical operations on time-series data."""
-    pass
 
 
 @stats.command(name="aggregate")
@@ -329,7 +342,8 @@ def aggregate(input_csv, index, freq, output):
     echo(f"Loading {input_csv}...")
     df = pd.read_csv(input_csv, parse_dates=["date"])
     echo(f"Aggregating by frequency '{freq}' for index '{index}'...")
-    df_agg = aggregate_timeseries(df, freq=freq, index=index)
+    ts = TimeSeries.from_dataframe(df, index=index)
+    df_agg = ts.aggregate(freq).df
     echo(f"Saving aggregated data to {output}...")
     df_agg.to_csv(output, index=False)
     echo("Done.")
@@ -338,7 +352,6 @@ def aggregate(input_csv, index, freq, output):
 @cli.group()
 def preprocess():
     """Data transformation commands (gap-fill, resample, etc.)."""
-    pass
 
 
 @preprocess.command(name="fill-gaps")
@@ -555,6 +568,7 @@ def animate(images_dir, pattern, output_dir, duration, loop):
             loop=loop,
         )
         echo(f"✅  Animated GIFs written under {output_dir}")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Animate command failed", exc_info=True)
         echo(f"❌  Animation generation failed: {e}", err=True)
@@ -595,6 +609,7 @@ def gallery(chips_dir, template, output, title):
             template_path=template,
         )
         echo(f"✅  Gallery written to {output}")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Gallery command failed", exc_info=True)
         echo(f"❌  Gallery generation failed: {e}", err=True)
@@ -672,6 +687,7 @@ def report(
             title=title,
         )
         echo(f"✅  Report saved to {output}")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         echo(f"❌  Failed to build report: {e}")
         sys.exit(1)
