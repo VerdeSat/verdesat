@@ -12,7 +12,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely import wkb
 
-from verdesat.core.config import SUPPORTED_INPUT_FORMATS
+from verdesat.core.config import ConfigManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class VectorPreprocessor:
         id_col: str = "id",
     ):
         self.input_dir = input_dir
-        self.exts = exts or [e.lower() for e in SUPPORTED_INPUT_FORMATS]
+        self.exts = exts or [e.lower() for e in ConfigManager.SUPPORTED_INPUT_FORMATS]
         self.target_crs = target_crs
         self.area_crs = area_crs
         self.id_col = id_col

@@ -5,7 +5,7 @@ needed to generate per-AOI image chips.
 
 from typing import Optional, Sequence
 
-from verdesat.core.config import PRESET_PALETTES
+from verdesat.core.config import ConfigManager
 
 
 class ChipsConfig:
@@ -94,8 +94,8 @@ class ChipsConfig:
         """
         palette = None
         if palette_arg:
-            if palette_arg in PRESET_PALETTES:
-                palette = PRESET_PALETTES[palette_arg]
+            if palette_arg in ConfigManager.PRESET_PALETTES:
+                palette = ConfigManager.PRESET_PALETTES[palette_arg]
             else:
                 palette = [c.strip() for c in palette_arg.split(",") if c.strip()]
 

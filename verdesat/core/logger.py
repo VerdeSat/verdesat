@@ -28,13 +28,14 @@ class Logger:
         if Logger._configured:
             return
         if level is None:
-            env_level = os.getenv("VERDESAT_LOG_LEVEL", "INFO")
-            effective_level = logging.getLevelName(env_level)
+            env_level = os.getenv("VERDESAT_LOG_LEVEL", "INFO").upper()
+            effective_level = getattr(logging, env_level, logging.INFO)
         else:
             effective_level = level
+        fmt_mode = fmt if fmt is not None else os.getenv("VERDESAT_LOG_FMT", "")
         logging.basicConfig(
             level=effective_level,
-            format=fmt or "%(asctime)s [%(levelname)s] %(name)s – %(message)s",
+            format=fmt_mode or "%(asctime)s [%(levelname)s] %(name)s – %(message)s",
             datefmt=datefmt,
         )
         Logger._configured = True
