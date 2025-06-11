@@ -7,6 +7,17 @@ loading settings from YAML/TOML/JSON (or environment/CLI) and retrieving
 them via `.get(...)`.
 """
 
+# Imports for config parsing
+import os
+import json
+import yaml
+import toml
+
+
+# Exception for config validation errors
+class ConfigValidationError(Exception):
+    """Raised when configuration loading or validation fails."""
+
 
 class ConfigManager:
     """
@@ -40,8 +51,30 @@ class ConfigManager:
         if config_path:
             self.load(config_path)
 
-    def load(self, path):
-        """Load configuration from a file (YAML/TOML/JSON)."""
+    def load(self, path: str) -> None:
+        """
+        Load configuration from a file (YAML, TOML, or JSON).
+        Overwrites existing keys in self.config.
+        """
+        ext = os.path.splitext(path)[1].lower()
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                if ext in (".yaml", ".yml"):
+                    data = yaml.safe_load(f)
+                elif ext == ".toml":
+                    data = toml.load(f)
+                elif ext == ".json":
+                    data = json.load(f)
+                else:
+                    raise ConfigValidationError(f"Unsupported config format: {ext}")
+        except Exception as e:
+            raise ConfigValidationError(
+                f"Failed to load config from {path}: {e}"
+            ) from e
+        if not isinstance(data, dict):
+            raise ConfigValidationError(f"Config file {path} did not produce a dict")
+        # Update internal config dict
+        self.config.update(data)
 
     def get(self, key, default=None):
         """
@@ -59,3 +92,20 @@ class ConfigManager:
             return getattr(self, key)
         else:
             return default
+
+    def merge(self, other: "ConfigManager") -> None:
+        """
+        Merge another ConfigManager into this one.
+        Values in other.config override this.config.
+        Also merges supported_input_formats and preset_palettes.
+        """
+        if not isinstance(other, ConfigManager):
+            raise TypeError("Can only merge ConfigManager instances")
+        # Merge base config
+        self.config.update(other.config)
+        # Merge list attributes
+        self.supported_input_formats = list(
+            dict.fromkeys(self.supported_input_formats + other.supported_input_formats)
+        )
+        # Merge palettes dict
+        self.preset_palettes.update(other.preset_palettes)
