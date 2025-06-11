@@ -63,7 +63,7 @@ class ChipsConfig:
         self.gamma = gamma
         self.percentile_low = percentile_low
         self.percentile_high = percentile_high
-        self.palette = list(palette) if palette is not None else None
+        self.palette = tuple(palette) if palette is not None else None
         self.fmt = fmt.lower()
         self.out_dir = out_dir
         self.mask_clouds = mask_clouds
@@ -97,7 +97,7 @@ class ChipsConfig:
             if palette_arg in ConfigManager.PRESET_PALETTES:
                 palette = ConfigManager.PRESET_PALETTES[palette_arg]
             else:
-                palette = [c.strip() for c in palette_arg.split(",") if c.strip()]
+                palette = tuple(c.strip() for c in palette_arg.split(",") if c.strip())
 
         return cls(
             collection_id=collection,

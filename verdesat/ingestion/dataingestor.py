@@ -39,8 +39,8 @@ class DataIngestor:
         end_date: str,
         scale: int,
         index: str,
-        chunk_freq: Literal["D", "M", "Y"] = "Y",
-        freq: Optional[Literal["D", "M", "Y"]] = None,
+        chunk_freq: Literal["D", "ME", "YE"] = "YE",
+        freq: Optional[Literal["D", "ME", "YE"]] = None,
     ) -> pd.DataFrame:
         """
         Download & optionally aggregate the index time series for an AOI.
@@ -51,8 +51,8 @@ class DataIngestor:
             end_date: End date (YYYY-MM-DD).
             scale: Spatial resolution in meters.
             index: Spectral index name (e.g., 'ndvi').
-            chunk_freq: Frequency for chunking requests to Earth Engine ('D','M','Y').
-            freq: Aggregation frequency for output ('D','M','Y'). If None, no aggregation.
+            chunk_freq: Frequency for chunking requests to Earth Engine ('D','ME','YE').
+            freq: Aggregation frequency for output ('D','ME','YE'). If None, no aggregation.
 
         Returns:
             pd.DataFrame with columns ['id','date',f'mean_{index}'].
