@@ -1,0 +1,93 @@
+{
+    "ndvi": {
+        "name": "Normalized Difference Vegetation Index",
+        "expr": "(NIR - RED) / (NIR + RED)",
+        "bands": [
+            "nir",
+            "red"
+        ]
+    },
+    "evi": {
+        "name": "Enhanced Vegetation Index",
+        "expr": "G * ((NIR - RED) / (NIR + C1 * RED - C2 * BLUE + L))",
+        "bands": [
+            "nir",
+            "red",
+            "blue"
+        ],
+        "params": {
+            "G": 2.5,
+            "C1": 6.0,
+            "C2": 7.5,
+            "L": 1.0
+        }
+    },
+    "savi": {
+        "name": "Soil-Adjusted Vegetation Index",
+        "expr": "((NIR - RED) / (NIR + RED + L)) * (1 + L)",
+        "bands": [
+            "nir",
+            "red"
+        ],
+        "params": {
+            "L": 0.5
+        }
+    },
+    "gndvi": {
+        "name": "Green Normalized Difference Vegetation Index",
+        "expr": "(NIR - GREEN) / (NIR + GREEN)",
+        "bands": [
+            "nir",
+            "green"
+        ]
+    },
+    "ndwi": {
+        "name": "Normalized Difference Water Index",
+        "expr": "(GREEN - NIR) / (GREEN + NIR)",
+        "bands": [
+            "green",
+            "nir"
+        ]
+    },
+    "mndwi": {
+        "name": "Modified Normalized Difference Water Index",
+        "expr": "(GREEN - SWIR1) / (GREEN + SWIR1)",
+        "bands": [
+            "green",
+            "swir1"
+        ]
+    },
+    "nbr": {
+        "name": "Normalized Burn Ratio",
+        "expr": "(NIR - SWIR2) / (NIR + SWIR2)",
+        "bands": [
+            "nir",
+            "swir2"
+        ]
+    },
+    "ndmi": {
+        "name": "Normalized Difference Moisture Index",
+        "expr": "(NIR - SWIR1) / (NIR + SWIR1)",
+        "bands": [
+            "nir",
+            "swir1"
+        ]
+    },
+    "vari": {
+        "name": "Visible Atmospherically Resistant Index",
+        "expr": "(GREEN - RED) / (GREEN + RED - BLUE)",
+        "bands": [
+            "green",
+            "red",
+            "blue"
+        ]
+    },
+    "msavi": {
+        "name": "Modified Soil-Adjusted Vegetation Index",
+        "expr": "(2 * NIR + 1 - sqrt((2 * NIR + 1)**2 - 8 * (NIR - RED))) / 2",
+        "bands": [
+            "nir",
+            "red"
+        ]
+    }
+}
