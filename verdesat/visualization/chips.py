@@ -122,7 +122,7 @@ class ChipExporter:
         date_str: str,
         com_type: str,
         bands: List[str],
-        palette: Optional[tuple[str, ...]|None],
+        palette: Optional[tuple[str, ...] | None],
         scale: int,
         buffer_m: float,
         gamma: Optional[float],
