@@ -17,7 +17,14 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install linters
-        run: pip install black mypy
+        run: |
+          pip install black mypy \
+                     types-PyYAML \
+                     types-toml \
+                     types-requests
+      - name: Install type stubs (runtime)
+        run: |
+          pip install types-PyYAML types-toml types-requests
       - name: Black check
         run: black --check .
       - name: MyPy
@@ -40,6 +47,7 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov
           pip install -e .
+          pip install types-PyYAML types-toml types-requests
       - name: Run pytest
         run: |
           pytest --maxfail=1 --disable-warnings -q --cov=verdesat --cov-report term-missing
