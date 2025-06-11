@@ -4,12 +4,28 @@ Module for centralized, configurable logging across VerdeSat packages.
 
 import logging
 import os
+import json
+from datetime import datetime, timezone
+
+
+class JSONFormatter(logging.Formatter):
+    """
+    Formatter that outputs log records in JSON format with keys:
+    timestamp (in ISO8601 with UTC timezone), level, name, message.
+    """
+    def format(self, record):
+        record_dict = {
+            "timestamp": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
+            "level": record.levelname,
+            "name": record.name,
+            "message": record.getMessage(),
+        }
+        return json.dumps(record_dict)
 
 
 class Logger:
     """
-        Central logging setup for all modul    Сутекфд дщппштп ыуегз ащк фдд ьщвгдуыю
-    es.
+    Central logging setup for all modules.
     """
 
     _configured = False
@@ -32,12 +48,29 @@ class Logger:
             effective_level = getattr(logging, env_level, logging.INFO)
         else:
             effective_level = level
+
         fmt_mode = fmt if fmt is not None else os.getenv("VERDESAT_LOG_FMT", "")
-        logging.basicConfig(
-            level=effective_level,
-            format=fmt_mode or "%(asctime)s [%(levelname)s] %(name)s – %(message)s",
-            datefmt=datefmt,
-        )
+        default_fmt = "%(asctime)s [%(levelname)s] %(name)s – %(message)s"
+        root = logging.getLogger()
+        root.handlers.clear()
+
+        if fmt_mode.lower() == "json":
+            # Structured JSON output
+            handler = logging.StreamHandler()
+            handler.setFormatter(JSONFormatter(datefmt=datefmt))
+            # Clear existing handlers to avoid duplicates
+            root.handlers.clear()
+            root.addHandler(handler)
+            root.setLevel(effective_level)
+        else:
+            # Standard text output
+            # Clear handlers so basicConfig can reinitialize
+            root.handlers.clear()
+            logging.basicConfig(
+                level=effective_level,
+                format=fmt_mode or default_fmt,
+                datefmt=datefmt,
+            )
         Logger._configured = True
 
     @staticmethod

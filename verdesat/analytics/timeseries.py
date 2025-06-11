@@ -27,10 +27,10 @@ class TimeSeries:
         df_copy["date"] = pd.to_datetime(df_copy["date"])
         return cls(df_copy, index)
 
-    def aggregate(self, freq: Literal["D", "M", "Y"]) -> "TimeSeries":
+    def aggregate(self, freq: Literal["D", "ME", "YE"]) -> "TimeSeries":
         """
         Aggregate the time series to the given frequency:
-          'D' = daily (no-op), 'M' = monthly mean, 'Y' = yearly mean.
+          'D' = daily (no-op), 'ME' = monthly mean, 'YE' = yearly mean.
         Returns a new TimeSeries.
         """
         col_name = f"mean_{self.index}"
