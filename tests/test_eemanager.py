@@ -6,10 +6,7 @@ Tests for EarthEngineManager: initialization and get_image_collection behavior.
 
 from unittest.mock import MagicMock
 
-import pytest
-import ee
 from verdesat.ingestion.eemanager import EarthEngineManager, ee_manager
-from verdesat.ingestion.sensorspec import SensorSpec
 
 
 def test_initialize_does_not_raise():

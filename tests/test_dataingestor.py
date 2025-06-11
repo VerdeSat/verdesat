@@ -4,13 +4,10 @@ Tests for DataIngestor time‑series download helper.
 
 # pylint: disable=W0621,W0613,C0103,missing-class-docstring,missing-function-docstring,line-too-long
 
-import pytest
+
 import pandas as pd
 
-from shapely.geometry import Polygon
-
 from verdesat.ingestion.dataingestor import DataIngestor
-from verdesat.geo.aoi import AOI
 
 
 def test_download_timeseries_no_aggregation(
@@ -73,8 +70,8 @@ def test_download_timeseries_with_aggregation(
         end_date="2020-01-31",
         scale=30,
         index="ndvi",
-        chunk_freq="M",
-        freq="M",
+        chunk_freq="ME",
+        freq="ME",
     )
     # With only a single value, monthly aggregation still yields one row
     assert isinstance(df_agg, pd.DataFrame)

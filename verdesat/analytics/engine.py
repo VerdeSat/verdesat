@@ -28,23 +28,23 @@ class AnalyticsEngine:
         scale: int,  # Not used for the moment
     ) -> ee.ImageCollection:
         """
-        Build monthly ('M') or yearly ('Y') composites from base_ic, using the given reducer,
+        Build monthly ('ME') or yearly ('YE') composites from base_ic, using the given reducer,
         filtered between start/end. Returns a new ee.ImageCollection of composites.
 
         This mirrors the old get_composite(...) logic, but does it in a reusable static method.
         """
         # Align the start date to the first of the month or year
         start_dt = ee.Date(start)
-        if period == "M":
+        if period == "ME":
             start_dt = ee.Date.fromYMD(start_dt.get("year"), start_dt.get("month"), 1)
-        else:  # "Y"
+        else:  # "YE"
             start_dt = ee.Date.fromYMD(start_dt.get("year"), 1, 1)
 
         end_dt = ee.Date(end)
 
         def make_periodic_image(offset):
             offset = ee.Number(offset)
-            if period == "M":
+            if period == "ME":
                 window_start = start_dt.advance(offset, "month")
                 window_end = window_start.advance(1, "month")
             else:
@@ -56,7 +56,7 @@ class AnalyticsEngine:
             composite = reduced.rename(bands)
             return composite.set("system:time_start", window_start.millis())
 
-        if period == "M":
+        if period == "ME":
             count = end_dt.difference(start_dt, "month").floor().add(1)
         else:
             count = end_dt.difference(start_dt, "year").floor().add(1)

@@ -1,18 +1,17 @@
-# tests/test_chips_utils.py
-
+# pylint: disable=protected-access, missing-module-docstring, missing-function-docstring,
+# pylint: disable=missing-class-docstring, invalid-name, unused-argument, unused-variable
+"""
+Tests for ChipExporter, AnalyticsEngine composites, and EarthEngineManager utilities.
+"""
+import tempfile
+import os
 import pytest
-
 import ee
 from ee import Reducer
 
 from verdesat.visualization.chips import ChipExporter
 from verdesat.analytics.engine import AnalyticsEngine
 from verdesat.ingestion.eemanager import EarthEngineManager
-
-import tempfile
-import os
-
-from unittest.mock import MagicMock
 
 
 # --------------------------------------------------------------------------------
@@ -93,22 +92,21 @@ def test_build_viz_params_geotiff():
 # --------------------------------------------------------------------------------
 
 
-def test_build_composites_with_dummy_collection(monkeypatch):
+def test_build_composites_with_dummy_collection():
     """
     With all of ee.Date, ee.List.sequence, and ee.ImageCollection.fromImages stubbed out above,
     AnalyticsEngine.build_composites(...) should now return a DummyBuiltCollection of size 3.
     """
-    from verdesat.analytics.engine import AnalyticsEngine
 
     # Our dummy “AOI” is just an empty FeatureCollection
-    fc = {"type": "FeatureCollection", "features": []}
+    _ = {"type": "FeatureCollection", "features": []}
 
     ae = AnalyticsEngine()
     composites = ae.build_composites(
         base_ic=ee.ImageCollection(
             "dummy"
         ),  # (in our stubs, _get_raw_collection is never called)
-        period="M",
+        period="ME",
         reducer=Reducer.mean(),
         start="2020-01-01",
         end="2020-03-01",
@@ -127,7 +125,7 @@ def test_build_composites_with_dummy_collection(monkeypatch):
 # --------------------------------------------------------------------------------
 
 
-def test_safe_get_info_retries(monkeypatch):
+def test_safe_get_info_retries():
     """
     Verify that safe_get_info retries on generic EEException and returns
     the underlying dict when successful.

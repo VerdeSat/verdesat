@@ -148,8 +148,8 @@ def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, o
 @click.option(
     "--period",
     "-p",
-    type=click.Choice(["M", "Y"]),
-    default="M",
+    type=click.Choice(["ME", "YE"]),
+    default="ME",
     help="Composite period: M=monthly, Y=yearly.",
 )
 @click.option(
@@ -323,7 +323,7 @@ def stats():
 @click.option(
     "--freq",
     "-f",
-    type=click.Choice(["D", "M", "Y"]),
+    type=click.Choice(["D", "ME", "YE"]),
     default="D",
     help="Frequency to aggregate to: D (daily), M (monthly), Y (yearly)",
 )
@@ -497,9 +497,9 @@ def visualize():
 @click.option(
     "--agg-freq",
     "-f",
-    type=click.Choice(["D", "M", "Y"]),
+    type=click.Choice(["D", "ME", "Y"]),
     default="D",
-    help="Aggregate frequency for plotting: D (daily), M (monthly), Y (yearly)",
+    help="Aggregate frequency for plotting: D (daily), ME (monthly), YE (yearly)",
 )
 @click.option(
     "--interactive/--no-interactive",
@@ -722,12 +722,12 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
         geojson=geojson,
         start=start,
         end=end,
-        agg="M",
+        agg="ME",
         output=timeseries_csv,
     )
     # 2. Aggregate & fill
     monthly_csv = os.path.join(out_dir, "timeseries_monthly.csv")
-    ctx.invoke(aggregate, input_csv=timeseries_csv, freq="M", output=monthly_csv)
+    ctx.invoke(aggregate, input_csv=timeseries_csv, freq="ME", output=monthly_csv)
     ctx.invoke(
         fill_gaps_cmd,
         input_csv=monthly_csv,
@@ -761,7 +761,7 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
         geojson=geojson,
         start=start,
         end=end,
-        period="M",
+        period="ME",
         chip_type="ndvi",
         format="png",
         out_dir=monthly_chips_dir,
@@ -787,7 +787,7 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
         plot,
         datafile=os.path.join(out_dir, "timeseries_filled.csv"),
         index_col="mean_ndvi",
-        agg_freq="M",
+        agg_freq="ME",
         interactive=True,
         output=timeseries_all_html,
     )

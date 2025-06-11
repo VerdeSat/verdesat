@@ -16,7 +16,7 @@ class ChipsConfig:
       collection_id: Earth Engine ImageCollection ID
       start: "YYYY-MM-DD" string
       end: "YYYY-MM-DD" string
-      period: "M" or "Y"
+      period: "ME" or "YE"
       chip_type: either a comma‐separated list of band aliases, or an index name
       scale: integer (meters)
       buffer: absolute buffer in meters
