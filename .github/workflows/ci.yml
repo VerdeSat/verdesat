@@ -17,11 +17,13 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install linters
-        run: mypy --install-types
+        run: pip install black mypy
       - name: Black check
         run: black --check .
       - name: MyPy
         run: mypy .
+      - name: MyPy (requests)
+        run: mypy --install-types --non-interactive --ignore-missing-imports --package requests
 
   test:
     name: Run tests (pytest)
