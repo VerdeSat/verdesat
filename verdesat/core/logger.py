@@ -13,9 +13,12 @@ class JSONFormatter(logging.Formatter):
     Formatter that outputs log records in JSON format with keys:
     timestamp (in ISO8601 with UTC timezone), level, name, message.
     """
+
     def format(self, record):
         record_dict = {
-            "timestamp": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(
+                record.created, timezone.utc
+            ).isoformat(),
             "level": record.levelname,
             "name": record.name,
             "message": record.getMessage(),
