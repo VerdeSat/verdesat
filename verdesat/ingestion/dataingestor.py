@@ -86,7 +86,7 @@ class DataIngestor:
             end_date: Chunk end date (YYYY-MM-DD).
             scale: Spatial resolution in meters.
             index: Spectral index name.
-            chunk_freq: Frequency string for chunk boundaries ('D','M','Y').
+            chunk_freq: Frequency string for chunk boundaries ('D','ME','YE').
 
         Returns:
             Concatenated pd.DataFrame of daily time series.

@@ -49,7 +49,7 @@ class ChipExporter:
         min_val: Union[float, List[float]],
         max_val: Union[float, List[float]],
         scale: int,
-        palette: Optional[List[str]],
+        palette: Optional[tuple[str, ...]],
         gamma: Optional[float],
     ) -> Dict[str, Any]:
         """
@@ -122,7 +122,7 @@ class ChipExporter:
         date_str: str,
         com_type: str,
         bands: List[str],
-        palette: Optional[List[str]],
+        palette: Optional[tuple[str, ...]|None],
         scale: int,
         buffer_m: float,
         gamma: Optional[float],

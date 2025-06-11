@@ -50,7 +50,7 @@ class VerdeSatProject:
         end_date: str,
         scale: int,
         output_dir: str,
-        freq: Literal["D", "M", "Y"] = "Y",
+        freq: Literal["D", "ME", "YE"] = "YE",
         report_title: str | None = None,
     ) -> None:
         """
@@ -63,8 +63,8 @@ class VerdeSatProject:
             end_date (str): End date for the timeseries data in 'YYYY-MM-DD' format.
             scale (int): Spatial resolution scale in meters.
             output_dir (str): Directory path to save the generated report.
-            freq (Literal["D", "M", "Y"], optional): Frequency of timeseries aggregation -
-            daily, monthly, or yearly. Defaults to 'Y'.
+            freq (Literal["D", "ME", "YE"], optional): Frequency of timeseries aggregation -
+            daily, monthly, or yearly. Defaults to 'YE'.
             report_title (str | None, optional): Custom title for the report. If None,
             defaults to config value or 'VerdeSat Report'.
 
