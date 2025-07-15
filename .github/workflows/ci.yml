@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     env:
-      GEE_PROJECT: ${{ secrets.GEE_PROJECT }}
+      VERDESAT_EE_PROJECT: ${{ secrets.VERDESAT_EE_PROJECT }}
       EARTHENGINE_TOKEN: ${{ secrets.EARTHENGINE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
