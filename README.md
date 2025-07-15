@@ -13,7 +13,7 @@ git clone https://github.com/<org>/verdesat.git
 cd verdesat
 
 # Install dependencies
-pip install -r requirements.txt  # or: poetry install
+poetry install
 
 # Download monthly NDVI composites
 verdesat download \
@@ -47,7 +47,6 @@ verdesat/
 ├── tests/             # Pytest suites (target ≥80% coverage)
 ├── Dockerfile         # Container definition
 ├── pyproject.toml     # Project dependencies & metadata
-├── requirements.txt   # Pinned dependencies (alternative)
 └── README.md          # This file
 ```
 
@@ -61,7 +60,7 @@ verdesat/
 
 ## 🎯 Phase 1 Deliverables
 1. Monorepo scaffold + stub modules
-2. Locked dependencies (pyproject.toml or requirements.txt)
+2. Locked dependencies (pyproject.toml)
 3. Core CLI (`verdesat download`, `verdesat analyze`, `verdesat forecast`)
 4. End-to-end example: monthly NDVI > CSV > decomposition plot
 
