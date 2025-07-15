@@ -36,18 +36,20 @@ jobs:
     name: Run tests (pytest)
     runs-on: ubuntu-latest
     needs: lint
+    env:
+      GEE_PROJECT: ${{ secrets.GEE_PROJECT }}
+      EARTHENGINE_TOKEN: ${{ secrets.EARTHENGINE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: Install dependencies
+      - name: Install Poetry & project dependencies
         run: |
-          pip install -r requirements.txt
-          pip install pytest pytest-cov
-          pip install -e .
-          pip install types-PyYAML types-toml types-requests
+          pip install poetry==1.8.3
+          poetry config virtualenvs.create false
+          poetry install --no-interaction
       - name: Run pytest
         run: |
           pytest --maxfail=1 --disable-warnings -q --cov=verdesat --cov-report term-missing
