@@ -22,12 +22,18 @@ def compute_buffer(
     coords = []
     for feat in features:
         geom = feat.get("geometry", {})
+        geom_type = geom.get("type")
         coords_list = geom.get("coordinates", [])
-        # Handle Polygon or MultiPolygon
-        rings = coords_list[0] if geom.get("type") == "MultiPolygon" else coords_list
-        if rings and isinstance(rings[0], list):
-            for x, y in rings[0]:
-                coords.append((x, y))
+        if geom_type == "Polygon":
+            polygons = [coords_list]
+        elif geom_type == "MultiPolygon":
+            polygons = coords_list
+        else:
+            polygons = []
+        for poly in polygons:
+            if poly and isinstance(poly[0], list):
+                for x, y in poly[0]:
+                    coords.append((x, y))
     if not coords:
         return buffer
     xs, ys = zip(*coords)
