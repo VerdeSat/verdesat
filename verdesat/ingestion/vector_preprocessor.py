@@ -4,7 +4,6 @@ which processes a directory of vector files into a cleaned GeoDataFrame.
 """
 
 import os
-import logging
 import zipfile
 import tempfile
 
@@ -13,8 +12,7 @@ import geopandas as gpd
 from shapely import wkb
 
 from verdesat.core.config import ConfigManager
-
-logger = logging.getLogger(__name__)
+from verdesat.core.logger import Logger
 
 
 class VectorPreprocessor:
@@ -38,6 +36,7 @@ class VectorPreprocessor:
         target_crs: str = "EPSG:4326",
         area_crs: int = 8857,
         id_col: str = "id",
+        logger=None,
     ):
         self.input_dir = input_dir
         self.exts = exts or [e.lower() for e in ConfigManager.SUPPORTED_INPUT_FORMATS]
@@ -45,6 +44,7 @@ class VectorPreprocessor:
         self.area_crs = area_crs
         self.id_col = id_col
         self.gdf: gpd.GeoDataFrame | None = None
+        self.logger = logger or Logger.get_logger(__name__)
 
     def collect_files(self) -> list[str]:
         """Gather all supported vector files in the directory (recursive)."""
@@ -81,20 +81,22 @@ class VectorPreprocessor:
         files = self.collect_files()
         if not files:
             raise RuntimeError(f"No supported vector files found in {self.input_dir}")
-        logger.info("Loading vector files: %s", files)
+        self.logger.info("Loading vector files: %s", files)
 
         gdfs = []
         for fp in files:
             try:
                 gdf = self._read_file(fp)
                 if gdf.crs is None:
-                    logger.warning("No CRS on %s, assuming %s", fp, self.target_crs)
+                    self.logger.warning(
+                        "No CRS on %s, assuming %s", fp, self.target_crs
+                    )
                     gdf = gdf.set_crs(self.target_crs)
                 gdf = gdf.to_crs(self.target_crs)
                 gdfs.append(gdf)
             # pylint: disable=broad-exception-caught
             except Exception as e:
-                logger.warning("Skipping file %s: %s", fp, e)
+                self.logger.warning("Skipping file %s: %s", fp, e)
 
         if not gdfs:
             raise RuntimeError("All vector files failed to load or no valid geometries")

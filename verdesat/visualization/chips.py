@@ -1,6 +1,5 @@
 """Module implementing ChipExporter and ChipService for exporting image chips via GEE."""
 
-import logging
 import os
 from typing import Any, Dict, List, Optional, Union
 
@@ -21,8 +20,7 @@ from verdesat.ingestion.eemanager import EarthEngineManager
 from verdesat.ingestion.indices import INDEX_REGISTRY
 from verdesat.ingestion.sensorspec import SensorSpec
 from verdesat.visualization._chips_config import ChipsConfig
-
-logger = logging.getLogger(__name__)
+from verdesat.core.logger import Logger
 
 
 class ChipExporter:
@@ -32,7 +30,13 @@ class ChipExporter:
     converting them to COG).
     """
 
-    def __init__(self, ee_manager: EarthEngineManager, out_dir: str, fmt: str) -> None:
+    def __init__(
+        self,
+        ee_manager: EarthEngineManager,
+        out_dir: str,
+        fmt: str,
+        logger=None,
+    ) -> None:
         """
         :param ee_manager: EarthEngineManager instance
         :param out_dir: directory where chips will be written
@@ -41,6 +45,7 @@ class ChipExporter:
         self.ee_manager = ee_manager
         self.out_dir = out_dir
         self.fmt = fmt.lower()
+        self.logger = logger or Logger.get_logger(__name__)
         os.makedirs(self.out_dir, exist_ok=True)
 
     def _build_viz_params(
@@ -73,9 +78,11 @@ class ChipExporter:
             if palette is not None and len(bands) == 1 and gamma is None:
                 params["palette"] = palette
             elif palette is not None and len(bands) > 1:
-                logger.warning("Palette ignored when visualizing multiple bands")
+                self.logger.warning("Palette ignored when visualizing multiple bands")
             elif palette is not None and gamma is not None:
-                logger.warning("Palette ignored because gamma correction is enabled")
+                self.logger.warning(
+                    "Palette ignored because gamma correction is enabled"
+                )
         else:
             # non‐PNG (GeoTIFF): specify format
             params["format"] = "GEOTIFF"
@@ -88,7 +95,7 @@ class ChipExporter:
         If conversion fails, issue a warning.
         """
         if rasterio is None or Resampling is None:
-            logger.warning(
+            self.logger.warning(
                 "rasterio not installed; skipping COG conversion for %s", path
             )
             return
@@ -111,9 +118,9 @@ class ChipExporter:
                 dst.build_overviews([2, 4, 8, 16], Resampling.nearest)
                 dst.update_tags(OVR_RESAMPLING="NEAREST")
 
-            logger.info("✔ Converted to COG: %s", path)
+            self.logger.info("✔ Converted to COG: %s", path)
         except rasterio.errors.RasterioError as cog_err:
-            logger.warning("⚠ COG conversion failed for %s: %s", path, cog_err)
+            self.logger.warning("⚠ COG conversion failed for %s: %s", path, cog_err)
 
     def export_one(
         self,
@@ -147,7 +154,7 @@ class ChipExporter:
         try:
             geom = aoi.buffered_ee_geometry(buffer_m)
         except (EEException, ValueError) as e:
-            logger.error("Failed to construct ee.Geometry for AOI %s: %s", pid, e)
+            self.logger.error("Failed to construct ee.Geometry for AOI %s: %s", pid, e)
             return
 
         clipped = img.clip(geom)
@@ -159,10 +166,10 @@ class ChipExporter:
             ys = [pt[1] for pt in coords]
             region_bbox = [min(xs), min(ys), max(xs), max(ys)]
         except EEException as ee_err:
-            logger.warning("Could not compute bbox for AOI %s: %s", pid, ee_err)
+            self.logger.warning("Could not compute bbox for AOI %s: %s", pid, ee_err)
             return
         except KeyError as key_err:
-            logger.warning("BBox info missing keys for AOI %s: %s", pid, key_err)
+            self.logger.warning("BBox info missing keys for AOI %s: %s", pid, key_err)
             return
 
         viz_params = self._build_viz_params(
@@ -183,7 +190,9 @@ class ChipExporter:
                 url = clipped.getDownloadURL(viz_params)
                 ext = "tiff"
         except EEException as ee_err:
-            logger.error("Failed to get URL for %s on %s: %s", pid, date_str, ee_err)
+            self.logger.error(
+                "Failed to get URL for %s on %s: %s", pid, date_str, ee_err
+            )
             return
 
         filename = f"{com_type}_{pid}_{date_str}.{ext}"
@@ -194,9 +203,9 @@ class ChipExporter:
             resp.raise_for_status()
             with open(out_path, "wb") as fh:
                 fh.write(resp.content)
-            logger.info("✔ Wrote %s file: %s", ext, out_path)
+            self.logger.info("✔ Wrote %s file: %s", ext, out_path)
         except requests.RequestException as dl_err:
-            logger.error(
+            self.logger.error(
                 "Failed to download %s for %s on %s: %s", ext, pid, date_str, dl_err
             )
             return
@@ -215,9 +224,15 @@ class ChipService:
       5) For each composite & each feature, call ChipExporter.export_one()
     """
 
-    def __init__(self, ee_manager: EarthEngineManager, sensor_spec: SensorSpec) -> None:
+    def __init__(
+        self,
+        ee_manager: EarthEngineManager,
+        sensor_spec: SensorSpec,
+        logger=None,
+    ) -> None:
         self.ee_manager = ee_manager
         self.sensor_spec = sensor_spec
+        self.logger = logger or Logger.get_logger(__name__)
 
     def run(self, aois: List[AOI], config: ChipsConfig) -> None:
         """
@@ -329,7 +344,7 @@ class ChipService:
                         max_val=max_val,
                     )
             except EEException as ee_err:
-                logger.error(
+                self.logger.error(
                     "Failed exporting composite #%d due to EE error: %s",
                     i,
                     ee_err,
@@ -337,4 +352,4 @@ class ChipService:
                 )
                 continue
 
-        logger.info("Finished exporting all chips to %s", config.out_dir)
+        self.logger.info("Finished exporting all chips to %s", config.out_dir)

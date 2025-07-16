@@ -5,36 +5,25 @@ geographic feature (Polygon/MultiPolygon), its static properties, and associated
 
 import json
 import math
-from typing import List, Union, Dict, Optional, Any
-from shapely.geometry import shape, mapping, Polygon, MultiPolygon
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Union
+
 import geopandas as gpd
 import ee
+from shapely.geometry import MultiPolygon, Polygon, mapping, shape
 from verdesat.analytics.timeseries import TimeSeries
 
 
+@dataclass
 class AOI:
-    """
-    Area of Interest (AOI): represents one field, forest, or custom polygon
-    with static and dynamic properties.
-    - geometry: shapely Polygon or MultiPolygon
-    - static_props: dict (name, climate_zone, etc.)
-    - timeseries: Dict[str, TimeSeries] (e.g. {"ndvi": TimeSeries, ...})
-    """
+    """Area of Interest with static properties and optional time series."""
 
-    def __init__(
-        self,
-        geometry: Union[Polygon, MultiPolygon],
-        static_props: Dict[str, Any],
-        timeseries: Optional[Dict[str, TimeSeries]] = None,
-    ):
-        self.geometry = geometry
-        self.static_props = static_props
-        self.timeseries = timeseries or {}
+    geometry: Union[Polygon, MultiPolygon]
+    static_props: Dict[str, Any]
+    timeseries: Dict[str, TimeSeries] = field(default_factory=dict)
 
     def add_timeseries(self, variable: str, ts: TimeSeries):
-        """
-        Attach a TimeSeries object to this AOI under the given variable name.
-        """
+        """Attach a TimeSeries object to this AOI under the given variable."""
         self.timeseries[variable] = ts
 
     @classmethod

@@ -3,17 +3,15 @@ Module `ingestion.eemanager` provides the EarthEngineManager class to
 encapsulate Google Earth Engine initialization, retries, and image collection retrieval.
 """
 
-import logging
 import os
 import time
 from typing import Optional
 
+from verdesat.core.logger import Logger
+
 import ee
 from ee import EEException
 from .sensorspec import SensorSpec
-
-
-logger = logging.getLogger(__name__)
 
 
 class EarthEngineManager:
@@ -22,10 +20,14 @@ class EarthEngineManager:
     """
 
     def __init__(
-        self, credential_path: Optional[str] = None, project: Optional[str] = None
+        self,
+        credential_path: Optional[str] = None,
+        project: Optional[str] = None,
+        logger=None,
     ):
         self.credential_path = credential_path
         self.project = project or os.getenv("VERDESAT_EE_PROJECT")
+        self.logger = logger or Logger.get_logger(__name__)
 
     def initialize(self) -> None:
         """
@@ -60,7 +62,9 @@ class EarthEngineManager:
                 msg = str(e)
                 # Permission issue: ask user to re-auth
                 if "PERMISSION_DENIED" in msg:
-                    logger.error("Earth Engine permission denied. Re-authenticating...")
+                    self.logger.error(
+                        "Earth Engine permission denied. Re-authenticating..."
+                    )
                     ee.Authenticate()  # opens browser/window once
                     self.initialize()  # re-init via our wrapper with credentials/project
                     # only retry once after auth
@@ -69,7 +73,7 @@ class EarthEngineManager:
                 # Transient error? retry with backoff
                 if attempt < max_retries:
                     backoff = 2 ** (attempt - 1)
-                    logger.warning(
+                    self.logger.warning(
                         "Transient EE error (attempt %d/%d): %s – retrying in %ds",
                         attempt,
                         max_retries,
@@ -79,7 +83,9 @@ class EarthEngineManager:
                     time.sleep(backoff)
                     continue
                 # Give up
-                logger.error("Failed to getInfo() after %d attempts: %s", attempt, msg)
+                self.logger.error(
+                    "Failed to getInfo() after %d attempts: %s", attempt, msg
+                )
                 raise
 
     def get_image_collection(

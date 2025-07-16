@@ -5,6 +5,8 @@ and basic workflows. Dynamically loads available indices from the registry.
 
 import os
 import sys
+from datetime import datetime
+
 import pandas as pd
 import click  # type: ignore
 from click import echo
@@ -41,7 +43,7 @@ def cli():
 def prepare(input_dir):
     """Process all vector files in INPUT_DIR into a single, clean GeoJSON."""
     try:
-        vp = VectorPreprocessor(input_dir)
+        vp = VectorPreprocessor(input_dir, logger=logger)
         gdf = vp.run()
         output_path = os.path.join(
             input_dir, f"{os.path.basename(input_dir)}_processed.geojson"
@@ -112,7 +114,7 @@ def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, o
         echo(f"Loading AOIs from {geojson}...")
         aois = AOI.from_geojson(geojson, id_col="id")
         sensor = SensorSpec.from_collection_id(collection)
-        ingestor = DataIngestor(sensor)
+        ingestor = DataIngestor(sensor, ee_manager_instance=ee_manager, logger=logger)
         df_list = []
         for aoi in aois:
             df = ingestor.download_timeseries(
@@ -295,7 +297,9 @@ def chips(
         echo("→ Building composites and exporting chips…")
 
         # 5) Fire up ChipService: now takes (ee_manager, aois, sensor_spec, chips_cfg)
-        service = ChipService(ee_manager=ee_manager, sensor_spec=sensor_spec)
+        service = ChipService(
+            ee_manager=ee_manager, sensor_spec=sensor_spec, logger=logger
+        )
         service.run(aois=aois, config=chips_cfg)
 
         echo(f"✅  Chips written under {out_dir}/")
@@ -698,9 +702,6 @@ def pipeline():
     """High-level workflows that glue together multiple commands."""
 
 
-from datetime import datetime
-
-
 @pipeline.command("report")
 @click.option("--geojson", "-g", required=True, help="AOI GeoJSON")
 @click.option("--start", "-s", required=True, help="Start date (YYYY-MM-DD)")
@@ -750,7 +751,8 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
         end=end,
         period="Y",
         chip_type="ndvi",
-        format="png",
+        palette_arg="white-green",
+        fmt="png",
         out_dir=annual_chips_dir,
     )
 
@@ -763,7 +765,8 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
         end=end,
         period="ME",
         chip_type="ndvi",
-        format="png",
+        palette_arg="white-green",
+        fmt="png",
         out_dir=monthly_chips_dir,
     )
 
