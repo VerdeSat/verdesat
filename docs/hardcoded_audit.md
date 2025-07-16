@@ -20,8 +20,8 @@
 | "period=12"              | analytics/decomposition.py,<br>core/cli.py (and others?)    | Decomposition seasonal period         | param/config/auto | period               | YES       |
 | mask_clouds: True        | ingestion/downloader.py:74                                  | Cloud mask default                    | param/config      | mask_clouds          | YES       |
 | 0.0, 1.0, 0.4            | ingestion/chips.py:335,337,338,339                          | Palette min/max stretch               | param/config      | stretch_min/max      | MAYBE     |
-| "default" font           | visualization/animate.py:40,42,43,48,113,115,116,121        | Default font for GIFs                 | param/config      | font, font_size      | NO        |
-| "arial.ttf"              | visualization/animate.py:46,119                             | Font for text overlay                 | param/config      | font                 | NO        |
+| "default" font           | visualization/visualizer.py:121,180                         | Default font for GIFs                 | param/config      | font, font_size      | NO        |
+| "arial.ttf"              | visualization/visualizer.py:125,184                         | Font for text overlay                 | param/config      | font                 | NO        |
 | "id", "system:index"     | ingestion/chips.py:127,389<br>ingestion/shapefile_preprocessor.py:100 | Feature IDs                  | param/config      | id_col                | MAYBE     |
 | Date/time defaults       | core/cli.py:77,78,137,138                                   | Start/end dates                       | param/config      | start_date, end_date | NO        |
 | Frequency defaults       | core/cli.py:91,143,314,488<br>analytics/timeseries.py:85    | Aggregation frequency                 | param/config      | freq                 | NO        |

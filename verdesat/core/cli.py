@@ -15,21 +15,18 @@ from verdesat.ingestion.sensorspec import SensorSpec
 from verdesat.ingestion import create_ingestor
 from verdesat.ingestion.indices import INDEX_REGISTRY
 from verdesat.analytics.timeseries import TimeSeries
-from verdesat.visualization.static_viz import plot_decomposition
 from verdesat.analytics.decomposition import decompose_each
-from verdesat.analytics.trend import compute_trend
 from verdesat.analytics.preprocessing import interpolate_gaps
-from verdesat.visualization.plotly_viz import plot_timeseries_html
-from verdesat.visualization.static_viz import plot_time_series
-from verdesat.visualization.gallery import build_gallery
-from verdesat.visualization.animate import make_gifs_per_site
-from verdesat.ingestion.eemanager import ee_manager
-from verdesat.visualization.chips import ChipService
-from verdesat.geo.aoi import AOI
-from verdesat.visualization._chips_config import ChipsConfig
+from verdesat.analytics.trend import compute_trend
 from verdesat.core.logger import Logger
+from verdesat.geo.aoi import AOI
+from verdesat.ingestion.eemanager import ee_manager
+from verdesat.visualization._chips_config import ChipsConfig
+from verdesat.visualization.chips import ChipService
+from verdesat.visualization.visualizer import Visualizer
 
 logger = Logger.get_logger(__name__)
+viz = Visualizer()
 
 
 @click.group()
@@ -468,7 +465,7 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
 
         if plot:
             plot_path = os.path.join(output_dir, f"{pid}_decomposition.png")
-            plot_decomposition(res, plot_path)
+            viz.plot_decomposition(res, plot_path)
             echo(f"✅  Decomposition plot saved to {plot_path}")
 
 
@@ -543,11 +540,11 @@ def plot(datafile, index_col, agg_freq, interactive, output):
     df = pd.read_csv(datafile, parse_dates=["date"])
     if interactive:
         html_path = output if output.lower().endswith(".html") else output + ".html"
-        plot_timeseries_html(df, index_col, html_path, agg_freq)
+        viz.plot_timeseries_html(df, index_col, html_path, agg_freq)
         echo(f"✅  Interactive plot saved to {output}")
     else:
         png_path = output if output.lower().endswith(".png") else output + ".png"
-        plot_time_series(df, index_col, png_path, agg_freq)
+        viz.plot_time_series(df, index_col, png_path, agg_freq)
         echo(f"✅  Static plot saved to {png_path}")
 
 
@@ -583,7 +580,7 @@ def animate(images_dir, pattern, output_dir, duration, loop):
     Generate one animated GIF per site by scanning IMAGES_DIR for files matching PATTERN.
     """
     try:
-        make_gifs_per_site(
+        viz.make_gifs_per_site(
             images_dir=images_dir,
             pattern=pattern,
             output_dir=output_dir,
@@ -625,7 +622,7 @@ def gallery(chips_dir, template, output, title):
     Build a static HTML image gallery from a directory of chips.
     """
     try:
-        build_gallery(
+        viz.build_gallery(
             chips_dir=chips_dir,
             output_html=output,
             title=title,
