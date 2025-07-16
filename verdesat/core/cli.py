@@ -751,6 +751,7 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
         end=end,
         period="Y",
         chip_type="ndvi",
+        palette_arg="white-green",
         fmt="png",
         out_dir=annual_chips_dir,
     )
@@ -764,6 +765,7 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
         end=end,
         period="ME",
         chip_type="ndvi",
+        palette_arg="white-green",
         fmt="png",
         out_dir=monthly_chips_dir,
     )
