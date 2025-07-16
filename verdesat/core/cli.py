@@ -5,6 +5,8 @@ and basic workflows. Dynamically loads available indices from the registry.
 
 import os
 import sys
+from datetime import datetime
+
 import pandas as pd
 import click  # type: ignore
 from click import echo
@@ -700,9 +702,6 @@ def pipeline():
     """High-level workflows that glue together multiple commands."""
 
 
-from datetime import datetime
-
-
 @pipeline.command("report")
 @click.option("--geojson", "-g", required=True, help="AOI GeoJSON")
 @click.option("--start", "-s", required=True, help="Start date (YYYY-MM-DD)")
@@ -752,7 +751,7 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
         end=end,
         period="Y",
         chip_type="ndvi",
-        format="png",
+        fmt="png",
         out_dir=annual_chips_dir,
     )
 
@@ -765,7 +764,7 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
         end=end,
         period="ME",
         chip_type="ndvi",
-        format="png",
+        fmt="png",
         out_dir=monthly_chips_dir,
     )
 
