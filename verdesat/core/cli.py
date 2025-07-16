@@ -12,7 +12,7 @@ import click  # type: ignore
 from click import echo
 from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
 from verdesat.ingestion.sensorspec import SensorSpec
-from verdesat.ingestion.dataingestor import DataIngestor
+from verdesat.ingestion import create_ingestor
 from verdesat.ingestion.indices import INDEX_REGISTRY
 from verdesat.analytics.timeseries import TimeSeries
 from verdesat.visualization.static_viz import plot_decomposition
@@ -106,7 +106,15 @@ def download():
     default="timeseries.csv",
     help="Output CSV path",
 )
-def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, output):
+@click.option(
+    "--backend",
+    "-b",
+    default="ee",
+    help="Data ingestion backend (e.g. 'ee').",
+)
+def timeseries(
+    geojson, collection, start, end, scale, index, chunk_freq, agg, output, backend
+):
     """
     Download and aggregate spectral index timeseries for polygons in GEOJSON.
     """
@@ -114,7 +122,12 @@ def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, o
         echo(f"Loading AOIs from {geojson}...")
         aois = AOI.from_geojson(geojson, id_col="id")
         sensor = SensorSpec.from_collection_id(collection)
-        ingestor = DataIngestor(sensor, ee_manager_instance=ee_manager, logger=logger)
+        ingestor = create_ingestor(
+            backend,
+            sensor,
+            ee_manager_instance=ee_manager,
+            logger=logger,
+        )
         df_list = []
         for aoi in aois:
             df = ingestor.download_timeseries(
@@ -228,6 +241,12 @@ def timeseries(geojson, collection, start, end, scale, index, chunk_freq, agg, o
 )
 @click.option("--out-dir", "-o", default="chips", help="Output directory.")
 @click.option(
+    "--backend",
+    "-b",
+    default="ee",
+    help="Data ingestion backend (e.g. 'ee').",
+)
+@click.option(
     "--ee-project",
     "_ee_project",
     default=None,
@@ -252,6 +271,7 @@ def chips(
     palette_arg,
     fmt,
     out_dir,
+    backend,
     _ee_project,
 ):
     """
@@ -266,14 +286,10 @@ def chips(
         echo(f"Loading AOIs from {geojson}...")
         aois = AOI.from_geojson(geojson, id_col="id")
 
-        # 2) Initialize Earth Engine (possibly override project)
-        ee_manager.initialize()
-        echo("✔ Initialized Earth Engine…")
-
-        # 3) Build a SensorSpec from the chosen collection ID
+        # 2) Build a SensorSpec from the chosen collection ID
         sensor_spec = SensorSpec.from_collection_id(collection)
 
-        # 4) Build a ChipsConfig from all CLI options
+        # 3) Build a ChipsConfig from all CLI options
         chips_cfg = ChipsConfig.from_cli(
             collection=collection,
             start=start,
@@ -296,11 +312,14 @@ def chips(
 
         echo("→ Building composites and exporting chips…")
 
-        # 5) Fire up ChipService: now takes (ee_manager, aois, sensor_spec, chips_cfg)
-        service = ChipService(
-            ee_manager=ee_manager, sensor_spec=sensor_spec, logger=logger
+        # 4) Instantiate ingestor via factory and run chip export
+        ingestor = create_ingestor(
+            backend,
+            sensor_spec,
+            ee_manager_instance=ee_manager,
+            logger=logger,
         )
-        service.run(aois=aois, config=chips_cfg)
+        ingestor.download_chips(aois=aois, config=chips_cfg)
 
         echo(f"✅  Chips written under {out_dir}/")
     # pylint: disable=broad-exception-caught
@@ -725,6 +744,7 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
         end=end,
         agg="ME",
         output=timeseries_csv,
+        backend="ee",
     )
     # 2. Aggregate & fill
     monthly_csv = os.path.join(out_dir, "timeseries_monthly.csv")

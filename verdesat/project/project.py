@@ -5,7 +5,7 @@ from typing import List, Literal
 from verdesat.geo.aoi import AOI
 from verdesat.core.config import ConfigManager
 from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
-from verdesat.ingestion.dataingestor import DataIngestor
+from verdesat.ingestion import create_ingestor
 from verdesat.ingestion.sensorspec import SensorSpec
 from verdesat.analytics.timeseries import TimeSeries
 from verdesat.visualization.visualizer import Visualizer
@@ -75,7 +75,8 @@ class VerdeSatProject:
         """
         # Instantiate ingestion components
         sensor = SensorSpec.from_collection_id(collection_id)
-        ingestor = DataIngestor(sensor)
+        backend = self.config.get("ingestor_backend", "ee")
+        ingestor = create_ingestor(backend, sensor)
         # Download and attach timeseries for each AOI
         for aoi in self.aois:
             df = ingestor.download_timeseries(

@@ -386,9 +386,9 @@ def _dummy_ee_manager(monkeypatch):
                 ]
             }
 
-    # Monkeypatch the ee_manager used in DataIngestor
+    # Monkeypatch the ee_manager used in EarthEngineIngestor
     monkeypatch.setattr(
-        "verdesat.ingestion.dataingestor.ee_manager.get_image_collection",
+        "verdesat.ingestion.earthengine_ingestor.ee_manager.get_image_collection",
         lambda *args, **kwargs: FakeFC([None]),
     )
     return FakeFC

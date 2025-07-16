@@ -1,12 +1,8 @@
-"""
-DataIngestor: download and aggregate spectral index time series and image chips from Earth Engine.
-Provides chunking, daily retrieval, and aggregation functionality.
-"""
+"""Earth Engine backend for data ingestion."""
 
 from datetime import timedelta
-from typing import Literal, Optional
+from typing import Literal, Optional, List
 
-from verdesat.core.logger import Logger
 
 import ee
 import pandas as pd
@@ -16,9 +12,12 @@ from verdesat.geo.aoi import AOI
 from ..analytics.timeseries import TimeSeries
 from .eemanager import ee_manager
 from .sensorspec import SensorSpec
+from .base import BaseDataIngestor
+from ..visualization._chips_config import ChipsConfig
+from ..visualization.chips import ChipService
 
 
-class DataIngestor:
+class EarthEngineIngestor(BaseDataIngestor):
     """
     Handles data ingestion for spectral index time series and image chips.
     """
@@ -29,13 +28,9 @@ class DataIngestor:
         ee_manager_instance=None,
         logger=None,
     ):
-        """
-        sensor: SensorSpec defining bands, collection, cloud mask method.
-        ee_manager_instance: EarthEngineManager for EE interactions.
-        """
-        self.sensor = sensor
+        """Create an ingestor using the given sensor and EE manager."""
+        super().__init__(sensor, logger=logger)
         self.ee = ee_manager_instance or ee_manager
-        self.logger = logger or Logger.get_logger(__name__)
 
     def download_timeseries(
         self,
@@ -184,3 +179,13 @@ class DataIngestor:
         df = pd.DataFrame(rows)
         df["date"] = pd.to_datetime(df["date"])
         return df
+
+    def download_chips(self, aois: List[AOI], config: ChipsConfig) -> None:
+        """Export chips for the supplied AOIs using the given configuration."""
+        # Ensure Earth Engine is initialized
+        self.ee.initialize()
+
+        service = ChipService(
+            ee_manager=self.ee, sensor_spec=self.sensor, logger=self.logger
+        )
+        service.run(aois=aois, config=config)
