@@ -3,9 +3,10 @@ DataIngestor: download and aggregate spectral index time series and image chips 
 Provides chunking, daily retrieval, and aggregation functionality.
 """
 
-import logging
 from datetime import timedelta
 from typing import Literal, Optional
+
+from verdesat.core.logger import Logger
 
 import ee
 import pandas as pd
@@ -16,21 +17,25 @@ from ..analytics.timeseries import TimeSeries
 from .eemanager import ee_manager
 from .sensorspec import SensorSpec
 
-logger = logging.getLogger(__name__)
-
 
 class DataIngestor:
     """
     Handles data ingestion for spectral index time series and image chips.
     """
 
-    def __init__(self, sensor: SensorSpec, ee_manager_instance=None):
+    def __init__(
+        self,
+        sensor: SensorSpec,
+        ee_manager_instance=None,
+        logger=None,
+    ):
         """
         sensor: SensorSpec defining bands, collection, cloud mask method.
         ee_manager_instance: EarthEngineManager for EE interactions.
         """
         self.sensor = sensor
         self.ee = ee_manager_instance or ee_manager
+        self.logger = logger or Logger.get_logger(__name__)
 
     def download_timeseries(
         self,
@@ -119,7 +124,7 @@ class DataIngestor:
                 df_chunk = self._daily_timeseries(aoi, s, e, scale, index)
                 dfs.append(df_chunk)
             except Exception as err:
-                logger.warning("Chunk %s–%s failed: %s", s, e, err)
+                self.logger.warning("Chunk %s–%s failed: %s", s, e, err)
         if not dfs:
             raise RuntimeError("All chunks failed for time series retrieval")
         return pd.concat(dfs, ignore_index=True)

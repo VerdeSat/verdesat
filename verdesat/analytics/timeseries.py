@@ -3,19 +3,18 @@ Module `analytics.timeseries` provides the TimeSeries class, which wraps
 a pandas DataFrame of spectral index time series and supports aggregation.
 """
 
+from dataclasses import dataclass
 from typing import Literal
 
 import pandas as pd
 
 
+@dataclass
 class TimeSeries:
-    """
-    Holds a time-indexed DataFrame for one variable (e.g., NDVI).
-    """
+    """Pandas DataFrame wrapper for a single variable time series."""
 
-    def __init__(self, df: pd.DataFrame, index: str):
-        self.df = df
-        self.index = index
+    df: pd.DataFrame
+    index: str
 
     @classmethod
     def from_dataframe(cls, df: pd.DataFrame, index: str = "ndvi") -> "TimeSeries":
