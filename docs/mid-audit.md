@@ -460,14 +460,14 @@ Forecast CLIforecast(...)
 core/cli.py:forecast
 ProphetModel.fit(ts); ProphetModel.predict(horizon)LSTMModel.fit(ts); LSTMModel.predict(horizon)
 Animateanimate(...)
-visualization/animate.py & core/cli.py:visualize animate
-Visualizer.save_gif(image_paths: List[Path], out_path: Path, **opts)
+visualization/visualizer.py & core/cli.py:visualize animate
+Visualizer.make_gifs_per_site(images_dir: str, pattern: str, output_dir: str)
 Plot (static)plot(...)
-visualization/static_viz.py & core/cli.py:visualize plot
-Visualizer.plot_static(ts: TimeSeries, out_path: Path, **opts)
-Plot (interactive)plotly_viz.plot(...)
-visualization/plotly_viz.py
-Visualizer.plot_interactive(ts: TimeSeries, out_path: Path, **opts)
+visualization/visualizer.py & core/cli.py:visualize plot
+Visualizer.plot_time_series(df: DataFrame, index_col: str, output_path: str)
+Plot (interactive)visualizer.plot_timeseries_html(...)
+visualization/visualizer.py
+Visualizer.plot_timeseries_html(df: DataFrame, index_col: str, output_path: str)
 Reportgenerate_report(...)
 visualization/report.py & core/cli.py:report
 Visualizer.generate_report(project: VerdeSatProject, out_path: Path, **opts)
