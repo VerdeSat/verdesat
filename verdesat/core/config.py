@@ -46,11 +46,13 @@ class ConfigManager:
     # Default spectral index and output column naming
     DEFAULT_INDEX: str = "ndvi"
     VALUE_COL_TEMPLATE: str = "mean_{index}"
+    DEFAULT_REPORT_TITLE: str = "VerdeSat Report"
 
     def __init__(self, config_path=None):
         self.config = {
             "default_index": self.DEFAULT_INDEX,
             "value_col_template": self.VALUE_COL_TEMPLATE,
+            "report_title": self.DEFAULT_REPORT_TITLE,
         }
         self.supported_input_formats = list(self.SUPPORTED_INPUT_FORMATS)
         self.preset_palettes = {k: list(v) for k, v in self.PRESET_PALETTES.items()}
@@ -121,3 +123,7 @@ class ConfigManager:
         idx = index or self.get("default_index", self.DEFAULT_INDEX)
         template = self.get("value_col_template", self.VALUE_COL_TEMPLATE)
         return template.format(index=idx)
+
+    def get_report_title(self) -> str:
+        """Return the default report title from config."""
+        return self.get("report_title", self.DEFAULT_REPORT_TITLE)

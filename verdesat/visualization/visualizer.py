@@ -13,10 +13,14 @@ from jinja2 import Environment, FileSystemLoader
 from PIL import Image, ImageDraw, ImageFont
 from statsmodels.tsa.seasonal import DecomposeResult
 from verdesat.core.config import ConfigManager
+from verdesat.core.logger import Logger
 
 
 class Visualizer:
     """Utility class for all visualization helpers."""
+
+    def __init__(self, logger=None) -> None:
+        self.logger = logger or Logger.get_logger(__name__)
 
     # ------------------------------------------------------------------
     # Time-series plotting
@@ -201,7 +205,7 @@ class Visualizer:
                     duration=int(duration * 1000),
                     loop=loop,
                 )
-            print(f"✅  Wrote GIF for site {site} → {out_path}")
+            self.logger.info("Wrote GIF for site %s → %s", site, out_path)
 
     # ------------------------------------------------------------------
     # Gallery helpers
