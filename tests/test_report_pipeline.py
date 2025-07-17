@@ -51,7 +51,13 @@ class DummyViz(Visualizer):
     def plot_timeseries_html(self, df, index_col, output_path, agg_freq=None) -> None:
         Path(output_path).write_text("html")
 
-    def generate_report(self, output_dir: str, title: str, map_png=None) -> str:
+    def generate_report(
+        self,
+        output_dir: str,
+        title: str,
+        map_png=None,
+        timeseries_csv=None,
+    ) -> str:
         self.report_called = True
         path = Path(output_dir, "report.html")
         path.write_text("report")

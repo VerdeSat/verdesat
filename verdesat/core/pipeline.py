@@ -157,4 +157,9 @@ class ReportPipeline:
         )
 
         # 7. Final report
-        return self.visualizer.generate_report(out_dir, title=title, map_png=map_png)
+        return self.visualizer.generate_report(
+            out_dir,
+            title=title,
+            map_png=map_png,
+            timeseries_csv=filled_csv,
+        )
