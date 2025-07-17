@@ -12,8 +12,8 @@ VerdeSat blends advanced satellite technology with sustainability, focusing on e
 git clone https://github.com/<org>/verdesat.git
 cd verdesat
 
-# Install dependencies
-poetry install
+# Install system and Python dependencies
+./setup.sh
 
 # Download monthly NDVI composites
 verdesat download \
