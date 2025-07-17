@@ -51,7 +51,9 @@ def build_report(
         lambda: defaultdict(list)
     )
     if chips_dir:
-        pattern = rf"{index_name.upper()}_(?P<id>\d+)_(?P<date>\d{4}-\d{2}-\d{2})\.png$"
+        pattern = (
+            rf"(?i){index_name}_(?P<id>\d+)_(?P<date>\d{{4}}-\d{{2}}-\d{{2}})\.png$"
+        )
         gallery = collect_assets(
             base_dir=chips_dir,
             filename_regex=pattern,
