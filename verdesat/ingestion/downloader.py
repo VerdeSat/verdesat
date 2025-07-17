@@ -13,7 +13,7 @@ import ee
 from verdesat.core.logger import Logger
 from verdesat.geo.aoi import AOI
 from .sensorspec import SensorSpec
-from .eemanager import ee_manager as default_manager
+from .eemanager import EarthEngineManager, ee_manager as default_manager
 from ..analytics.ee_masking import mask_collection
 
 
@@ -96,7 +96,7 @@ class EarthEngineDownloader(BaseDownloader):
     def __init__(
         self,
         sensor: SensorSpec,
-        ee_manager: default_manager = default_manager,
+        ee_manager: EarthEngineManager = default_manager,
         max_retries: int = 3,
         logger=None,
     ) -> None:
