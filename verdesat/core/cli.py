@@ -83,6 +83,12 @@ def download():
     help=f"Spectral index to compute (choices: {', '.join(INDEX_REGISTRY.keys())})",
 )
 @click.option(
+    "--value-col",
+    "-v",
+    default=None,
+    help="Output column name (defaults to mean_<index>)",
+)
+@click.option(
     "--agg",
     "-a",
     type=click.Choice(["D", "ME", "YE"]),
@@ -110,7 +116,17 @@ def download():
     help="Data ingestion backend (e.g. 'ee').",
 )
 def timeseries(
-    geojson, collection, start, end, scale, index, chunk_freq, agg, output, backend
+    geojson,
+    collection,
+    start,
+    end,
+    scale,
+    index,
+    value_col,
+    chunk_freq,
+    agg,
+    output,
+    backend,
 ):
     """
     Download and aggregate spectral index timeseries for polygons in GEOJSON.
@@ -126,9 +142,18 @@ def timeseries(
             logger=logger,
         )
         df_list = []
+        value_col = value_col or ConfigManager.VALUE_COL_TEMPLATE.format(index=index)
+
         for aoi in aois:
             df = ingestor.download_timeseries(
-                aoi, start, end, scale, index, chunk_freq, agg
+                aoi,
+                start,
+                end,
+                scale,
+                index,
+                value_col,
+                chunk_freq,
+                agg,
             )
             df_list.append(df)
         result = pd.concat(df_list, ignore_index=True)

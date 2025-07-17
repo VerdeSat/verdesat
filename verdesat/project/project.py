@@ -77,10 +77,20 @@ class VerdeSatProject:
         sensor = SensorSpec.from_collection_id(collection_id)
         backend = self.config.get("ingestor_backend", "ee")
         ingestor = create_ingestor(backend, sensor)
+        # Determine output column for this index
+        value_col = self.config.get_value_col(index)
+
         # Download and attach timeseries for each AOI
         for aoi in self.aois:
             df = ingestor.download_timeseries(
-                aoi, start_date, end_date, scale, index, freq
+                aoi,
+                start_date,
+                end_date,
+                scale,
+                index,
+                value_col,
+                chunk_freq="YE",
+                freq=freq,
             )
             ts = TimeSeries.from_dataframe(df, index=index)
             aoi.add_timeseries(index, ts)
