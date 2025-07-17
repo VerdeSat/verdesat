@@ -13,8 +13,8 @@ from .eemanager import ee_manager
 from .sensorspec import SensorSpec
 from .base import BaseDataIngestor
 from .downloader import EarthEngineDownloader
-from ..analytics.masking import mask_collection
-from ..analytics.chipping import export_chips
+from ..analytics.ee_masking import mask_collection
+from ..analytics.ee_chipping import export_chips
 from ..visualization._chips_config import ChipsConfig
 
 

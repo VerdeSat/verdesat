@@ -14,7 +14,7 @@ from verdesat.core.logger import Logger
 from verdesat.geo.aoi import AOI
 from .sensorspec import SensorSpec
 from .eemanager import ee_manager as default_manager
-from ..analytics.masking import mask_collection
+from ..analytics.ee_masking import mask_collection
 
 
 class BaseDownloader(ABC):
