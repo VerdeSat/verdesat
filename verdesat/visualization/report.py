@@ -34,7 +34,7 @@ def build_report(
         timeseries_csv,
         decomp_dir=decomposition_dir,
         value_col=f"mean_{index_name}",
-    )
+    ).rows
     # 3. Discover decomposition images: files named like "1_decomposition.png"
     decomp_pattern = r"(?P<id>\d+)_decomposition\.png"
     decomp_images = {}

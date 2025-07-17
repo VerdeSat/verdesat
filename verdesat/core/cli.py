@@ -517,9 +517,9 @@ def trend(input_csv, index_col, output):
     echo(f"Loading {input_csv}...")
     df = pd.read_csv(input_csv, parse_dates=["date"])
     echo("Computing trend...")
-    df_trend = compute_trend(df, column=index_col)
+    trend_res = compute_trend(df, column=index_col)
     echo(f"Saving trend data to {output}...")
-    df_trend.to_csv(output, index=False)
+    trend_res.to_csv(output)
     echo(f"✅  Trend data saved to {output}")
 
 

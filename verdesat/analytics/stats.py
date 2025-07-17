@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from scipy.stats import theilslopes, kendalltau
 from verdesat.core.config import ConfigManager
+from .results import StatsResult
 
 
 def compute_summary_stats(
@@ -17,10 +18,8 @@ def compute_summary_stats(
     value_col: str = ConfigManager.VALUE_COL_TEMPLATE.format(
         index=ConfigManager.DEFAULT_INDEX
     ),
-) -> List[Dict]:
-    """
-    Build per‐site summary stats for your report.
-    """
+) -> StatsResult:
+    """Build per-site summary stats and return them as a :class:`StatsResult`."""
     # 1) Load and pivot
     df = pd.read_csv(timeseries_csv, parse_dates=["date"])
     stats = []
@@ -104,4 +103,4 @@ def compute_summary_stats(
             }
         )
 
-    return stats
+    return StatsResult(stats)

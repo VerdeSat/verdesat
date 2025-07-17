@@ -10,6 +10,7 @@ import ee
 from ee import Reducer
 from .timeseries import TimeSeries
 from .trend import compute_trend as _compute_trend
+from .results import TrendResult
 
 
 class AnalyticsEngine:
@@ -67,6 +68,6 @@ class AnalyticsEngine:
         return composites
 
     @staticmethod
-    def compute_trend(ts: TimeSeries):
-        """Return a DataFrame of trend values for the TimeSeries."""
+    def compute_trend(ts: TimeSeries) -> TrendResult:
+        """Return trend values for the given TimeSeries."""
         return _compute_trend(ts.df, column=f"mean_{ts.index}")
