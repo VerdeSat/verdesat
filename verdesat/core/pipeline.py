@@ -157,5 +157,4 @@ class ReportPipeline:
         )
 
         # 7. Final report
-        self.visualizer.generate_report(out_dir, title=title, map_png=map_png)
-        return os.path.join(out_dir, "report.html")
+        return self.visualizer.generate_report(out_dir, title=title, map_png=map_png)
