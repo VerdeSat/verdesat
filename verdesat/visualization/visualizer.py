@@ -267,20 +267,27 @@ class Visualizer:
 
     # ------------------------------------------------------------------
     def generate_report(
-        self, output_dir: str, title: str
-    ) -> None:  # pragma: no cover - thin wrapper
-        """Generate a report (delegates to :mod:`verdesat.visualization.report`)."""
+        self,
+        output_dir: str,
+        title: str,
+        map_png: Optional[str] = None,
+        timeseries_csv: Optional[str] = None,
+    ) -> str:  # pragma: no cover - thin wrapper
+        """Generate a report and return its path."""
 
         from .report import build_report
 
+        output_path = os.path.join(output_dir, "report.html")
+        csv_path = timeseries_csv or os.path.join(output_dir, "timeseries.csv")
         build_report(
             geojson_path=os.path.join(output_dir, "aoi.geojson"),
-            timeseries_csv=os.path.join(output_dir, "timeseries.csv"),
+            timeseries_csv=csv_path,
             timeseries_html=os.path.join(output_dir, "timeseries.html"),
             gifs_dir=os.path.join(output_dir, "gifs"),
             decomposition_dir=os.path.join(output_dir, "decomp"),
             chips_dir=os.path.join(output_dir, "chips"),
-            map_png=None,
-            output_path=os.path.join(output_dir, "report.html"),
+            map_png=map_png,
+            output_path=output_path,
             title=title,
         )
+        return output_path
