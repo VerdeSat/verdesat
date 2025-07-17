@@ -1,10 +1,9 @@
-"""
-core.config
------------
+"""core.config
+---------------
 
-Configuration loader/manager for VerdeSat.  Provides a central API for
+Configuration loader/manager for VerdeSat. Provides a central API for
 loading settings from YAML/TOML/JSON (or environment/CLI) and retrieving
-them via `.get(...)`.
+them via :py:meth:`ConfigManager.get`.
 """
 
 # Imports for config parsing
@@ -44,8 +43,15 @@ class ConfigManager:
         "blue-white-green": ("blue", "white", "green"),
     }
 
+    # Default spectral index and output column naming
+    DEFAULT_INDEX: str = "ndvi"
+    VALUE_COL_TEMPLATE: str = "mean_{index}"
+
     def __init__(self, config_path=None):
-        self.config = {}  # Dict of all config params
+        self.config = {
+            "default_index": self.DEFAULT_INDEX,
+            "value_col_template": self.VALUE_COL_TEMPLATE,
+        }
         self.supported_input_formats = list(self.SUPPORTED_INPUT_FORMATS)
         self.preset_palettes = {k: list(v) for k, v in self.PRESET_PALETTES.items()}
         if config_path:
@@ -109,3 +115,9 @@ class ConfigManager:
         )
         # Merge palettes dict
         self.preset_palettes.update(other.preset_palettes)
+
+    def get_value_col(self, index: str | None = None) -> str:
+        """Return the value column name for a given index."""
+        idx = index or self.get("default_index", self.DEFAULT_INDEX)
+        template = self.get("value_col_template", self.VALUE_COL_TEMPLATE)
+        return template.format(index=idx)

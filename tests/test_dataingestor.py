@@ -20,8 +20,8 @@ def test_download_timeseries_no_aggregation(
     monkeypatch.setattr(
         EarthEngineIngestor,
         "_chunked_timeseries",
-        lambda self, aoi, start_date, end_date, scale, index, chunk_freq: pd.DataFrame(
-            [{"id": 1, "date": "2020-01-01", f"mean_{index}": 0.5}]
+        lambda self, aoi, s, e, scale, index, value_col, chunk_freq: pd.DataFrame(
+            [{"id": 1, "date": "2020-01-01", f"{value_col or 'mean_'+index}": 0.5}]
         ),
     )
     di = EarthEngineIngestor(sensor=dummy_sensor)
@@ -32,6 +32,7 @@ def test_download_timeseries_no_aggregation(
         scale=30,
         index="ndvi",
         chunk_freq="D",
+        value_col="mean_ndvi",
         freq=None,
     )
 
@@ -58,7 +59,7 @@ def test_download_timeseries_with_aggregation(
     monkeypatch.setattr(
         EarthEngineIngestor,
         "_chunked_timeseries",
-        lambda self, aoi, start_date, end_date, scale, index, chunk_freq: pd.DataFrame(
+        lambda self, aoi, s, e, scale, index, value_col, chunk_freq: pd.DataFrame(
             raw_data
         ),
     )
@@ -70,6 +71,7 @@ def test_download_timeseries_with_aggregation(
         scale=30,
         index="ndvi",
         chunk_freq="ME",
+        value_col="mean_ndvi",
         freq="ME",
     )
     # With only a single value, monthly aggregation still yields one row

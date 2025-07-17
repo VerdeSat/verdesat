@@ -28,6 +28,7 @@ class BaseDataIngestor(ABC):
         end_date: str,
         scale: int,
         index: str,
+        value_col: str | None = None,
         chunk_freq: Literal["D", "ME", "YE"] = "YE",
         freq: Optional[Literal["D", "ME", "YE"]] = None,
     ) -> pd.DataFrame:

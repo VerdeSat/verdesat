@@ -23,12 +23,14 @@ class DummyIngestor(BaseDataIngestor):
         end_date: str,
         scale: int,
         index: str,
+        value_col: str | None = None,
         chunk_freq: str = "YE",
         freq: str | None = None,
     ) -> pd.DataFrame:
         self.timeseries_calls.append((aoi, start_date, end_date))
+        col = value_col or f"mean_{index}"
         return pd.DataFrame(
-            {"id": [aoi.static_props["id"]], "date": [start_date], "mean_ndvi": [0.5]}
+            {"id": [aoi.static_props["id"]], "date": [start_date], col: [0.5]}
         )
 
     def download_chips(self, aois, config) -> None:  # pragma: no cover - simple stub
@@ -57,6 +59,7 @@ class DummyViz(Visualizer):
         title: str,
         map_png=None,
         timeseries_csv=None,
+        index_name=None,
     ) -> str:
         self.report_called = True
         path = Path(output_dir, "report.html")

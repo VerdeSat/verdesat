@@ -39,6 +39,7 @@ class EarthEngineIngestor(BaseDataIngestor):
         end_date: str,
         scale: int,
         index: str,
+        value_col: str | None = None,
         chunk_freq: Literal["D", "ME", "YE"] = "YE",
         freq: Optional[Literal["D", "ME", "YE"]] = None,
     ) -> pd.DataFrame:
@@ -55,11 +56,11 @@ class EarthEngineIngestor(BaseDataIngestor):
             freq: Aggregation frequency for output ('D','ME','YE'). If None, no aggregation.
 
         Returns:
-            pd.DataFrame with columns ['id','date',f'mean_{index}'].
+            pd.DataFrame with columns ['id', 'date', value_col].
         """
         # 1. Fetch raw daily values in chunks
         raw_df = self._chunked_timeseries(
-            aoi, start_date, end_date, scale, index, chunk_freq
+            aoi, start_date, end_date, scale, index, value_col, chunk_freq
         )
         # 2. Aggregate by frequency if needed
         if freq:
@@ -75,6 +76,7 @@ class EarthEngineIngestor(BaseDataIngestor):
         end_date: str,
         scale: int,
         index: str,
+        value_col: str | None,
         chunk_freq: str,
     ) -> pd.DataFrame:
         """
@@ -116,7 +118,7 @@ class EarthEngineIngestor(BaseDataIngestor):
         for s, e in bounds:
             # pylint: disable=broad-exception-caught
             try:
-                df_chunk = self._daily_timeseries(aoi, s, e, scale, index)
+                df_chunk = self._daily_timeseries(aoi, s, e, scale, index, value_col)
                 dfs.append(df_chunk)
             except Exception as err:
                 self.logger.warning("Chunk %s–%s failed: %s", s, e, err)
@@ -125,7 +127,13 @@ class EarthEngineIngestor(BaseDataIngestor):
         return pd.concat(dfs, ignore_index=True)
 
     def _daily_timeseries(
-        self, aoi: AOI, start_date: str, end_date: str, scale: int, index: str
+        self,
+        aoi: AOI,
+        start_date: str,
+        end_date: str,
+        scale: int,
+        index: str,
+        value_col: str | None,
     ) -> pd.DataFrame:
         """
         Fetch the index values for each date in the given date range.
@@ -138,7 +146,7 @@ class EarthEngineIngestor(BaseDataIngestor):
             index: Spectral index name.
 
         Returns:
-            pd.DataFrame with ['id','date',f'mean_{index}'].
+            pd.DataFrame with ['id', 'date', value_col].
         """
         # Ensure Earth Engine is initialized
         self.ee.initialize()
@@ -168,11 +176,12 @@ class EarthEngineIngestor(BaseDataIngestor):
 
         # Execute and parse results
         features = coll.map(_reduce).flatten().getInfo().get("features", [])
+        col = value_col or f"mean_{index}"
         rows = [
             {
                 "id": feat["properties"].get("id"),
                 "date": feat["properties"].get("date"),
-                f"mean_{index}": feat["properties"].get("mean"),
+                col: feat["properties"].get("mean"),
             }
             for feat in features
         ]

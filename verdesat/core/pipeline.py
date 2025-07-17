@@ -12,6 +12,7 @@ from verdesat.analytics.timeseries import TimeSeries
 from verdesat.ingestion.base import BaseDataIngestor
 from verdesat.visualization.visualizer import Visualizer
 from verdesat.visualization._chips_config import ChipsConfig
+from verdesat.core.config import ConfigManager
 import geopandas as gpd
 
 
@@ -41,12 +42,19 @@ class ReportPipeline:
         out_dir: str,
         map_png: Optional[str] = None,
         title: str = "VerdeSat Report",
+        index: str | None = None,
+        value_col: str | None = None,
     ) -> str:
         """Execute the full pipeline and return path to report."""
         os.makedirs(out_dir, exist_ok=True)
         self._export_geojson(out_dir)
 
-        # 1. Download monthly NDVI time-series for all AOIs
+        index_name = index or ConfigManager.DEFAULT_INDEX
+        value_column = value_col or ConfigManager.VALUE_COL_TEMPLATE.format(
+            index=index_name
+        )
+
+        # 1. Download monthly time-series for all AOIs
         df_list: List[pd.DataFrame] = []
         for aoi in self.aois:
             df = self.ingestor.download_timeseries(
@@ -54,7 +62,8 @@ class ReportPipeline:
                 start_date=start,
                 end_date=end,
                 scale=30,
-                index="ndvi",
+                index=index_name,
+                value_col=value_column,
                 chunk_freq="YE",
                 freq="ME",
             )
@@ -64,7 +73,7 @@ class ReportPipeline:
         timeseries_df.to_csv(timeseries_csv, index=False)
 
         # 2. Aggregate & fill gaps
-        ts = TimeSeries.from_dataframe(timeseries_df, index="ndvi")
+        ts = TimeSeries.from_dataframe(timeseries_df, index=index_name)
         monthly_csv = os.path.join(out_dir, "timeseries_monthly.csv")
         ts.aggregate("ME").to_csv(monthly_csv)
         filled_ts = ts.aggregate("ME").fill_gaps()
@@ -99,7 +108,7 @@ class ReportPipeline:
             start=start,
             end=end,
             period="Y",
-            chip_type="ndvi",
+            chip_type=index_name,
             scale=30,
             buffer=0,
             buffer_percent=None,
@@ -121,7 +130,7 @@ class ReportPipeline:
             start=start,
             end=end,
             period="ME",
-            chip_type="ndvi",
+            chip_type=index_name,
             scale=30,
             buffer=0,
             buffer_percent=None,
@@ -153,7 +162,7 @@ class ReportPipeline:
         # 6. Interactive plot
         timeseries_html = os.path.join(out_dir, "timeseries.html")
         self.visualizer.plot_timeseries_html(
-            filled_ts.df, "mean_ndvi", timeseries_html, agg_freq="ME"
+            filled_ts.df, value_column, timeseries_html, agg_freq="ME"
         )
 
         # 7. Final report
@@ -162,4 +171,5 @@ class ReportPipeline:
             title=title,
             map_png=map_png,
             timeseries_csv=filled_csv,
+            index_name=index_name,
         )
