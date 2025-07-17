@@ -33,7 +33,9 @@ class DummyIngestor(BaseDataIngestor):
             {"id": [aoi.static_props["id"]], "date": [start_date], col: [0.5]}
         )
 
-    def download_chips(self, aois, config) -> None:  # pragma: no cover - simple stub
+    def download_chips(
+        self, aois, config, storage=None
+    ) -> None:  # pragma: no cover - simple stub
         self.chip_calls.append((len(aois), config.out_dir))
 
 

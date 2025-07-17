@@ -21,6 +21,7 @@ from verdesat.ingestion.indices import INDEX_REGISTRY
 from verdesat.ingestion.sensorspec import SensorSpec
 from verdesat.visualization._chips_config import ChipsConfig
 from verdesat.core.logger import Logger
+from verdesat.core.storage import LocalFS, StorageAdapter
 
 
 class ChipExporter:
@@ -35,6 +36,7 @@ class ChipExporter:
         ee_manager: EarthEngineManager,
         out_dir: str,
         fmt: str,
+        storage: StorageAdapter | None = None,
         logger=None,
     ) -> None:
         """
@@ -45,8 +47,8 @@ class ChipExporter:
         self.ee_manager = ee_manager
         self.out_dir = out_dir
         self.fmt = fmt.lower()
+        self.storage = storage or LocalFS()
         self.logger = logger or Logger.get_logger(__name__)
-        os.makedirs(self.out_dir, exist_ok=True)
 
     def _build_viz_params(
         self,
@@ -94,6 +96,12 @@ class ChipExporter:
         Convert a just‐written GeoTIFF into a Cloud‐Optimized GeoTIFF (COG).
         If conversion fails, issue a warning.
         """
+        if not isinstance(self.storage, LocalFS):
+            self.logger.warning(
+                "COG conversion skipped for non-local storage: %s", path
+            )
+            return
+
         if rasterio is None or Resampling is None:
             self.logger.warning(
                 "rasterio not installed; skipping COG conversion for %s", path
@@ -196,22 +204,23 @@ class ChipExporter:
             return
 
         filename = f"{com_type}_{pid}_{date_str}.{ext}"
-        out_path = os.path.join(self.out_dir, filename)
+        out_path = self.storage.join(self.out_dir, filename)
 
         try:
             resp = requests.get(url, timeout=60)
             resp.raise_for_status()
-            with open(out_path, "wb") as fh:
-                fh.write(resp.content)
+            self.storage.write_bytes(out_path, resp.content)
             self.logger.info("✔ Wrote %s file: %s", ext, out_path)
         except requests.RequestException as dl_err:
             self.logger.error(
                 "Failed to download %s for %s on %s: %s", ext, pid, date_str, dl_err
             )
-            return
+            return None
 
         if ext != "png":
             self._convert_to_cog(out_path)
+
+        return out_path
 
 
 class ChipService:
@@ -228,10 +237,12 @@ class ChipService:
         self,
         ee_manager: EarthEngineManager,
         sensor_spec: SensorSpec,
+        storage: StorageAdapter | None = None,
         logger=None,
     ) -> None:
         self.ee_manager = ee_manager
         self.sensor_spec = sensor_spec
+        self.storage = storage or LocalFS()
         self.logger = logger or Logger.get_logger(__name__)
 
     def run(self, aois: List[AOI], config: ChipsConfig) -> None:
@@ -313,7 +324,10 @@ class ChipService:
         )
 
         exporter = ChipExporter(
-            ee_manager=self.ee_manager, out_dir=config.out_dir, fmt=config.fmt
+            ee_manager=self.ee_manager,
+            out_dir=config.out_dir,
+            fmt=config.fmt,
+            storage=self.storage,
         )
 
         raw_count = self.ee_manager.safe_get_info(composites.size())
