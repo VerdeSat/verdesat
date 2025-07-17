@@ -267,7 +267,7 @@ class Visualizer:
 
     # ------------------------------------------------------------------
     def generate_report(
-        self, output_dir: str, title: str
+        self, output_dir: str, title: str, map_png: Optional[str] = None
     ) -> None:  # pragma: no cover - thin wrapper
         """Generate a report (delegates to :mod:`verdesat.visualization.report`)."""
 
@@ -280,7 +280,7 @@ class Visualizer:
             gifs_dir=os.path.join(output_dir, "gifs"),
             decomposition_dir=os.path.join(output_dir, "decomp"),
             chips_dir=os.path.join(output_dir, "chips"),
-            map_png=None,
+            map_png=map_png,
             output_path=os.path.join(output_dir, "report.html"),
             title=title,
         )
