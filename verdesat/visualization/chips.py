@@ -143,17 +143,21 @@ class ChipExporter:
         gamma: Optional[float],
         min_val: Union[float, List[float]],
         max_val: Union[float, List[float]],
-    ) -> None:
-        """
-        Export **one** composite (ee.Image) for **one** feature.
+    ) -> str | None:
+        """Export a single composite for one AOI and return the output URI.
 
         Steps:
           1) Clip the image by feature geometry + buffer
-          2) Compute bounding box for 'region'
-          3) Build viz‐params dict (fixed dims=512 for PNG)
+          2) Compute bounding box for ``region``
+          3) Build visualization parameters
           4) Retrieve thumbnail or download URL
-          5) Download via HTTP and write to disk
-          6) If GeoTIFF, convert to COG
+          5) Download via HTTP and persist through the storage adapter
+          6) If GeoTIFF, convert to Cloud Optimized GeoTIFF
+
+        Returns
+        -------
+        str | None
+            Destination URI if successful, otherwise ``None``.
         """
         pid = aoi.static_props.get("id") or aoi.static_props.get(
             "system:index", "unknown"
@@ -163,7 +167,7 @@ class ChipExporter:
             geom = aoi.buffered_ee_geometry(buffer_m)
         except (EEException, ValueError) as e:
             self.logger.error("Failed to construct ee.Geometry for AOI %s: %s", pid, e)
-            return
+            return None
 
         clipped = img.clip(geom)
 
@@ -175,10 +179,10 @@ class ChipExporter:
             region_bbox = [min(xs), min(ys), max(xs), max(ys)]
         except EEException as ee_err:
             self.logger.warning("Could not compute bbox for AOI %s: %s", pid, ee_err)
-            return
+            return None
         except KeyError as key_err:
             self.logger.warning("BBox info missing keys for AOI %s: %s", pid, key_err)
-            return
+            return None
 
         viz_params = self._build_viz_params(
             bands=bands,
@@ -201,7 +205,7 @@ class ChipExporter:
             self.logger.error(
                 "Failed to get URL for %s on %s: %s", pid, date_str, ee_err
             )
-            return
+            return None
 
         filename = f"{com_type}_{pid}_{date_str}.{ext}"
         out_path = self.storage.join(self.out_dir, filename)
