@@ -15,6 +15,7 @@ from .base import BaseDataIngestor
 from .downloader import EarthEngineDownloader
 from ..analytics.ee_masking import mask_collection
 from ..analytics.ee_chipping import export_chips
+from verdesat.core.storage import StorageAdapter
 from ..visualization._chips_config import ChipsConfig
 
 
@@ -78,7 +79,12 @@ class EarthEngineIngestor(BaseDataIngestor):
             return aggregated.df
         return raw_df
 
-    def download_chips(self, aois: List[AOI], config: ChipsConfig) -> None:
+    def download_chips(
+        self,
+        aois: List[AOI],
+        config: ChipsConfig,
+        storage: StorageAdapter | None = None,
+    ) -> None:
         """Export chips for the supplied AOIs using the given configuration."""
         self.ee.initialize()
         export_chips(
@@ -86,5 +92,6 @@ class EarthEngineIngestor(BaseDataIngestor):
             config=config,
             ee_manager=self.ee,
             sensor=self.sensor,
+            storage=storage,
             logger=self.logger,
         )

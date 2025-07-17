@@ -88,8 +88,8 @@ def test_download_chips_delegation(dummy_aoi, dummy_sensor, monkeypatch, tmp_pat
 
     calls = {}
 
-    def fake_export(aois, config, ee_manager, sensor, logger=None):
-        calls["export"] = (aois, config, ee_manager, sensor)
+    def fake_export(aois, config, ee_manager, sensor, storage=None, logger=None):
+        calls["export"] = (aois, config, ee_manager, sensor, storage)
 
     monkeypatch.setattr(
         "verdesat.ingestion.earthengine_ingestor.export_chips", fake_export
@@ -122,3 +122,4 @@ def test_download_chips_delegation(dummy_aoi, dummy_sensor, monkeypatch, tmp_pat
     assert calls.get("export")
     assert calls["export"][0] == [dummy_aoi]
     assert calls["export"][1] is cfg
+    assert calls["export"][4] is None

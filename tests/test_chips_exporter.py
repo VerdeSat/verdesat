@@ -42,7 +42,7 @@ def test_export_one_thumbnail_png(tmp_export_dir, dummy_img, dummy_feat, monkeyp
         "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1]]]
     }
 
-    exporter.export_one(
+    dest = exporter.export_one(
         img=dummy_img,
         aoi=dummy_aoi,
         date_str="2024-01-01",
@@ -57,6 +57,7 @@ def test_export_one_thumbnail_png(tmp_export_dir, dummy_img, dummy_feat, monkeyp
     )
 
     out_path = tmp_export_dir / "RGB_1_2024-01-01.png"
+    assert dest == str(out_path)
     assert out_path.exists()
     assert out_path.read_bytes() == b"PNGDATA"
 
@@ -115,7 +116,7 @@ def test_export_one_thumbnail_geotiff_cog(
         "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1]]]
     }
 
-    exporter.export_one(
+    dest = exporter.export_one(
         img=dummy_img,
         aoi=dummy_aoi,
         date_str="2024-01-01",
@@ -130,6 +131,7 @@ def test_export_one_thumbnail_geotiff_cog(
     )
 
     out_path = tmp_export_dir / "NDVI_1_2024-01-01.tiff"
+    assert dest == str(out_path)
     assert out_path.exists()
     assert fake_rasterio.open.called
 

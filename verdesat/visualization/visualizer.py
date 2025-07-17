@@ -124,10 +124,12 @@ class Visualizer:
             date_text = img_path.stem.split("_")[-1]
 
             default_font = ImageFont.load_default()
-            ascent, descent = default_font.getmetrics()
+            ascent, descent = default_font.getmetrics()  # type: ignore[union-attr]
             default_font_height = ascent + descent
             try:
-                font = ImageFont.truetype("arial.ttf", default_font_height * 2)
+                font: ImageFont.FreeTypeFont | ImageFont.ImageFont = ImageFont.truetype(
+                    "arial.ttf", default_font_height * 2
+                )
             except Exception:
                 font = default_font
             bbox = draw.textbbox((0, 0), date_text, font=font)
@@ -183,10 +185,12 @@ class Visualizer:
                 draw = ImageDraw.Draw(im)
                 date_text = p.stem.split("_")[-1]
                 default_font = ImageFont.load_default()
-                ascent, descent = default_font.getmetrics()
+                ascent, descent = default_font.getmetrics()  # type: ignore[union-attr]
                 default_font_height = ascent + descent
                 try:
-                    font = ImageFont.truetype("arial.ttf", default_font_height * 2)
+                    font: ImageFont.FreeTypeFont | ImageFont.ImageFont = (
+                        ImageFont.truetype("arial.ttf", default_font_height * 2)
+                    )
                 except Exception:
                     font = default_font
                 bbox = draw.textbbox((0, 0), date_text, font=font)

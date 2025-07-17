@@ -11,6 +11,7 @@ from verdesat.core.logger import Logger
 from verdesat.geo.aoi import AOI
 from ..visualization._chips_config import ChipsConfig
 from .sensorspec import SensorSpec
+from verdesat.core.storage import StorageAdapter
 
 
 class BaseDataIngestor(ABC):
@@ -35,6 +36,11 @@ class BaseDataIngestor(ABC):
         """Download and optionally aggregate an index time series for an AOI."""
 
     @abstractmethod
-    def download_chips(self, aois: List[AOI], config: ChipsConfig) -> None:
+    def download_chips(
+        self,
+        aois: List[AOI],
+        config: ChipsConfig,
+        storage: StorageAdapter | None = None,
+    ) -> None:
         """Export image chips for the given AOIs using configuration."""
         raise NotImplementedError
