@@ -4,9 +4,10 @@ a pandas DataFrame of spectral index time series and supports aggregation.
 """
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Dict, Literal
 
 import pandas as pd
+from statsmodels.tsa.seasonal import DecomposeResult, seasonal_decompose
 
 
 @dataclass
@@ -42,3 +43,46 @@ class TimeSeries:
             .reset_index()
         )
         return TimeSeries(aggregated, self.index)
+
+    def fill_gaps(self, method: Literal["linear", "time"] = "time") -> "TimeSeries":
+        """Interpolate missing values per polygon ID."""
+
+        value_col = f"mean_{self.index}"
+        filled_parts = []
+        for pid, grp in self.df.groupby("id"):
+            grp = grp.copy()
+            grp = grp.sort_values("date")
+            grp = grp.set_index("date")
+            original_missing = grp[value_col].isna()
+            grp[value_col] = grp[value_col].interpolate(method=method).ffill().bfill()
+            grp["gapfilled"] = original_missing
+            grp = grp.reset_index()
+            grp["id"] = pid
+            filled_parts.append(grp)
+
+        filled_df = pd.concat(filled_parts, ignore_index=True)
+        return TimeSeries(filled_df, self.index)
+
+    def decompose(
+        self,
+        period: int = 12,
+        model: Literal["additive", "multiplicative"] = "additive",
+    ) -> Dict[str, DecomposeResult]:
+        """Perform seasonal decomposition for each polygon."""
+
+        value_col = f"mean_{self.index}"
+        df_pivot = self.df.pivot(index="date", columns="id", values=value_col)
+        results = {}
+        for pid in df_pivot.columns:
+            series = df_pivot[pid].dropna()
+            if len(series) < period * 2:
+                continue
+            res = seasonal_decompose(series, model=model, period=period)
+            results[pid] = res
+
+        return results
+
+    def to_csv(self, path: str) -> None:
+        """Write the underlying DataFrame to CSV."""
+
+        self.df.to_csv(path, index=False)

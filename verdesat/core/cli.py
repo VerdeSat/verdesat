@@ -15,8 +15,6 @@ from verdesat.ingestion.sensorspec import SensorSpec
 from verdesat.ingestion import create_ingestor
 from verdesat.ingestion.indices import INDEX_REGISTRY
 from verdesat.analytics.timeseries import TimeSeries
-from verdesat.analytics.decomposition import decompose_each
-from verdesat.analytics.preprocessing import interpolate_gaps
 from verdesat.analytics.trend import compute_trend
 from verdesat.core.logger import Logger
 from verdesat.geo.aoi import AOI
@@ -398,11 +396,11 @@ def fill_gaps_cmd(input_csv, value_col, method, output):
     echo(f"Loading {input_csv}...")
     df = pd.read_csv(input_csv, parse_dates=["date"])
     echo(f"Filling gaps in '{value_col}', method '{method}'...")
-    df_filled = interpolate_gaps(
-        df, date_col="date", value_col=value_col, method=method
-    )
+    index_name = value_col.replace("mean_", "")
+    ts = TimeSeries.from_dataframe(df, index=index_name)
+    filled_ts = ts.fill_gaps(method=method)
     echo(f"Saving filled data to {output}...")
-    df_filled.to_csv(output, index=False)
+    filled_ts.to_csv(output)
     echo("Done.")
 
 
@@ -442,10 +440,11 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
     """
     echo(f"Loading {input_csv}...")
     df = pd.read_csv(input_csv, parse_dates=["date"])
-    df_pivot = df.set_index("date").pivot(columns="id", values=index_col)
+    index_name = index_col.replace("mean_", "")
+    ts = TimeSeries.from_dataframe(df, index=index_name)
     echo("Decomposing time series...")
 
-    results = decompose_each(df_pivot, index_col=index_col, model=model, freq=period)
+    results = ts.decompose(period=period, model=model)
     os.makedirs(output_dir, exist_ok=True)
 
     # Save decomposition components for each polygon
