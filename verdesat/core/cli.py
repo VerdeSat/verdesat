@@ -17,6 +17,7 @@ from verdesat.ingestion.indices import INDEX_REGISTRY
 from verdesat.analytics.timeseries import TimeSeries
 from verdesat.analytics.trend import compute_trend
 from verdesat.core.logger import Logger
+from verdesat.core.config import ConfigManager
 from verdesat.geo.aoi import AOI
 from verdesat.ingestion.eemanager import ee_manager
 from verdesat.visualization._chips_config import ChipsConfig
@@ -78,7 +79,7 @@ def download():
     "--index",
     "-i",
     type=click.Choice(list(INDEX_REGISTRY.keys())),
-    default="ndvi",
+    default=ConfigManager.DEFAULT_INDEX,
     help=f"Spectral index to compute (choices: {', '.join(INDEX_REGISTRY.keys())})",
 )
 @click.option(
@@ -378,7 +379,7 @@ def preprocess():
 @click.option(
     "--value-col",
     "-c",
-    default="mean_ndvi",
+    default=ConfigManager.VALUE_COL_TEMPLATE.format(index=ConfigManager.DEFAULT_INDEX),
     help="Column to fill gaps in (e.g. mean_ndvi)",
 )
 @click.option(
@@ -410,7 +411,7 @@ def fill_gaps_cmd(input_csv, value_col, method, output):
 @click.option(
     "--index-col",
     "-c",
-    default="mean_ndvi",
+    default=ConfigManager.VALUE_COL_TEMPLATE.format(index=ConfigManager.DEFAULT_INDEX),
     help="Column in CSV for decomposition (e.g. mean_ndvi)",
 )
 @click.option(
@@ -472,7 +473,10 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
 @stats.command(name="trend")
 @click.argument("input_csv", type=click.Path(exists=True))
 @click.option(
-    "--index-col", "-c", default="mean_ndvi", help="Column in CSV for trend computation"
+    "--index-col",
+    "-c",
+    default=ConfigManager.VALUE_COL_TEMPLATE.format(index=ConfigManager.DEFAULT_INDEX),
+    help="Column in CSV for trend computation",
 )
 @click.option(
     "--output",
@@ -511,7 +515,7 @@ def visualize():
 @click.option(
     "--index-col",
     "-i",
-    default="mean_ndvi",
+    default=ConfigManager.VALUE_COL_TEMPLATE.format(index=ConfigManager.DEFAULT_INDEX),
     help="Column in CSV to plot (e.g. mean_ndvi, mean_evi)",
 )
 @click.option(

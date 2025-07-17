@@ -28,6 +28,14 @@ verdesat analyze --datafile output/ndvi_timeseries.csv
 verdesat forecast
 ```
 
+### Custom Index Names
+
+By default VerdeSat processes the **NDVI** index and outputs a `mean_ndvi`
+column. Use `--index` and `--value-col` to work with other indices, e.g.
+`--index evi` together with `--value-col mean_evi`. These defaults can also be
+configured in a TOML/YAML/JSON file using the keys `default_index` and
+`value_col_template`.
+
 ## CLI
 
 - **`verdesat prepare <input_dir>`**  

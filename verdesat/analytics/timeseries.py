@@ -5,6 +5,7 @@ a pandas DataFrame of spectral index time series and supports aggregation.
 
 from dataclasses import dataclass
 from typing import Dict, Literal
+from verdesat.core.config import ConfigManager
 
 import pandas as pd
 from statsmodels.tsa.seasonal import DecomposeResult, seasonal_decompose
@@ -18,7 +19,9 @@ class TimeSeries:
     index: str
 
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, index: str = "ndvi") -> "TimeSeries":
+    def from_dataframe(
+        cls, df: pd.DataFrame, index: str = ConfigManager.DEFAULT_INDEX
+    ) -> "TimeSeries":
         """
         Create a TimeSeries from a DataFrame with columns ['id', 'date', f'mean_{index}'].
         Ensures 'date' column is parsed as datetime.

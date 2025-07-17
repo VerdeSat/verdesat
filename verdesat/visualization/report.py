@@ -20,6 +20,7 @@ def build_report(
     map_png: Optional[str] = None,
     output_path: str = "verdesat_report.html",
     title: str = "VerdeSat Report",
+    index_name: str = "ndvi",
 ):
 
     html_dir = Path(output_path).parent
@@ -29,7 +30,11 @@ def build_report(
         gj = json.load(f)
     run_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     # 2. compute summary stats
-    stats_table = compute_summary_stats(timeseries_csv, decomp_dir=decomposition_dir)
+    stats_table = compute_summary_stats(
+        timeseries_csv,
+        decomp_dir=decomposition_dir,
+        value_col=f"mean_{index_name}",
+    )
     # 3. Discover decomposition images: files named like "1_decomposition.png"
     decomp_pattern = r"(?P<id>\d+)_decomposition\.png"
     decomp_images = {}
@@ -46,9 +51,10 @@ def build_report(
         lambda: defaultdict(list)
     )
     if chips_dir:
+        pattern = rf"{index_name.upper()}_(?P<id>\d+)_(?P<date>\d{4}-\d{2}-\d{2})\.png$"
         gallery = collect_assets(
             base_dir=chips_dir,
-            filename_regex=r"NDVI_(?P<id>\d+)_(?P<date>\d{4}-\d{2}-\d{2})\.png$",
+            filename_regex=pattern,
             key_fn=lambda m: m.group("id"),
             date_fn=lambda m: m.group("date"),
         )
@@ -116,6 +122,7 @@ def build_report(
         decomp=decomp_images,
         gallery_by_year=gallery_by_year,
         gifs_by_year=gifs_by_year,
+        index_name=index_name,
     )
     os.makedirs(Path(output_path).parent, exist_ok=True)
     with open(output_path, "w") as f:

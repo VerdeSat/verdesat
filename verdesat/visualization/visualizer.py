@@ -12,6 +12,7 @@ import plotly.express as px
 from jinja2 import Environment, FileSystemLoader
 from PIL import Image, ImageDraw, ImageFont
 from statsmodels.tsa.seasonal import DecomposeResult
+from verdesat.core.config import ConfigManager
 
 
 class Visualizer:
@@ -272,6 +273,7 @@ class Visualizer:
         title: str,
         map_png: Optional[str] = None,
         timeseries_csv: Optional[str] = None,
+        index_name: str | None = None,
     ) -> str:  # pragma: no cover - thin wrapper
         """Generate a report and return its path."""
 
@@ -289,5 +291,6 @@ class Visualizer:
             map_png=map_png,
             output_path=output_path,
             title=title,
+            index_name=index_name or ConfigManager.DEFAULT_INDEX,
         )
         return output_path

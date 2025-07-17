@@ -3,8 +3,15 @@ import statsmodels.api as sm
 from typing import Literal
 
 
+from verdesat.core.config import ConfigManager
+
+
 def compute_trend(
-    df: pd.DataFrame, column: str = "mean_ndvi", id_col: str = "id"
+    df: pd.DataFrame,
+    column: str = ConfigManager.VALUE_COL_TEMPLATE.format(
+        index=ConfigManager.DEFAULT_INDEX
+    ),
+    id_col: str = "id",
 ) -> pd.DataFrame:
     """
     Fit a linear trend to each polygon's time-series.
