@@ -13,3 +13,9 @@
 
 ## Commit style
 - Conventional Commits: feat:, fix:, chore:, docs:
+
+## Response and code quality
+- Ensure responses are clear and accurate.
+- Generated code must follow modern best practices, include type hints and docstrings,
+  and adhere to OOP principles.
+- Aim for production-ready quality in all code snippets.
