@@ -2,6 +2,8 @@ import pandas as pd
 import statsmodels.api as sm
 from typing import Literal
 
+from .results import TrendResult
+
 
 from verdesat.core.config import ConfigManager
 
@@ -12,11 +14,8 @@ def compute_trend(
         index=ConfigManager.DEFAULT_INDEX
     ),
     id_col: str = "id",
-) -> pd.DataFrame:
-    """
-    Fit a linear trend to each polygon's time-series.
-    Returns a DataFrame with columns ['id','date','trend'].
-    """
+) -> TrendResult:
+    """Fit a linear trend to each polygon's time series and return a :class:`TrendResult`."""
     rows = []
     for pid, grp in df.groupby(id_col):
         # Drop missing
@@ -30,4 +29,5 @@ def compute_trend(
         fitted = model.predict(X)
         temp = pd.DataFrame({"id": pid, "date": s["date"], "trend": fitted})
         rows.append(temp)
-    return pd.concat(rows, ignore_index=True)
+    result_df = pd.concat(rows, ignore_index=True)
+    return TrendResult(result_df)
