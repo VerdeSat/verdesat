@@ -9,6 +9,7 @@ from typing import List
 import ee
 from ee import Reducer
 from .timeseries import TimeSeries
+from .trend import compute_trend as _compute_trend
 
 
 class AnalyticsEngine:
@@ -67,4 +68,5 @@ class AnalyticsEngine:
 
     @staticmethod
     def compute_trend(ts: TimeSeries):
-        pass
+        """Return a DataFrame of trend values for the TimeSeries."""
+        return _compute_trend(ts.df, column=f"mean_{ts.index}")

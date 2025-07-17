@@ -361,8 +361,8 @@ def stats():
 @click.option(
     "--index",
     "-i",
-    type=click.Choice(["ndvi", "evi"]),
-    default="ndvi",
+    type=click.Choice(list(INDEX_REGISTRY.keys())),
+    default=ConfigManager.DEFAULT_INDEX,
     help="Spectral index that was computed (e.g., ndvi, evi)",
 )
 @click.option(
@@ -697,7 +697,10 @@ def gallery(chips_dir, template, output, title):
     help="Optional static PNG of project area to embed in report",
 )
 @click.option(
-    "--title", type=str, default="VerdeSat Report", help="Title for the HTML report"
+    "--title",
+    type=str,
+    default=ConfigManager.DEFAULT_REPORT_TITLE,
+    help="Title for the HTML report",
 )
 @click.option(
     "--output",
@@ -753,7 +756,12 @@ def pipeline():
 @click.option("--end", "-e", required=True, help="End date (YYYY-MM-DD)")
 @click.option("--out-dir", "-o", default="verdesat_output", help="Output folder")
 @click.option("--map-png", help="Optional map PNG to embed")
-@click.option("--title", "-t", default="VerdeSat Report", help="Report title")
+@click.option(
+    "--title",
+    "-t",
+    default=ConfigManager.DEFAULT_REPORT_TITLE,
+    help="Report title",
+)
 def pipeline_report(geojson, start, end, out_dir, map_png, title):
     """Run full NDVI → report pipeline in one go."""
     if not os.path.isdir(out_dir):

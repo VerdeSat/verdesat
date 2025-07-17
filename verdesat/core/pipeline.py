@@ -41,7 +41,7 @@ class ReportPipeline:
         end: str,
         out_dir: str,
         map_png: Optional[str] = None,
-        title: str = "VerdeSat Report",
+        title: str = ConfigManager.DEFAULT_REPORT_TITLE,
         index: str | None = None,
         value_col: str | None = None,
     ) -> str:

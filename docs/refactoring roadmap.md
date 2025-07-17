@@ -52,3 +52,8 @@ Quick Hit Checklist (copy into your tracker)
 	•	Docs: add docstrings for every public class/method (PEP 8)  ￼
 
 Tackling the above will lock in high cohesion, low coupling, genuine abstraction, and first-class cloud portability—exactly what you need before refactoring the remaining modules.
+Follow-up tasks after second audit
+---------------------------------
+    • Replace remaining `print` statements with logger calls.
+    • Expose `DEFAULT_REPORT_TITLE` via `ConfigManager` and use in CLI defaults.
+    • Implement `AnalyticsEngine.compute_trend` or remove the stub.
