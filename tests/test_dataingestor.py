@@ -18,10 +18,15 @@ def test_download_timeseries_no_aggregation(
     """
     # Stub out chunked retrieval to return a known DataFrame
     monkeypatch.setattr(
-        EarthEngineIngestor,
-        "_chunked_timeseries",
-        lambda self, aoi, s, e, scale, index, value_col, chunk_freq: pd.DataFrame(
-            [{"id": 1, "date": "2020-01-01", f"{value_col or 'mean_'+index}": 0.5}]
+        "verdesat.ingestion.downloader.EarthEngineDownloader.download_with_chunks",
+        lambda self, start, end, chunk_freq, **kwargs: pd.DataFrame(
+            [
+                {
+                    "id": 1,
+                    "date": "2020-01-01",
+                    f"{kwargs.get('value_col') or 'mean_'+kwargs.get('index')}": 0.5,
+                }
+            ]
         ),
     )
     di = EarthEngineIngestor(sensor=dummy_sensor)
@@ -57,11 +62,8 @@ def test_download_timeseries_with_aggregation(
         for day in range(1, 32)
     ]
     monkeypatch.setattr(
-        EarthEngineIngestor,
-        "_chunked_timeseries",
-        lambda self, aoi, s, e, scale, index, value_col, chunk_freq: pd.DataFrame(
-            raw_data
-        ),
+        "verdesat.ingestion.downloader.EarthEngineDownloader.download_with_chunks",
+        lambda self, start, end, chunk_freq, **kwargs: pd.DataFrame(raw_data),
     )
     di = EarthEngineIngestor(sensor=dummy_sensor)
     df_agg = di.download_timeseries(
@@ -82,19 +84,15 @@ def test_download_timeseries_with_aggregation(
 
 
 def test_download_chips_delegation(dummy_aoi, dummy_sensor, monkeypatch, tmp_path):
-    """EarthEngineIngestor.download_chips should delegate to ChipService."""
+    """EarthEngineIngestor.download_chips should delegate to export_chips."""
 
     calls = {}
 
-    class FakeService:
-        def __init__(self, ee_manager, sensor_spec, logger=None):
-            calls["init"] = (ee_manager, sensor_spec)
-
-        def run(self, aois, config):
-            calls["run"] = (aois, config)
+    def fake_export(aois, config, ee_manager, sensor, logger=None):
+        calls["export"] = (aois, config, ee_manager, sensor)
 
     monkeypatch.setattr(
-        "verdesat.ingestion.earthengine_ingestor.ChipService", FakeService
+        "verdesat.ingestion.earthengine_ingestor.export_chips", fake_export
     )
 
     di = EarthEngineIngestor(sensor=dummy_sensor)
@@ -121,6 +119,6 @@ def test_download_chips_delegation(dummy_aoi, dummy_sensor, monkeypatch, tmp_pat
 
     di.download_chips([dummy_aoi], cfg)
 
-    assert "init" in calls and "run" in calls
-    assert calls["run"][0] == [dummy_aoi]
-    assert calls["run"][1] is cfg
+    assert calls.get("export")
+    assert calls["export"][0] == [dummy_aoi]
+    assert calls["export"][1] is cfg
