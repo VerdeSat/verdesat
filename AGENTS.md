@@ -5,7 +5,7 @@
 - All tests must pass.
 
 ## Linting
-- Use `black` + `flake8`. Run `black . && flake8` locally.
+- Use `black` + `mypy`. Run `black . && mypy` locally before committing.
 
 ## Geo stack quirks
 - Never upgrade GDAL or PROJ versions inside the sandbox; stick with those from the setup script.
