@@ -25,14 +25,15 @@ def test_timeseries_value_col_passed(tmp_path, monkeypatch, dummy_aoi):
             return pd.DataFrame({"id": [1], "date": [start_date], value_col: [0.5]})
 
     monkeypatch.setattr(
-        "verdesat.core.cli.create_ingestor",
+        "verdesat.services.timeseries.create_ingestor",
         lambda backend, sensor, ee_manager_instance=None, logger=None: DummyIngestor(),
     )
     monkeypatch.setattr(
-        "verdesat.core.cli.AOI.from_geojson", lambda path, id_col: [dummy_aoi]
+        "verdesat.services.timeseries.AOI.from_geojson",
+        lambda path, id_col: [dummy_aoi],
     )
     monkeypatch.setattr(
-        "verdesat.core.cli.SensorSpec.from_collection_id", lambda cid: None
+        "verdesat.services.timeseries.SensorSpec.from_collection_id", lambda cid: None
     )
     monkeypatch.setattr(pd.DataFrame, "to_csv", lambda self, path, index=False: None)
     monkeypatch.setattr(
