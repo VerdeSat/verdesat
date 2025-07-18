@@ -19,7 +19,7 @@
 <p>This report provides key metrics for each site, including:</p>
 <ul>
     <li>
-        <strong>Mean NDVI:</strong> The average and median NDVI values, as well as minimum, maximum, and standard deviation.
+        <strong>Mean {{ index_name.upper() }}:</strong> The average and median {{ index_name.upper() }} values, as well as minimum, maximum, and standard deviation.
     </li>
     <li>
         <strong>Trend:</strong> Sen’s slope (robust trend per year).
@@ -28,10 +28,10 @@
         <strong>Mann–Kendall p-value:</strong> Significance of the monotonic trend (lower values indicate more significant trends).
     </li>
     <li>
-        <strong>Trend ΔNDVI:</strong> Net change in the trend component from start to end.
+        <strong>Trend Δ{{ index_name.upper() }}:</strong> Net change in the trend component from start to end.
     </li>
     <li>
-        <strong>Peak Month:</strong> The month when NDVI reaches its maximum value.
+        <strong>Peak Month:</strong> The month when {{ index_name.upper() }} reaches its maximum value.
     </li>
     <li>
         <strong>% Gapfilled:</strong> The percentage of data points that were gap-filled.
@@ -49,7 +49,7 @@
         <th style="padding:4px; text-align: left;">Max</th>
         <th style="padding:4px; text-align: left;">Std</th>
         <th style="padding:4px; text-align: left;">Slope</th>
-        <th style="padding:4px; text-align: left;">ΔNDVI</th>
+        <th style="padding:4px; text-align: left;">Δ{{ index_name.upper() }}</th>
         <th style="padding:4px; text-align: left;">p‑value</th>
         <th style="padding:4px; text-align: left;">Peak</th>
         <th style="padding:4px; text-align: left;">% Fill</th>
@@ -57,13 +57,13 @@
     {% for row in stats %}
         <tr>
             <td style="padding:4px; text-align: left;">{{ row["Site ID"] }}</td>
-            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Mean NDVI"]) }}</td>
-            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Median NDVI"]) }}</td>
-            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Min NDVI"]) }}</td>
-            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Max NDVI"]) }}</td>
-            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Std NDVI"]) }}</td>
-            <td style="padding:4px; text-align: left;">{{ "%.4f"|format(row["Sen's Slope (NDVI/yr)"]) }}</td>
-            <td style="padding:4px; text-align: left;">{{ "%.3f"|format(row["Trend ΔNDVI"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Mean " ~ index_name.upper()]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Median " ~ index_name.upper()]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Min " ~ index_name.upper()]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Max " ~ index_name.upper()]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.2f"|format(row["Std " ~ index_name.upper()]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.4f"|format(row["Sen's Slope (" ~ index_name.upper() ~ "/yr)"]) }}</td>
+            <td style="padding:4px; text-align: left;">{{ "%.3f"|format(row["Trend Δ" ~ index_name.upper()]) }}</td>
             <td style="padding:4px; text-align: left;">{{ "%.4f"|format(row["Mann–Kendall p-value"]) }}</td>
             <td style="padding:4px; text-align: left;">{{ row["Peak Month"] }}</td>
             <td style="padding:4px; text-align: left;">{{ "%.1f"|format(row["% Gapfilled"]) }}%</td>

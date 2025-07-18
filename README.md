@@ -12,8 +12,8 @@ VerdeSat blends advanced satellite technology with sustainability, focusing on e
 git clone https://github.com/<org>/verdesat.git
 cd verdesat
 
-# Install dependencies
-pip install -r requirements.txt  # or: poetry install
+# Install system and Python dependencies
+./setup.sh
 
 # Download monthly NDVI composites
 verdesat download \
@@ -27,6 +27,14 @@ verdesat analyze --datafile output/ndvi_timeseries.csv
 # Forecast land-cover change
 verdesat forecast
 ```
+
+### Custom Index Names
+
+By default VerdeSat processes the **NDVI** index and outputs a `mean_ndvi`
+column. Use `--index` and `--value-col` to work with other indices, e.g.
+`--index evi` together with `--value-col mean_evi`. These defaults can also be
+configured in a TOML/YAML/JSON file using the keys `default_index` and
+`value_col_template`.
 
 ## CLI
 
@@ -47,7 +55,6 @@ verdesat/
 ├── tests/             # Pytest suites (target ≥80% coverage)
 ├── Dockerfile         # Container definition
 ├── pyproject.toml     # Project dependencies & metadata
-├── requirements.txt   # Pinned dependencies (alternative)
 └── README.md          # This file
 ```
 
@@ -61,7 +68,7 @@ verdesat/
 
 ## 🎯 Phase 1 Deliverables
 1. Monorepo scaffold + stub modules
-2. Locked dependencies (pyproject.toml or requirements.txt)
+2. Locked dependencies (pyproject.toml)
 3. Core CLI (`verdesat download`, `verdesat analyze`, `verdesat forecast`)
 4. End-to-end example: monthly NDVI > CSV > decomposition plot
 

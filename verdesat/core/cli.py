@@ -1,54 +1,55 @@
+"""
+VerdeSat CLI entrypoint — defines commands for vector preprocessing, time series download,
+and basic workflows. Dynamically loads available indices from the registry.
+"""
+
 import os
 import sys
-import json
+from datetime import datetime
+
 import pandas as pd
 import click  # type: ignore
-import ee
-import logging
 from click import echo
-from verdesat.core import utils
-from verdesat.ingestion.shapefile_preprocessor import ShapefilePreprocessor
-from verdesat.ingestion.chips import get_composite, export_composites_to_png
-from verdesat.analytics.timeseries import chunked_timeseries, aggregate_timeseries
-from verdesat.visualization.static_viz import plot_decomposition
-from verdesat.analytics.decomposition import decompose_each
+from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
+from verdesat.ingestion.sensorspec import SensorSpec
+from verdesat.ingestion import create_ingestor
+from verdesat.ingestion.indices import INDEX_REGISTRY
+from verdesat.analytics.timeseries import TimeSeries
 from verdesat.analytics.trend import compute_trend
-from verdesat.analytics.preprocessing import interpolate_gaps
-from verdesat.visualization.plotly_viz import plot_timeseries_html
-from verdesat.visualization.static_viz import plot_time_series
-from verdesat.visualization.gallery import build_gallery
-from verdesat.visualization.animate import make_gifs_per_site
-from verdesat.ingestion.downloader import initialize, get_image_collection
-from verdesat.ingestion.indices import compute_index
+from verdesat.core.logger import Logger
+from verdesat.core.config import ConfigManager
+from verdesat.geo.aoi import AOI
+from verdesat.ingestion.eemanager import ee_manager
+from verdesat.services.timeseries import download_timeseries as svc_download_timeseries
+from verdesat.services.report import build_report as svc_build_report
+from verdesat.visualization._chips_config import ChipsConfig
+from verdesat.visualization.chips import ChipService
+from verdesat.visualization.visualizer import Visualizer
+from verdesat.core.pipeline import ReportPipeline
 
-# Predefined NDVI color palettes
-PRESET_PALETTES = {
-    "white-green": ["white", "green"],
-    "red-white-green": ["red", "white", "green"],
-    "brown-green": ["brown", "green"],
-    "blue-white-green": ["blue", "white", "green"],
-}
-
-logger = logging.getLogger(__name__)
+logger = Logger.get_logger(__name__)
+viz = Visualizer()
 
 
 @click.group()
 def cli():
     """VerdeSat: remote-sensing analytics toolkit."""
-    utils.setup_logging()
+    Logger.setup()
 
 
 @cli.command()
 @click.argument("input_dir", type=click.Path(exists=True))
 def prepare(input_dir):
     """Process all vector files in INPUT_DIR into a single, clean GeoJSON."""
-    processor = ShapefilePreprocessor(input_dir)
     try:
-        processor.run()
+        vp = VectorPreprocessor(input_dir, logger=logger)
+        gdf = vp.run()
         output_path = os.path.join(
             input_dir, f"{os.path.basename(input_dir)}_processed.geojson"
         )
+        gdf.to_file(output_path, driver="GeoJSON")
         echo(f"✅  GeoJSON written to `{output_path}`")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         echo(f"❌  Processing failed: {e}", err=True)
         sys.exit(1)
@@ -63,7 +64,6 @@ def forecast():
 @cli.group()
 def download():
     """Data ingestion commands."""
-    pass
 
 
 @download.command(name="timeseries")
@@ -80,16 +80,29 @@ def download():
 @click.option(
     "--index",
     "-i",
-    type=click.Choice(["ndvi", "evi"]),
-    default="ndvi",
-    help="Spectral index to compute",
+    type=click.Choice(list(INDEX_REGISTRY.keys())),
+    default=ConfigManager.DEFAULT_INDEX,
+    help=f"Spectral index to compute (choices: {', '.join(INDEX_REGISTRY.keys())})",
+)
+@click.option(
+    "--value-col",
+    "-v",
+    default=None,
+    help="Output column name (defaults to mean_<index>)",
 )
 @click.option(
     "--agg",
     "-a",
-    type=click.Choice(["D", "M", "Y"]),
-    default="M",
-    help="Temporal aggregation: D,M,Y",
+    type=click.Choice(["D", "ME", "YE"]),
+    default=None,
+    help="Temporal aggregation: D, ME, YE",
+)
+@click.option(
+    "--chunk_freq",
+    "-ch",
+    default="YE",
+    type=click.Choice(["D", "ME", "YE"]),
+    help="Chunk frequency: D, ME, YE",
 )
 @click.option(
     "--output",
@@ -98,23 +111,45 @@ def download():
     default="timeseries.csv",
     help="Output CSV path",
 )
-def timeseries(geojson, collection, start, end, scale, index, agg, output):
+@click.option(
+    "--backend",
+    "-b",
+    default="ee",
+    help="Data ingestion backend (e.g. 'ee').",
+)
+def timeseries(
+    geojson,
+    collection,
+    start,
+    end,
+    scale,
+    index,
+    value_col,
+    chunk_freq,
+    agg,
+    output,
+    backend,
+):
     """
     Download and aggregate spectral index timeseries for polygons in GEOJSON.
-    Uses --index to select the spectral index (e.g., ndvi, evi).
     """
     try:
-        echo(f"Loading {geojson}...")
-        with open(geojson) as f:
-            gj = json.load(f)
-
-        df = chunked_timeseries(
-            gj, collection, start, end, scale=scale, freq=agg, index=index
+        svc_download_timeseries(
+            geojson=geojson,
+            collection=collection,
+            start=start,
+            end=end,
+            scale=scale,
+            index=index,
+            value_col=value_col,
+            chunk_freq=chunk_freq,
+            agg=agg,
+            output=output,
+            backend=backend,
+            logger=logger,
         )
-
-        echo(f"Saving to {output}...")
-        df.to_csv(output, index=False)
-        echo("Done.")
+        echo(f"✅  Results saved to {output}")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Timeseries command failed", exc_info=True)
         echo(f"❌  Timeseries download failed: {e}", err=True)
@@ -125,73 +160,77 @@ def timeseries(geojson, collection, start, end, scale, index, agg, output):
 @click.option(
     "--mask-clouds/--no-mask-clouds",
     default=True,
-    help="Apply Fmask-based cloud/shadow/water masking before composites",
+    help="Apply Fmask‐based cloud/shadow/water masking before composites.",
 )
 @click.argument("geojson", type=click.Path(exists=True))
 @click.option(
     "--collection",
     "-c",
     default="NASA/HLS/HLSL30/v002",
-    help="Earth Engine ImageCollection ID",
+    help="Earth Engine ImageCollection ID.",
 )
-@click.option("--start", "-s", default="2015-01-01", help="Start date")
-@click.option("--end", "-e", default="2024-12-31", help="End date")
+@click.option("--start", "-s", default="2015-01-01", help="Start date (YYYY-MM-DD).")
+@click.option("--end", "-e", default="2024-12-31", help="End date (YYYY-MM-DD).")
 @click.option(
     "--period",
     "-p",
-    type=click.Choice(["M", "Y"]),
-    default="M",
-    help="Composite period: M=monthly, Y=yearly",
+    type=click.Choice(["ME", "YE"]),
+    default="ME",
+    help="Composite period: M=monthly, Y=yearly.",
 )
 @click.option(
     "--type",
     "-t",
     "chip_type",
-    type=click.Choice(["truecolor", "ndvi"]),
-    default="truecolor",
+    type=str,
+    default="red,green,blue",
+    help=(
+        "Either a comma-separated list of band aliases (e.g. 'red,green,blue') "
+        "or the name of any index in INDEX_REGISTRY (e.g. 'ndvi', 'evi')."
+    ),
 )
-@click.option("--scale", type=int, default=30, help="Resolution in meters")
+@click.option("--scale", type=int, default=30, help="Resolution in meters.")
 @click.option(
     "--min-val",
     type=float,
     default=None,
-    help="Minimum stretch value (e.g. 0.0 for true color, -1.0 for NDVI)",
+    help="Minimum stretch value (overridden by defaults if not set).",
 )
 @click.option(
     "--max-val",
     type=float,
     default=None,
-    help="Maximum stretch value (e.g. 1.0)",
+    help="Maximum stretch value (overridden by defaults if not set).",
 )
 @click.option(
     "--buffer",
     type=int,
     default=0,
-    help="Buffer distance (meters) to apply around each polygon",
+    help="Buffer distance (meters) to apply around each polygon.",
 )
 @click.option(
     "--buffer-percent",
     type=float,
     default=None,
-    help="Buffer distance as a percentage of AOI size",
+    help="Buffer distance as a percentage of AOI size.",
 )
 @click.option(
     "--gamma",
     type=float,
     default=None,
-    help="Gamma correction value for visualization (e.g., 0.8)",
+    help="Gamma correction value (e.g. 0.8).",
 )
 @click.option(
     "--percentile-low",
     type=float,
     default=None,
-    help="Lower percentile for auto-stretch (e.g., 2)",
+    help="Lower percentile for auto-stretch (e.g. 2).",
 )
 @click.option(
     "--percentile-high",
     type=float,
     default=None,
-    help="Upper percentile for auto-stretch (e.g., 98)",
+    help="Upper percentile for auto-stretch (e.g. 98).",
 )
 @click.option(
     "--palette",
@@ -199,13 +238,31 @@ def timeseries(geojson, collection, start, end, scale, index, agg, output):
     type=str,
     default=None,
     help=(
-        "NDVI palette: preset names (white-green, red-white-green, brown-green, blue-white-green)"
-        " or comma-separated colors"
+        "Optional color palette for INDEX outputs. Either a preset name "
+        "(e.g. 'white-green', 'red-white-green') or a comma-separated list "
+        "of hex/RGB colors."
     ),
 )
-@click.option("--format", "-f", default="png", help="Format of the output files")
-@click.option("--out-dir", "-o", default="chips", help="Output directory")
-@click.option("--ee-project", default=None, help="GCP project override")
+@click.option(
+    "--format",
+    "-f",
+    "fmt",
+    default="png",
+    help="Output file format ('png' or 'geotiff').",
+)
+@click.option("--out-dir", "-o", default="chips", help="Output directory.")
+@click.option(
+    "--backend",
+    "-b",
+    default="ee",
+    help="Data ingestion backend (e.g. 'ee').",
+)
+@click.option(
+    "--ee-project",
+    "_ee_project",
+    default=None,
+    help="Override Earth Engine project (GCP).",
+)
 def chips(
     mask_clouds,
     geojson,
@@ -223,69 +280,60 @@ def chips(
     percentile_low,
     percentile_high,
     palette_arg,
-    format,
+    fmt,
     out_dir,
-    ee_project,
+    backend,
+    _ee_project,
 ):
-    """Download per-polygon image chips (monthly/yearly true‐color or NDVI)."""
+    """
+    Download per-polygon image chips (monthly/yearly composites).
+
+    CHIP_TYPE may be:
+      • a comma-separated list of sensor band aliases (e.g. 'red,green,blue'), or
+      • the name of any index defined in INDEX_REGISTRY (e.g. 'ndvi', 'evi').
+    """
     try:
-        with open(geojson) as f:
-            gj = json.load(f)
-        initialize(project=ee_project)
-        echo("Initializing Earth Engine and fetching collection...")
-        # Use GEE helper to fetch raw image collection
-        aoi = ee.FeatureCollection(gj)
-        coll = get_image_collection(
-            collection, start, end, aoi, mask_clouds=mask_clouds
-        )
-        # If NDVI, map compute_index
-        if chip_type == "ndvi":
-            bands = ["NDVI"]
-            # Determine palette
-            if palette_arg:
-                if palette_arg in PRESET_PALETTES:
-                    palette = PRESET_PALETTES[palette_arg]
-                else:
-                    palette = [c.strip() for c in palette_arg.split(",") if c.strip()]
-            else:
-                palette = PRESET_PALETTES["white-green"]
-        else:
-            bands = ["B4", "B3", "B2"]
-            palette = None
+        # 1) Load AOIs (list of AOI objects) from GeoJSON path
+        echo(f"Loading AOIs from {geojson}...")
+        aois = AOI.from_geojson(geojson, id_col="id")
 
-        # 1) get composites
-        composites = get_composite(
-            gj,
-            collection,  # your ImageCollection ID
-            start,  # start date str
-            end,
-            reducer=ee.Reducer.mean(),
-            bands=bands,
-            scale=scale,
+        # 2) Build a SensorSpec from the chosen collection ID
+        sensor_spec = SensorSpec.from_collection_id(collection)
+
+        # 3) Build a ChipsConfig from all CLI options
+        chips_cfg = ChipsConfig.from_cli(
+            collection=collection,
+            start=start,
+            end=end,
             period=period,
-            base_coll=coll,
-            project=ee_project,
-        )
-
-        # 2) export
-        export_composites_to_png(
-            composites,
-            gj,
-            out_dir,
-            bands=bands,
-            palette=palette,
+            chip_type=chip_type,
             scale=scale,
-            min_val=min_val,
-            max_val=max_val,
             buffer=buffer,
             buffer_percent=buffer_percent,
+            min_val=min_val,
+            max_val=max_val,
             gamma=gamma,
             percentile_low=percentile_low,
             percentile_high=percentile_high,
-            fmt=format,
+            palette_arg=palette_arg,
+            fmt=fmt,
+            out_dir=out_dir,
+            mask_clouds=mask_clouds,
         )
 
+        echo("→ Building composites and exporting chips…")
+
+        # 4) Instantiate ingestor via factory and run chip export
+        ingestor = create_ingestor(
+            backend,
+            sensor_spec,
+            ee_manager_instance=ee_manager,
+            logger=logger,
+        )
+        ingestor.download_chips(aois=aois, config=chips_cfg)
+
         echo(f"✅  Chips written under {out_dir}/")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Chips command failed", exc_info=True)
         echo(f"❌  Chips download failed: {e}", err=True)
@@ -295,7 +343,6 @@ def chips(
 @cli.group()
 def stats():
     """Statistical operations on time-series data."""
-    pass
 
 
 @stats.command(name="aggregate")
@@ -303,14 +350,14 @@ def stats():
 @click.option(
     "--index",
     "-i",
-    type=click.Choice(["ndvi", "evi"]),
-    default="ndvi",
+    type=click.Choice(list(INDEX_REGISTRY.keys())),
+    default=ConfigManager.DEFAULT_INDEX,
     help="Spectral index that was computed (e.g., ndvi, evi)",
 )
 @click.option(
     "--freq",
     "-f",
-    type=click.Choice(["D", "M", "Y"]),
+    type=click.Choice(["D", "ME", "YE"]),
     default="D",
     help="Frequency to aggregate to: D (daily), M (monthly), Y (yearly)",
 )
@@ -329,7 +376,8 @@ def aggregate(input_csv, index, freq, output):
     echo(f"Loading {input_csv}...")
     df = pd.read_csv(input_csv, parse_dates=["date"])
     echo(f"Aggregating by frequency '{freq}' for index '{index}'...")
-    df_agg = aggregate_timeseries(df, freq=freq, index=index)
+    ts = TimeSeries.from_dataframe(df, index=index)
+    df_agg = ts.aggregate(freq).df
     echo(f"Saving aggregated data to {output}...")
     df_agg.to_csv(output, index=False)
     echo("Done.")
@@ -338,7 +386,6 @@ def aggregate(input_csv, index, freq, output):
 @cli.group()
 def preprocess():
     """Data transformation commands (gap-fill, resample, etc.)."""
-    pass
 
 
 @preprocess.command(name="fill-gaps")
@@ -346,7 +393,7 @@ def preprocess():
 @click.option(
     "--value-col",
     "-c",
-    default="mean_ndvi",
+    default=ConfigManager.VALUE_COL_TEMPLATE.format(index=ConfigManager.DEFAULT_INDEX),
     help="Column to fill gaps in (e.g. mean_ndvi)",
 )
 @click.option(
@@ -365,11 +412,11 @@ def fill_gaps_cmd(input_csv, value_col, method, output):
     echo(f"Loading {input_csv}...")
     df = pd.read_csv(input_csv, parse_dates=["date"])
     echo(f"Filling gaps in '{value_col}', method '{method}'...")
-    df_filled = interpolate_gaps(
-        df, date_col="date", value_col=value_col, method=method
-    )
+    index_name = value_col.replace("mean_", "")
+    ts = TimeSeries.from_dataframe(df, index=index_name)
+    filled_ts = ts.fill_gaps(method=method)
     echo(f"Saving filled data to {output}...")
-    df_filled.to_csv(output, index=False)
+    filled_ts.to_csv(output)
     echo("Done.")
 
 
@@ -378,7 +425,7 @@ def fill_gaps_cmd(input_csv, value_col, method, output):
 @click.option(
     "--index-col",
     "-c",
-    default="mean_ndvi",
+    default=ConfigManager.VALUE_COL_TEMPLATE.format(index=ConfigManager.DEFAULT_INDEX),
     help="Column in CSV for decomposition (e.g. mean_ndvi)",
 )
 @click.option(
@@ -409,10 +456,11 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
     """
     echo(f"Loading {input_csv}...")
     df = pd.read_csv(input_csv, parse_dates=["date"])
-    df_pivot = df.set_index("date").pivot(columns="id", values=index_col)
+    index_name = index_col.replace("mean_", "")
+    ts = TimeSeries.from_dataframe(df, index=index_name)
     echo("Decomposing time series...")
 
-    results = decompose_each(df_pivot, index_col=index_col, model=model, freq=period)
+    results = ts.decompose(period=period, model=model)
     os.makedirs(output_dir, exist_ok=True)
 
     # Save decomposition components for each polygon
@@ -432,14 +480,17 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
 
         if plot:
             plot_path = os.path.join(output_dir, f"{pid}_decomposition.png")
-            plot_decomposition(res, plot_path)
+            viz.plot_decomposition(res, plot_path)
             echo(f"✅  Decomposition plot saved to {plot_path}")
 
 
 @stats.command(name="trend")
 @click.argument("input_csv", type=click.Path(exists=True))
 @click.option(
-    "--index-col", "-c", default="mean_ndvi", help="Column in CSV for trend computation"
+    "--index-col",
+    "-c",
+    default=ConfigManager.VALUE_COL_TEMPLATE.format(index=ConfigManager.DEFAULT_INDEX),
+    help="Column in CSV for trend computation",
 )
 @click.option(
     "--output",
@@ -455,9 +506,9 @@ def trend(input_csv, index_col, output):
     echo(f"Loading {input_csv}...")
     df = pd.read_csv(input_csv, parse_dates=["date"])
     echo("Computing trend...")
-    df_trend = compute_trend(df, column=index_col)
+    trend_res = compute_trend(df, column=index_col)
     echo(f"Saving trend data to {output}...")
-    df_trend.to_csv(output, index=False)
+    trend_res.to_csv(output)
     echo(f"✅  Trend data saved to {output}")
 
 
@@ -478,15 +529,15 @@ def visualize():
 @click.option(
     "--index-col",
     "-i",
-    default="mean_ndvi",
+    default=ConfigManager.VALUE_COL_TEMPLATE.format(index=ConfigManager.DEFAULT_INDEX),
     help="Column in CSV to plot (e.g. mean_ndvi, mean_evi)",
 )
 @click.option(
     "--agg-freq",
     "-f",
-    type=click.Choice(["D", "M", "Y"]),
+    type=click.Choice(["D", "ME", "Y"]),
     default="D",
-    help="Aggregate frequency for plotting: D (daily), M (monthly), Y (yearly)",
+    help="Aggregate frequency for plotting: D (daily), ME (monthly), YE (yearly)",
 )
 @click.option(
     "--interactive/--no-interactive",
@@ -507,11 +558,11 @@ def plot(datafile, index_col, agg_freq, interactive, output):
     df = pd.read_csv(datafile, parse_dates=["date"])
     if interactive:
         html_path = output if output.lower().endswith(".html") else output + ".html"
-        plot_timeseries_html(df, index_col, html_path, agg_freq)
+        viz.plot_timeseries_html(df, index_col, html_path, agg_freq)
         echo(f"✅  Interactive plot saved to {output}")
     else:
         png_path = output if output.lower().endswith(".png") else output + ".png"
-        plot_time_series(df, index_col, png_path, agg_freq)
+        viz.plot_time_series(df, index_col, png_path, agg_freq)
         echo(f"✅  Static plot saved to {png_path}")
 
 
@@ -547,7 +598,7 @@ def animate(images_dir, pattern, output_dir, duration, loop):
     Generate one animated GIF per site by scanning IMAGES_DIR for files matching PATTERN.
     """
     try:
-        make_gifs_per_site(
+        viz.make_gifs_per_site(
             images_dir=images_dir,
             pattern=pattern,
             output_dir=output_dir,
@@ -555,6 +606,7 @@ def animate(images_dir, pattern, output_dir, duration, loop):
             loop=loop,
         )
         echo(f"✅  Animated GIFs written under {output_dir}")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Animate command failed", exc_info=True)
         echo(f"❌  Animation generation failed: {e}", err=True)
@@ -588,13 +640,14 @@ def gallery(chips_dir, template, output, title):
     Build a static HTML image gallery from a directory of chips.
     """
     try:
-        build_gallery(
+        viz.build_gallery(
             chips_dir=chips_dir,
             output_html=output,
             title=title,
             template_path=template,
         )
         echo(f"✅  Gallery written to {output}")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Gallery command failed", exc_info=True)
         echo(f"❌  Gallery generation failed: {e}", err=True)
@@ -633,7 +686,10 @@ def gallery(chips_dir, template, output, title):
     help="Optional static PNG of project area to embed in report",
 )
 @click.option(
-    "--title", type=str, default="VerdeSat Report", help="Title for the HTML report"
+    "--title",
+    type=str,
+    default=ConfigManager.DEFAULT_REPORT_TITLE,
+    help="Title for the HTML report",
 )
 @click.option(
     "--output",
@@ -657,10 +713,9 @@ def report(
     Generate a one‑page HTML report summarizing statistics, time‑series, decomposition, and image gallery.
     """
     echo(f"Building report '{output}'...")
-    from verdesat.visualization.report import build_report
 
     try:
-        build_report(
+        svc_build_report(
             geojson_path=geojson,
             timeseries_csv=timeseries_csv,
             timeseries_html=timeseries_html,
@@ -672,6 +727,7 @@ def report(
             title=title,
         )
         echo(f"✅  Report saved to {output}")
+    # pylint: disable=broad-exception-caught
     except Exception as e:
         echo(f"❌  Failed to build report: {e}")
         sys.exit(1)
@@ -682,115 +738,35 @@ def pipeline():
     """High-level workflows that glue together multiple commands."""
 
 
-from datetime import datetime
-
-
 @pipeline.command("report")
 @click.option("--geojson", "-g", required=True, help="AOI GeoJSON")
 @click.option("--start", "-s", required=True, help="Start date (YYYY-MM-DD)")
 @click.option("--end", "-e", required=True, help="End date (YYYY-MM-DD)")
 @click.option("--out-dir", "-o", default="verdesat_output", help="Output folder")
 @click.option("--map-png", help="Optional map PNG to embed")
-@click.option("--title", "-t", default="VerdeSat Report", help="Report title")
+@click.option(
+    "--title",
+    "-t",
+    default=ConfigManager.DEFAULT_REPORT_TITLE,
+    help="Report title",
+)
 def pipeline_report(geojson, start, end, out_dir, map_png, title):
     """Run full NDVI → report pipeline in one go."""
-    ctx = click.get_current_context()
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir, exist_ok=True)
-    ctx = click.get_current_context()
 
-    # 1. Time series
-    timeseries_csv = os.path.join(out_dir, "timeseries.csv")
-    ctx.invoke(
-        timeseries,
-        geojson=geojson,
-        start=start,
-        end=end,
-        agg="M",
-        output=timeseries_csv,
+    aois = AOI.from_geojson(geojson, id_col="id")
+    sensor = SensorSpec.from_collection_id("NASA/HLS/HLSL30/v002")
+    ingestor = create_ingestor(
+        "ee", sensor, ee_manager_instance=ee_manager, logger=logger
     )
-    # 2. Aggregate & fill
-    monthly_csv = os.path.join(out_dir, "timeseries_monthly.csv")
-    ctx.invoke(aggregate, input_csv=timeseries_csv, freq="M", output=monthly_csv)
-    ctx.invoke(
-        fill_gaps_cmd,
-        input_csv=monthly_csv,
-        output=os.path.join(out_dir, "timeseries_filled.csv"),
-    )
-    # 3. Decompose
-    decomp_dir = os.path.join(out_dir, "decomp")
-    ctx.invoke(
-        decompose,
-        input_csv=os.path.join(out_dir, "timeseries_filled.csv"),
-        output_dir=decomp_dir,
-    )
+    viz = Visualizer()
 
-    # 4. Annual image chips (NDVI per year)
-    annual_chips_dir = os.path.join(out_dir, "chips_annual")
-    ctx.invoke(
-        chips,
-        geojson=geojson,
-        start=start,
-        end=end,
-        period="Y",
-        chip_type="ndvi",
-        format="png",
-        out_dir=annual_chips_dir,
+    pipeline = ReportPipeline(aois=aois, ingestor=ingestor, visualizer=viz)
+    report_path = pipeline.run(
+        start=start, end=end, out_dir=out_dir, map_png=map_png, title=title
     )
-
-    # 5. Monthly composites for GIFs
-    monthly_chips_dir = os.path.join(out_dir, "chips_monthly")
-    ctx.invoke(
-        chips,
-        geojson=geojson,
-        start=start,
-        end=end,
-        period="M",
-        chip_type="ndvi",
-        format="png",
-        out_dir=monthly_chips_dir,
-    )
-
-    # 6. Animated GIFs: one per site per year
-    gifs_dir = os.path.join(out_dir, "gifs")
-    start_year = datetime.strptime(start, "%Y-%m-%d").year
-    end_year = datetime.strptime(end, "%Y-%m-%d").year
-    for year in range(start_year, end_year + 1):
-        year_pattern = f"*_{year}-*.png"
-        year_gif_dir = os.path.join(gifs_dir, str(year))
-        ctx.invoke(
-            animate,
-            images_dir=monthly_chips_dir,
-            pattern=year_pattern,
-            output_dir=year_gif_dir,
-        )
-
-    # Generate combined interactive time series plot for all sites
-    timeseries_all_html = os.path.join(out_dir, "timeseries_all.html")
-    ctx.invoke(
-        plot,
-        datafile=os.path.join(out_dir, "timeseries_filled.csv"),
-        index_col="mean_ndvi",
-        agg_freq="M",
-        interactive=True,
-        output=timeseries_all_html,
-    )
-
-    # 7. Final report
-    report_html = os.path.join(out_dir, "report.html")
-    ctx.invoke(
-        report,
-        geojson=geojson,
-        timeseries_csv=os.path.join(out_dir, "timeseries_filled.csv"),
-        timeseries_html=timeseries_all_html,
-        gifs_dir=gifs_dir,
-        decomposition_dir=decomp_dir,
-        chips_dir=annual_chips_dir,
-        map_png=map_png,
-        title=title,
-        output=report_html,
-    )
-    click.echo(f"\n✅  All done! Your full report is here: {report_html}")
+    click.echo(f"\n✅  All done! Your full report is here: {report_path}")
 
 
 if __name__ == "__main__":

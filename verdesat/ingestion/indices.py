@@ -1,52 +1,48 @@
-import ee
+"""
+Module `ingestion.indices` provides generic spectral index computation
+by loading formulas from `resources/index_formulas.json`.
+"""
+
+import json
+from pathlib import Path
 from ee import Image
 
-
-def compute_ndvi(img: Image) -> Image:
-    """Normalized Difference Vegetation Index."""
-    return img.normalizedDifference(["B5", "B4"]).rename("NDVI")
-
-
-def compute_evi(img: Image) -> Image:
-    """
-    Enhanced Vegetation Index: G*(NIR-RED)/(NIR+C1*RED-C2*BLUE+L)
-    using default NASA coefficients.
-    """
-    return img.expression(
-        "G * ((NIR - RED) / (NIR + C1*RED - C2*BLUE + L))",
-        {
-            "NIR": img.select("B5"),
-            "RED": img.select("B4"),
-            "BLUE": img.select("B2"),
-            "G": 2.5,
-            "C1": 6.0,
-            "C2": 7.5,
-            "L": 1.0,
-        },
-    ).rename("EVI")
-
-
-# Map of supported index names to functions
-INDEX_FUNCTIONS = {
-    "ndvi": compute_ndvi,
-    "evi": compute_evi,
-}
+# Load index formulas from resources
+_FORMULA_PATH = (
+    Path(__file__).resolve().parent.parent / "resources" / "index_formulas.json"
+)
+with open(_FORMULA_PATH, "r", encoding="utf-8") as _f:
+    INDEX_REGISTRY = json.load(_f)
 
 
 def compute_index(img: Image, index: str) -> Image:
     """
-    Compute a named spectral index on the given EE Image.
+    Compute a named spectral index on the given EE Image using the JSON formula.
 
     Args:
-      img: ee.Image
-      index: one of 'ndvi', 'evi'
+        img: ee.Image with bands already renamed to standard aliases (lowercase).
+        index: one of the keys in INDEX_REGISTRY (case-insensitive).
 
     Returns:
-      ee.Image of the computed index band.
+        ee.Image of the computed index band, named by the lowercase index key.
     """
     key = index.lower()
-    if key not in INDEX_FUNCTIONS:
+    if key not in INDEX_REGISTRY:
         raise ValueError(
-            f"Index '{index}' not supported. Choose from: {list(INDEX_FUNCTIONS)}"
+            f"Index '{index}' not supported. Choose from: {list(INDEX_REGISTRY)}"
         )
-    return INDEX_FUNCTIONS[key](img)
+    formula = INDEX_REGISTRY[key]
+    expr = formula["expr"]
+    bands = formula["bands"]
+    params = formula.get("params", {})
+    # Build the parameter map: alias tokens (uppercase) to ee.Image or numeric value
+    token_map = {}
+    for alias in bands:
+        # Map alias uppercased in formula to the corresponding band in img
+        token_map[alias.upper()] = img.select(alias)
+    # Add numeric parameters
+    for param_key, param_val in params.items():
+        token_map[param_key.upper()] = param_val
+    # Evaluate the expression and rename output to the index name
+    result = img.expression(expr, token_map).rename(key)
+    return result
