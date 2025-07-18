@@ -6,6 +6,7 @@ from typing import List, Optional, Literal
 
 import pandas as pd
 
+import logging
 from verdesat.core.logger import Logger
 from verdesat.core.config import ConfigManager
 from verdesat.geo.aoi import AOI
@@ -26,7 +27,7 @@ def download_timeseries(
     agg: Optional[Literal["D", "ME", "YE"]] = None,
     output: str | None = None,
     backend: str = "ee",
-    logger: Logger | None = None,
+    logger: logging.Logger | None = None,
 ) -> pd.DataFrame:
     """Download spectral index time series for polygons in *geojson*.
 
