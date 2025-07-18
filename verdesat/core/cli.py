@@ -20,6 +20,8 @@ from verdesat.core.logger import Logger
 from verdesat.core.config import ConfigManager
 from verdesat.geo.aoi import AOI
 from verdesat.ingestion.eemanager import ee_manager
+from verdesat.services.timeseries import download_timeseries as svc_download_timeseries
+from verdesat.services.report import build_report as svc_build_report
 from verdesat.visualization._chips_config import ChipsConfig
 from verdesat.visualization.chips import ChipService
 from verdesat.visualization.visualizer import Visualizer
@@ -132,34 +134,21 @@ def timeseries(
     Download and aggregate spectral index timeseries for polygons in GEOJSON.
     """
     try:
-        echo(f"Loading AOIs from {geojson}...")
-        aois = AOI.from_geojson(geojson, id_col="id")
-        sensor = SensorSpec.from_collection_id(collection)
-        ingestor = create_ingestor(
-            backend,
-            sensor,
-            ee_manager_instance=ee_manager,
+        svc_download_timeseries(
+            geojson=geojson,
+            collection=collection,
+            start=start,
+            end=end,
+            scale=scale,
+            index=index,
+            value_col=value_col,
+            chunk_freq=chunk_freq,
+            agg=agg,
+            output=output,
+            backend=backend,
             logger=logger,
         )
-        df_list = []
-        value_col = value_col or ConfigManager.VALUE_COL_TEMPLATE.format(index=index)
-
-        for aoi in aois:
-            df = ingestor.download_timeseries(
-                aoi,
-                start,
-                end,
-                scale,
-                index,
-                value_col,
-                chunk_freq,
-                agg,
-            )
-            df_list.append(df)
-        result = pd.concat(df_list, ignore_index=True)
-        echo(f"Saving results to {output}...")
-        result.to_csv(output, index=False)
-        echo("Done.")
+        echo(f"✅  Results saved to {output}")
     # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Timeseries command failed", exc_info=True)
@@ -724,10 +713,9 @@ def report(
     Generate a one‑page HTML report summarizing statistics, time‑series, decomposition, and image gallery.
     """
     echo(f"Building report '{output}'...")
-    from verdesat.visualization.report import build_report
 
     try:
-        build_report(
+        svc_build_report(
             geojson_path=geojson,
             timeseries_csv=timeseries_csv,
             timeseries_html=timeseries_html,
