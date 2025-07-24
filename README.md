@@ -13,7 +13,7 @@ components can be reused in larger pipelines.
 ## 🚀 Quickstart
 ```bash
 # Clone and install
-git clone https://github.com/<org>/verdesat.git
+git clone https://github.com/verdesat/verdesat.git
 cd verdesat
 ./setup.sh
 
