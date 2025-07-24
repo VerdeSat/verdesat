@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock
 from types import SimpleNamespace
 
+import ee
+
 import pytest
 
 from verdesat.services.landcover import LandcoverService
@@ -120,3 +122,61 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
     out = tmp_path / "LANDCOVER_1_2021.tiff"
     assert out.exists() and out.read_bytes() == b"DATA"
     assert mgr.initialize.called
+
+
+def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
+    years = []
+
+    class ImgMissing:
+        def remap(self, *a, **k):
+            return self
+
+        def rename(self, *a, **k):
+            return self
+
+        def clip(self, *a, **k):
+            return self
+
+        def getDownloadURL(self, _p):
+            raise ee.ee_exception.EEException("not found")
+
+    class ImgGood(ImgMissing):
+        def getDownloadURL(self, _p):
+            return "http://example.com/lc.tif"
+
+    imgs = [ImgMissing(), ImgGood()]
+
+    def fake_get_image(self, _aoi, year):
+        years.append(year)
+        return imgs.pop(0)
+
+    monkeypatch.setattr(
+        "verdesat.services.landcover.LandcoverService.get_image", fake_get_image
+    )
+    monkeypatch.setattr("verdesat.geo.aoi.AOI.ee_geometry", lambda self: "geom")
+
+    class FakeResp:
+        content = b"X"
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr(
+        "verdesat.services.landcover.requests",
+        SimpleNamespace(get=lambda *_a, **_k: FakeResp()),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "verdesat.services.landcover.rasterio", MagicMock(), raising=False
+    )
+    monkeypatch.setattr(
+        "verdesat.services.landcover.Resampling",
+        SimpleNamespace(nearest="nearest"),
+        raising=False,
+    )
+
+    svc = LandcoverService(ee_manager_instance=MagicMock())
+    svc.download(dummy_aoi, LandcoverService.LATEST_ESRI_YEAR, str(tmp_path))
+
+    assert years[0] == LandcoverService.LATEST_ESRI_YEAR
+    assert years[1] > LandcoverService.LATEST_ESRI_YEAR

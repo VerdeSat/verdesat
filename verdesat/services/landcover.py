@@ -7,6 +7,7 @@ import logging
 
 import os
 import ee
+from ee import ee_exception
 import requests
 
 try:
@@ -128,9 +129,27 @@ class LandcoverService(BaseService):
     def download(self, aoi: AOI, year: int, out_dir: str, scale: int = 10) -> str:
         """Download the land-cover raster and return the output path."""
 
+        dataset = self._dataset_for_year(year)
         img = self.get_image(aoi, year)
         geom = aoi.ee_geometry()
-        url = img.getDownloadURL({"scale": scale, "region": geom, "format": "GEOTIFF"})
+        try:
+            url = img.getDownloadURL(
+                {"scale": scale, "region": geom, "format": "GEOTIFF"}
+            )
+        except ee_exception.EEException as err:
+            if (
+                dataset.startswith(self.ESRI_COLLECTION)
+                and "not found" in str(err).lower()
+            ):
+                self.logger.warning(
+                    "Landcover asset %s missing; falling back to WorldCover", year
+                )
+                img = self.get_image(aoi, self.LATEST_ESRI_YEAR + 1)
+                url = img.getDownloadURL(
+                    {"scale": scale, "region": geom, "format": "GEOTIFF"}
+                )
+            else:
+                raise
 
         pid = aoi.static_props.get("id") or aoi.static_props.get(
             "system:index", "unknown"
