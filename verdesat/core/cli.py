@@ -345,21 +345,21 @@ def chips(
 @click.argument("geojson", type=click.Path(exists=True))
 @click.option("--year", "-y", type=int, required=True, help="Year of landcover")
 @click.option(
-    "--output",
+    "--out-dir",
     "-o",
     type=click.Path(),
-    default="landcover.tif",
-    help="Output GeoTIFF path",
+    default="landcover",
+    help="Output directory",
 )
-def landcover(geojson, year, output):
+def landcover(geojson, year, out_dir):
     """Download 10 m land-cover raster for the first polygon in GEOJSON."""
     try:
         aois = AOI.from_geojson(geojson, id_col="id")
         if not aois:
             raise ValueError("No AOIs found")
         svc = LandcoverService(logger=logger)
-        svc.download(aois[0], year, output)
-        echo(f"✅  Landcover saved to {output}")
+        dest = svc.download(aois[0], year, out_dir)
+        echo(f"✅  Landcover saved to {dest}")
     # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Landcover command failed", exc_info=True)

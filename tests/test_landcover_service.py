@@ -91,10 +91,26 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
         raising=False,
     )
 
+    fake_rasterio = MagicMock()
+    ctx = fake_rasterio.open.return_value.__enter__.return_value
+    ctx.read.return_value = b""
+    ctx.profile = {}
+    ctx.write = MagicMock()
+    ctx.build_overviews = MagicMock()
+    ctx.update_tags = MagicMock()
+    monkeypatch.setattr(
+        "verdesat.services.landcover.rasterio", fake_rasterio, raising=False
+    )
+    monkeypatch.setattr(
+        "verdesat.services.landcover.Resampling",
+        SimpleNamespace(nearest="nearest"),
+        raising=False,
+    )
+
     mgr = MagicMock()
     svc = LandcoverService(ee_manager_instance=mgr)
-    out = tmp_path / "lc.tif"
-    svc.download(dummy_aoi, 2021, str(out))
+    svc.download(dummy_aoi, 2021, str(tmp_path))
 
+    out = tmp_path / "LANDCOVER_1_2021.tiff"
     assert out.exists() and out.read_bytes() == b"DATA"
     assert mgr.initialize.called

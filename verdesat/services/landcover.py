@@ -2,12 +2,19 @@ from __future__ import annotations
 
 """Service for retrieving 10 m land-cover rasters."""
 
-from datetime import datetime
 from typing import Dict
 import logging
 
+import os
 import ee
 import requests
+
+try:
+    import rasterio
+    from rasterio.enums import Resampling
+except ImportError:  # pragma: no cover - optional
+    rasterio = None
+    Resampling = None
 
 from verdesat.geo.aoi import AOI
 from verdesat.ingestion.eemanager import EarthEngineManager, ee_manager
@@ -67,15 +74,56 @@ class LandcoverService(BaseService):
         ).rename("landcover")
         return remapped.clip(aoi.ee_geometry())
 
-    def download(self, aoi: AOI, year: int, output: str, scale: int = 10) -> str:
+    def _convert_to_cog(self, path: str) -> None:
+        """Convert GeoTIFF at ``path`` to a Cloud Optimized GeoTIFF."""
+
+        if rasterio is None or Resampling is None:
+            self.logger.warning(
+                "rasterio not installed; skipping COG conversion for %s", path
+            )
+            return
+
+        try:
+            with rasterio.open(path) as src:
+                profile = src.profile
+                data = src.read()
+
+            profile.update(
+                driver="GTiff",
+                compress="deflate",
+                tiled=True,
+                blockxsize=512,
+                blockysize=512,
+            )
+
+            with rasterio.open(path, "w", **profile) as dst:
+                dst.write(data)
+                dst.build_overviews([2, 4, 8, 16], Resampling.nearest)
+                dst.update_tags(OVR_RESAMPLING="NEAREST")
+
+            self.logger.info("✔ Converted to COG: %s", path)
+        except rasterio.errors.RasterioError as cog_err:  # pragma: no cover - opt
+            self.logger.warning("⚠ COG conversion failed for %s: %s", path, cog_err)
+
+    def download(self, aoi: AOI, year: int, out_dir: str, scale: int = 10) -> str:
         """Download the land-cover raster and return the output path."""
 
         img = self.get_image(aoi, year)
         geom = aoi.ee_geometry()
-        url = img.getDownloadURL({"scale": scale, "region": geom})
+        url = img.getDownloadURL({"scale": scale, "region": geom, "format": "GEOTIFF"})
+
+        pid = aoi.static_props.get("id") or aoi.static_props.get(
+            "system:index", "unknown"
+        )
+        filename = f"LANDCOVER_{pid}_{year}.tiff"
+        os.makedirs(out_dir, exist_ok=True)
+        output = os.path.join(out_dir, filename)
+
         resp = requests.get(url, timeout=60)
         resp.raise_for_status()
         with open(output, "wb") as f:
             f.write(resp.content)
+
+        self._convert_to_cog(output)
         self.logger.info("Wrote landcover raster to %s", output)
         return output

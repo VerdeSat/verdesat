@@ -79,9 +79,10 @@ def test_landcover_cli(monkeypatch, tmp_path):
             str(geojson),
             "--year",
             "2021",
-            "--output",
-            "out.tif",
+            "--out-dir",
+            "dest",
         ],
     )
     assert result.exit_code == 0
     assert svc.download.called
+    assert svc.download.call_args.args[2] == "dest"
