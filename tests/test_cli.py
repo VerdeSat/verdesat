@@ -1,5 +1,6 @@
 import pandas as pd
 from click.testing import CliRunner
+from unittest.mock import MagicMock
 
 from verdesat.core.cli import cli
 
@@ -59,3 +60,28 @@ def test_timeseries_value_col_passed(tmp_path, monkeypatch, dummy_aoi):
     )
     assert result.exit_code == 0
     assert calls["value_col"] == "mean_evi"
+
+
+def test_landcover_cli(monkeypatch, tmp_path):
+    svc = MagicMock()
+    monkeypatch.setattr("verdesat.core.cli.LandcoverService", lambda logger=None: svc)
+
+    runner = CliRunner()
+    geojson = tmp_path / "aoi.geojson"
+    geojson.write_text(
+        '{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[0,1],[1,1],[1,0],[0,0]]]},"properties":{"id":1}}]}'
+    )
+    result = runner.invoke(
+        cli,
+        [
+            "download",
+            "landcover",
+            str(geojson),
+            "--year",
+            "2021",
+            "--output",
+            "out.tif",
+        ],
+    )
+    assert result.exit_code == 0
+    assert svc.download.called
