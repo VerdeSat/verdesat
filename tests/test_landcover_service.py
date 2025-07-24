@@ -10,7 +10,9 @@ def test_dataset_choice_esri(monkeypatch, dummy_aoi):
     called = {}
 
     class DummyImg:
-        def remap(self, *a, **k):
+        def remap(self, keys, vals):
+            called["keys"] = keys
+            called["vals"] = vals
             return self
 
         def rename(self, *a, **k):
@@ -38,7 +40,9 @@ def test_dataset_fallback(monkeypatch, dummy_aoi):
     called = {}
 
     class DummyImg:
-        def remap(self, *a, **k):
+        def remap(self, keys, vals):
+            called["keys"] = keys
+            called["vals"] = vals
             return self
 
         def rename(self, *a, **k):
@@ -58,6 +62,8 @@ def test_dataset_fallback(monkeypatch, dummy_aoi):
     svc.get_image(dummy_aoi, LandcoverService.LATEST_ESRI_YEAR + 2)
 
     assert called["id"] == LandcoverService.WORLD_COVER
+    assert called["keys"] == list(LandcoverService.WORLD_COVER_CLASS_MAP_6.keys())
+    assert called["vals"] == list(LandcoverService.WORLD_COVER_CLASS_MAP_6.values())
 
 
 def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):

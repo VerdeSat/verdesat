@@ -26,10 +26,10 @@ class LandcoverService(BaseService):
 
     ESRI_COLLECTION = "projects/sat-io/open-datasets/landcover/ESRI_Global-LULC_10m_TS"
     WORLD_COVER = "ESA/WorldCover/v200/2021"
-    LATEST_ESRI_YEAR = 2023
+    LATEST_ESRI_YEAR = 2024
 
-    # Mapping of raw dataset classes to 6 consolidated classes
-    CLASS_MAP_6: Dict[int, int] = {
+    # Mapping of ESRI classes to 6 consolidated classes
+    ESRI_CLASS_MAP_6: Dict[int, int] = {
         1: 6,  # Water
         2: 1,  # Trees -> Forest
         3: 2,  # Grass -> Shrub
@@ -40,6 +40,21 @@ class LandcoverService(BaseService):
         8: 5,  # Bare ground -> Bare
         9: 5,  # Snow/Ice -> Bare
         10: 5,  # Clouds -> Bare
+    }
+
+    # Mapping of ESA WorldCover classes to 6 consolidated classes
+    WORLD_COVER_CLASS_MAP_6: Dict[int, int] = {
+        10: 1,  # Tree cover -> Forest
+        20: 2,  # Shrubland -> Shrub
+        30: 2,  # Grassland -> Shrub
+        40: 3,  # Cropland -> Crop
+        50: 4,  # Built-up -> Urban
+        60: 5,  # Bare/sparse vegetation -> Bare
+        70: 5,  # Snow/ice -> Bare
+        80: 6,  # Permanent water bodies -> Water
+        90: 6,  # Herbaceous wetland -> Water
+        95: 1,  # Mangroves -> Forest
+        100: 2,  # Moss & Lichen -> Shrub
     }
 
     def __init__(
@@ -68,9 +83,14 @@ class LandcoverService(BaseService):
         self.logger.info("Loading landcover image %s", image_id)
         self.ee_manager.initialize()
         img = ee.Image(image_id)
+        class_map = (
+            self.ESRI_CLASS_MAP_6
+            if image_id.startswith(self.ESRI_COLLECTION)
+            else self.WORLD_COVER_CLASS_MAP_6
+        )
         remapped = img.remap(
-            list(self.CLASS_MAP_6.keys()),
-            list(self.CLASS_MAP_6.values()),
+            list(class_map.keys()),
+            list(class_map.values()),
         ).rename("landcover")
         return remapped.clip(aoi.ee_geometry())
 
