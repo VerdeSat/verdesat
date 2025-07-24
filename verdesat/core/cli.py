@@ -22,6 +22,7 @@ from verdesat.geo.aoi import AOI
 from verdesat.ingestion.eemanager import ee_manager
 from verdesat.services.timeseries import download_timeseries as svc_download_timeseries
 from verdesat.services.report import build_report as svc_build_report
+from verdesat.services.landcover import LandcoverService
 from verdesat.visualization._chips_config import ChipsConfig
 from verdesat.visualization.chips import ChipService
 from verdesat.visualization.visualizer import Visualizer
@@ -337,6 +338,28 @@ def chips(
     except Exception as e:
         logger.error("Chips command failed", exc_info=True)
         echo(f"❌  Chips download failed: {e}", err=True)
+        sys.exit(1)
+
+
+@download.command(name="landcover")
+@click.argument("geojson", type=click.Path(exists=True))
+@click.option(
+    "--year", type=int, default=datetime.utcnow().year, help="Year of land cover"
+)
+@click.option(
+    "--out-dir", "-o", default="landcover", type=click.Path(), help="Output directory"
+)
+def landcover_cmd(geojson, year, out_dir):
+    """Download land-cover raster for AOIs in GEOJSON."""
+    try:
+        aois = AOI.from_geojson(geojson, id_col="id")
+        svc = LandcoverService(logger=logger)
+        for aoi in aois:
+            svc.download(aoi, year, out_dir)
+        echo(f"✅  Landcover written under {out_dir}/")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("Landcover command failed", exc_info=True)
+        echo(f"❌  Landcover download failed: {e}", err=True)
         sys.exit(1)
 
 

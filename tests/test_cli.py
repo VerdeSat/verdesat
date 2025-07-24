@@ -59,3 +59,38 @@ def test_timeseries_value_col_passed(tmp_path, monkeypatch, dummy_aoi):
     )
     assert result.exit_code == 0
     assert calls["value_col"] == "mean_evi"
+
+
+def test_landcover_cli(monkeypatch, tmp_path, dummy_aoi):
+    calls = []
+
+    class DummySvc:
+        def __init__(self, logger=None):
+            pass
+
+        def download(self, aoi, year, out_dir):
+            calls.append((aoi, year, out_dir))
+
+    monkeypatch.setattr("verdesat.core.cli.LandcoverService", DummySvc)
+    monkeypatch.setattr(
+        "verdesat.core.cli.AOI.from_geojson", lambda p, id_col: [dummy_aoi]
+    )
+
+    runner = CliRunner()
+    geojson = tmp_path / "aoi.geojson"
+    geojson.write_text("{}")
+    out_dir = tmp_path / "out"
+    result = runner.invoke(
+        cli,
+        [
+            "download",
+            "landcover",
+            str(geojson),
+            "--year",
+            "2020",
+            "--out-dir",
+            str(out_dir),
+        ],
+    )
+    assert result.exit_code == 0
+    assert calls and calls[0][1] == 2020
