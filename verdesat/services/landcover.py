@@ -19,6 +19,7 @@ class LandcoverService(BaseService):
 
     ESRI_COLLECTION = "projects/sat-io/open-datasets/landcover/ESRI_Global-LULC_10m_TS"
     WORLD_COVER = "ESA/WorldCover/v200/2021"
+    LATEST_ESRI_YEAR = 2023
 
     # Mapping of raw dataset classes to 6 consolidated classes
     CLASS_MAP_6: Dict[int, int] = {
@@ -43,9 +44,14 @@ class LandcoverService(BaseService):
         self.ee_manager = ee_manager_instance
 
     def _dataset_for_year(self, year: int) -> str:
-        latest_year = datetime.utcnow().year
-        if 2017 <= year <= latest_year:
+        """Return dataset identifier appropriate for *year*."""
+
+        if 2017 <= year <= self.LATEST_ESRI_YEAR:
             return f"{self.ESRI_COLLECTION}/{year}"
+        if year > self.LATEST_ESRI_YEAR:
+            self.logger.warning(
+                "ESRI landcover for %s unavailable; falling back to WorldCover", year
+            )
         return self.WORLD_COVER
 
     def get_image(self, aoi: AOI, year: int) -> ee.Image:

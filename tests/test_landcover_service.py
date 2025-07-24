@@ -34,6 +34,32 @@ def test_dataset_choice_esri(monkeypatch, dummy_aoi):
     assert mgr.initialize.called
 
 
+def test_dataset_fallback(monkeypatch, dummy_aoi):
+    called = {}
+
+    class DummyImg:
+        def remap(self, *a, **k):
+            return self
+
+        def rename(self, *a, **k):
+            return self
+
+        def clip(self, *a, **k):
+            return self
+
+    def fake_image(img_id):
+        called["id"] = img_id
+        return DummyImg()
+
+    monkeypatch.setattr("verdesat.services.landcover.ee.Image", fake_image)
+    monkeypatch.setattr("verdesat.geo.aoi.AOI.ee_geometry", lambda self: "geom")
+
+    svc = LandcoverService(ee_manager_instance=MagicMock())
+    svc.get_image(dummy_aoi, LandcoverService.LATEST_ESRI_YEAR + 2)
+
+    assert called["id"] == LandcoverService.WORLD_COVER
+
+
 def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
     class DummyImg:
         def remap(self, *a, **k):
