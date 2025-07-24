@@ -26,10 +26,12 @@ def test_dataset_choice_esri(monkeypatch, dummy_aoi):
     monkeypatch.setattr("verdesat.services.landcover.ee.Image", fake_image)
     monkeypatch.setattr("verdesat.geo.aoi.AOI.ee_geometry", lambda self: "geom")
 
-    svc = LandcoverService(ee_manager_instance=MagicMock())
+    mgr = MagicMock()
+    svc = LandcoverService(ee_manager_instance=mgr)
     svc.get_image(dummy_aoi, 2019)
 
     assert LandcoverService.ESRI_COLLECTION in called["id"]
+    assert mgr.initialize.called
 
 
 def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
@@ -63,8 +65,10 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
         raising=False,
     )
 
-    svc = LandcoverService(ee_manager_instance=MagicMock())
+    mgr = MagicMock()
+    svc = LandcoverService(ee_manager_instance=mgr)
     out = tmp_path / "lc.tif"
     svc.download(dummy_aoi, 2021, str(out))
 
     assert out.exists() and out.read_bytes() == b"DATA"
+    assert mgr.initialize.called

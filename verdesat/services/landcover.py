@@ -53,6 +53,7 @@ class LandcoverService(BaseService):
 
         image_id = self._dataset_for_year(year)
         self.logger.info("Loading landcover image %s", image_id)
+        self.ee_manager.initialize()
         img = ee.Image(image_id)
         remapped = img.remap(
             list(self.CLASS_MAP_6.keys()),
