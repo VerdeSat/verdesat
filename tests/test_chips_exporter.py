@@ -93,10 +93,10 @@ def test_export_one_thumbnail_geotiff_cog(
 
     # Patch inside the module under test, not just globals()
     monkeypatch.setattr(
-        "verdesat.visualization.chips.rasterio", fake_rasterio, raising=False
+        "verdesat.services.raster_utils.rasterio", fake_rasterio, raising=False
     )
     monkeypatch.setattr(
-        "verdesat.visualization.chips.Resampling",
+        "verdesat.services.raster_utils.Resampling",
         SimpleNamespace(nearest="nearest"),
         raising=False,
     )
