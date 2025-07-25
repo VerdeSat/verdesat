@@ -123,6 +123,7 @@ class LandcoverService(BaseService):
                 tiled=True,
                 blockxsize=512,
                 blockysize=512,
+                nodata=0,
             )
 
             with rasterio.open(path, "w", **profile) as dst:
@@ -141,9 +142,21 @@ class LandcoverService(BaseService):
         dataset = self._dataset_for_year(year)
         img = self.get_image(aoi, year)
         geom = aoi.ee_geometry()
+
+        region: ee.Geometry | list[float] = geom
+        try:
+            bbox_info = self.ee_manager.safe_get_info(geom.bounds()) or {}
+            coords = bbox_info.get("coordinates", [[]])[0]
+            if coords:
+                xs = [pt[0] for pt in coords]
+                ys = [pt[1] for pt in coords]
+                region = [min(xs), min(ys), max(xs), max(ys)]
+        except ee_exception.EEException as ee_err:  # pragma: no cover - safety
+            self.logger.warning("Could not compute bbox for AOI: %s", ee_err)
+
         try:
             url = img.getDownloadURL(
-                {"scale": scale, "region": geom, "format": "GEOTIFF"}
+                {"scale": scale, "region": region, "format": "GEOTIFF"}
             )
         except ee_exception.EEException as err:
             if (
