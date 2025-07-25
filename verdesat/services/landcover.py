@@ -6,7 +6,6 @@ from typing import Dict
 from shapely.geometry import mapping
 import logging
 
-import os
 import ee
 from ee import ee_exception
 import requests
@@ -22,6 +21,7 @@ except ImportError:  # pragma: no cover - optional
 
 from verdesat.geo.aoi import AOI
 from verdesat.ingestion.eemanager import EarthEngineManager, ee_manager
+from verdesat.core.storage import LocalFS, StorageAdapter
 from .base import BaseService
 
 
@@ -66,9 +66,11 @@ class LandcoverService(BaseService):
         self,
         ee_manager_instance: EarthEngineManager = ee_manager,
         logger: logging.Logger | None = None,
+        storage: StorageAdapter | None = None,
     ) -> None:
         super().__init__(logger)
         self.ee_manager = ee_manager_instance
+        self.storage = storage or LocalFS()
 
     def _dataset_for_year(self, year: int) -> str:
         """Return dataset identifier appropriate for *year*."""
@@ -107,6 +109,12 @@ class LandcoverService(BaseService):
 
     def _convert_to_cog(self, path: str, geometry) -> None:
         """Convert GeoTIFF at ``path`` to a Cloud Optimized GeoTIFF and clip to geometry."""
+
+        if not isinstance(self.storage, LocalFS):
+            self.logger.warning(
+                "COG conversion skipped for non-local storage: %s", path
+            )
+            return
 
         if rasterio is None or Resampling is None:
             self.logger.warning(
@@ -181,13 +189,11 @@ class LandcoverService(BaseService):
             "system:index", "unknown"
         )
         filename = f"LANDCOVER_{pid}_{year}.tiff"
-        os.makedirs(out_dir, exist_ok=True)
-        output = os.path.join(out_dir, filename)
+        output = self.storage.join(out_dir, filename)
 
         resp = requests.get(url, timeout=60)
         resp.raise_for_status()
-        with open(output, "wb") as f:
-            f.write(resp.content)
+        self.storage.write_bytes(output, resp.content)
 
         self._convert_to_cog(output, aoi.geometry)
         self.logger.info("Wrote landcover raster to %s", output)

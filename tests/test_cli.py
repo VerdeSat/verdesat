@@ -3,6 +3,7 @@ from click.testing import CliRunner
 from unittest.mock import MagicMock
 
 from verdesat.core.cli import cli
+from verdesat.core.storage import LocalFS
 
 
 def test_timeseries_value_col_passed(tmp_path, monkeypatch, dummy_aoi):
@@ -64,7 +65,13 @@ def test_timeseries_value_col_passed(tmp_path, monkeypatch, dummy_aoi):
 
 def test_landcover_cli(monkeypatch, tmp_path):
     svc = MagicMock()
-    monkeypatch.setattr("verdesat.core.cli.LandcoverService", lambda logger=None: svc)
+    created = {}
+
+    def fake_service(logger=None, storage=None):
+        created["storage"] = storage
+        return svc
+
+    monkeypatch.setattr("verdesat.core.cli.LandcoverService", fake_service)
 
     runner = CliRunner()
     geojson = tmp_path / "aoi.geojson"
@@ -86,11 +93,18 @@ def test_landcover_cli(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert svc.download.called
     assert svc.download.call_args.args[2] == "dest"
+    assert isinstance(created["storage"], LocalFS)
 
 
 def test_landcover_cli_multiple_polygons(monkeypatch, tmp_path):
     svc = MagicMock()
-    monkeypatch.setattr("verdesat.core.cli.LandcoverService", lambda logger=None: svc)
+    created = {}
+
+    def fake_service(logger=None, storage=None):
+        created["storage"] = storage
+        return svc
+
+    monkeypatch.setattr("verdesat.core.cli.LandcoverService", fake_service)
 
     runner = CliRunner()
     geojson = tmp_path / "aoi.geojson"
@@ -111,3 +125,4 @@ def test_landcover_cli_multiple_polygons(monkeypatch, tmp_path):
     )
     assert result.exit_code == 0
     assert svc.download.call_count == 2
+    assert isinstance(created["storage"], LocalFS)
