@@ -3,6 +3,7 @@ from __future__ import annotations
 """Service for retrieving 10 m land-cover rasters."""
 
 from typing import Dict
+from shapely.geometry import mapping
 import logging
 
 import os
@@ -13,6 +14,8 @@ import requests
 try:
     import rasterio
     from rasterio.enums import Resampling
+    import rasterio.mask
+    import rasterio.warp
 except ImportError:  # pragma: no cover - optional
     rasterio = None
     Resampling = None
@@ -102,8 +105,8 @@ class LandcoverService(BaseService):
         )
         return remapped.clip(aoi.ee_geometry())
 
-    def _convert_to_cog(self, path: str) -> None:
-        """Convert GeoTIFF at ``path`` to a Cloud Optimized GeoTIFF."""
+    def _convert_to_cog(self, path: str, geometry) -> None:
+        """Convert GeoTIFF at ``path`` to a Cloud Optimized GeoTIFF and clip to geometry."""
 
         if rasterio is None or Resampling is None:
             self.logger.warning(
@@ -113,9 +116,15 @@ class LandcoverService(BaseService):
 
         try:
             with rasterio.open(path) as src:
+                geom_json = mapping(geometry)
+                if src.crs and src.crs.to_string() != "EPSG:4326":
+                    geom_json = rasterio.warp.transform_geom(
+                        "EPSG:4326", src.crs.to_string(), geom_json
+                    )
+                arr, transform = rasterio.mask.mask(
+                    src, [geom_json], crop=True, filled=False
+                )
                 profile = src.profile
-                data = src.read(1)
-                mask = src.dataset_mask()
 
             profile.update(
                 driver="GTiff",
@@ -124,10 +133,14 @@ class LandcoverService(BaseService):
                 blockxsize=512,
                 blockysize=512,
                 nodata=0,
+                height=arr.shape[1],
+                width=arr.shape[2],
+                transform=transform,
             )
 
             with rasterio.open(path, "w", **profile) as dst:
-                dst.write(data, 1)
+                dst.write(arr.data[0], 1)
+                mask = (~arr.mask[0]).astype("uint8") * 255
                 dst.write_mask(mask)
                 dst.build_overviews([2, 4, 8, 16], Resampling.nearest)
                 dst.update_tags(OVR_RESAMPLING="NEAREST")
@@ -176,6 +189,6 @@ class LandcoverService(BaseService):
         with open(output, "wb") as f:
             f.write(resp.content)
 
-        self._convert_to_cog(output)
+        self._convert_to_cog(output, aoi.geometry)
         self.logger.info("Wrote landcover raster to %s", output)
         return output

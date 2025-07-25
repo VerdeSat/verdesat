@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 from types import SimpleNamespace
+import numpy as np
 
 import ee
 
@@ -138,15 +139,28 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
         raising=False,
     )
 
-    fake_rasterio = MagicMock()
-    ctx = fake_rasterio.open.return_value.__enter__.return_value
-    ctx.read.return_value = b""
-    ctx.dataset_mask.return_value = b""
+    fake_rasterio = SimpleNamespace()
+    ctx = MagicMock()
+    fake_rasterio.open = MagicMock(
+        return_value=MagicMock(
+            __enter__=MagicMock(return_value=ctx), __exit__=MagicMock()
+        )
+    )
     ctx.profile = {}
+    ctx.crs = SimpleNamespace(to_string=lambda: "EPSG:3857")
     ctx.write = MagicMock()
     ctx.write_mask = MagicMock()
     ctx.build_overviews = MagicMock()
     ctx.update_tags = MagicMock()
+
+    def fake_mask(ds, shapes, *a, **k):
+        captured["shapes"] = shapes
+        return np.ma.MaskedArray(data=[[[1]]], mask=[[[False]]]), "affine"
+
+    fake_rasterio.mask = SimpleNamespace(mask=fake_mask)
+    fake_rasterio.warp = SimpleNamespace(
+        transform_geom=lambda *_a, **_k: {"geom": True}
+    )
     monkeypatch.setattr(
         "verdesat.services.landcover.rasterio", fake_rasterio, raising=False
     )
@@ -164,6 +178,7 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
     assert out.exists() and out.read_bytes() == b"DATA"
     assert mgr.initialize.called
     assert captured["region"] is dummy_geom
+    assert captured["shapes"][0] == {"geom": True}
 
 
 def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
@@ -212,10 +227,29 @@ def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
         SimpleNamespace(get=lambda *_a, **_k: FakeResp()),
         raising=False,
     )
-    fake_rasterio = MagicMock()
-    ctx = fake_rasterio.open.return_value.__enter__.return_value
+
+    fake_rasterio = SimpleNamespace()
+    ctx = MagicMock()
+    fake_rasterio.open = MagicMock(
+        return_value=MagicMock(
+            __enter__=MagicMock(return_value=ctx), __exit__=MagicMock()
+        )
+    )
+    ctx.profile = {}
+    ctx.crs = SimpleNamespace(to_string=lambda: "EPSG:3857")
     ctx.write_mask = MagicMock()
-    ctx.dataset_mask.return_value = b""
+    ctx.build_overviews = MagicMock()
+    ctx.update_tags = MagicMock()
+    captured = {}
+
+    def fake_mask(ds, shapes, *a, **k):
+        captured["shapes"] = shapes
+        return np.ma.MaskedArray(data=[[[1]]], mask=[[[False]]]), "affine"
+
+    fake_rasterio.mask = SimpleNamespace(mask=fake_mask)
+    fake_rasterio.warp = SimpleNamespace(
+        transform_geom=lambda *_a, **_k: {"geom": True}
+    )
     monkeypatch.setattr(
         "verdesat.services.landcover.rasterio", fake_rasterio, raising=False
     )
@@ -231,3 +265,4 @@ def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
 
     assert years[0] == LandcoverService.LATEST_ESRI_YEAR
     assert years[1] > LandcoverService.LATEST_ESRI_YEAR
+    assert captured["shapes"][0] == {"geom": True}
