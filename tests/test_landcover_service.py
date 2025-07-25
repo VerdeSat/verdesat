@@ -28,6 +28,10 @@ def test_dataset_choice_esri(monkeypatch, dummy_aoi):
             called["vals"] = vals
             return self
 
+        def unmask(self, val):
+            called["unmask"] = val
+            return self
+
         def rename(self, *_a, **_k):
             return self
 
@@ -47,6 +51,7 @@ def test_dataset_choice_esri(monkeypatch, dummy_aoi):
     assert called["cid"] == LandcoverService.ESRI_COLLECTION
     assert list(called["keys"]) == list(LandcoverService.ESRI_CLASS_MAP_6.keys())
     assert list(called["vals"]) == list(LandcoverService.ESRI_CLASS_MAP_6.values())
+    assert called["unmask"] == 0
     assert mgr.initialize.called
 
 
@@ -57,6 +62,10 @@ def test_dataset_fallback(monkeypatch, dummy_aoi):
         def remap(self, keys, vals):
             called["keys"] = keys
             called["vals"] = vals
+            return self
+
+        def unmask(self, val):
+            called["unmask"] = val
             return self
 
         def rename(self, *_a, **_k):
@@ -78,11 +87,15 @@ def test_dataset_fallback(monkeypatch, dummy_aoi):
     assert called["id"] == LandcoverService.WORLD_COVER
     assert called["keys"] == list(LandcoverService.WORLD_COVER_CLASS_MAP_6.keys())
     assert called["vals"] == list(LandcoverService.WORLD_COVER_CLASS_MAP_6.values())
+    assert called["unmask"] == 0
 
 
 def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
     class DummyImg:
         def remap(self, *a, **k):
+            return self
+
+        def unmask(self, _val):
             return self
 
         def rename(self, *a, **k):
@@ -146,6 +159,9 @@ def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
 
     class ImgMissing:
         def remap(self, *a, **k):
+            return self
+
+        def unmask(self, _val):
             return self
 
         def rename(self, *a, **k):

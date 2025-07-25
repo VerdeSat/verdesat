@@ -41,6 +41,7 @@ class LandcoverService(BaseService):
         8: 5,  # Bare ground -> Bare
         9: 5,  # Snow/Ice -> Bare
         10: 5,  # Clouds -> Bare
+        11: 2,  # Rangeland -> Shrub
     }
 
     # Mapping of ESA WorldCover classes to 6 consolidated classes
@@ -94,10 +95,11 @@ class LandcoverService(BaseService):
             img = ee.Image(dataset)
             class_map = self.WORLD_COVER_CLASS_MAP_6
 
-        remapped = img.remap(
-            list(class_map.keys()),
-            list(class_map.values()),
-        ).rename("landcover")
+        remapped = (
+            img.remap(list(class_map.keys()), list(class_map.values()))
+            .unmask(0)
+            .rename("landcover")
+        )
         return remapped.clip(aoi.ee_geometry())
 
     def _convert_to_cog(self, path: str) -> None:
