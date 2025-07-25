@@ -7,6 +7,7 @@ import ee
 import pytest
 
 from verdesat.services.landcover import LandcoverService
+from verdesat.core.storage import LocalFS
 
 
 def test_dataset_choice_esri(monkeypatch, dummy_aoi):
@@ -170,11 +171,23 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
         raising=False,
     )
 
+    class SpyLocalFS(LocalFS):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls: list[tuple[str, bytes]] = []
+
+        def write_bytes(self, uri: str, data: bytes) -> str:  # type: ignore[override]
+            self.calls.append((uri, data))
+            return super().write_bytes(uri, data)
+
     mgr = MagicMock()
-    svc = LandcoverService(ee_manager_instance=mgr)
+    storage = SpyLocalFS()
+    svc = LandcoverService(ee_manager_instance=mgr, storage=storage)
     svc.download(dummy_aoi, 2021, str(tmp_path))
 
     out = tmp_path / "LANDCOVER_1_2021.tiff"
+    assert storage.calls and storage.calls[0][0] == str(out)
+    assert storage.calls[0][1] == b"DATA"
     assert out.exists() and out.read_bytes() == b"DATA"
     assert mgr.initialize.called
     assert captured["region"] is dummy_geom
@@ -259,10 +272,23 @@ def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
         raising=False,
     )
 
+    class SpyLocalFS(LocalFS):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls: list[tuple[str, bytes]] = []
+
+        def write_bytes(self, uri: str, data: bytes) -> str:  # type: ignore[override]
+            self.calls.append((uri, data))
+            return super().write_bytes(uri, data)
+
     mgr2 = MagicMock()
-    svc = LandcoverService(ee_manager_instance=mgr2)
+    storage = SpyLocalFS()
+    svc = LandcoverService(ee_manager_instance=mgr2, storage=storage)
     svc.download(dummy_aoi, LandcoverService.LATEST_ESRI_YEAR, str(tmp_path))
 
+    out = tmp_path / f"LANDCOVER_1_{LandcoverService.LATEST_ESRI_YEAR}.tiff"
+    assert storage.calls and storage.calls[0][0] == str(out)
     assert years[0] == LandcoverService.LATEST_ESRI_YEAR
     assert years[1] > LandcoverService.LATEST_ESRI_YEAR
+    assert out.exists() and out.read_bytes() == b"X"
     assert captured["shapes"][0] == {"geom": True}

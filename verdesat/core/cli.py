@@ -23,6 +23,7 @@ from verdesat.ingestion.eemanager import ee_manager
 from verdesat.services.timeseries import download_timeseries as svc_download_timeseries
 from verdesat.services.report import build_report as svc_build_report
 from verdesat.services.landcover import LandcoverService
+from verdesat.core.storage import LocalFS
 from verdesat.visualization._chips_config import ChipsConfig
 from verdesat.visualization.chips import ChipService
 from verdesat.visualization.visualizer import Visualizer
@@ -357,7 +358,7 @@ def landcover(geojson, year, out_dir):
         aois = AOI.from_geojson(geojson, id_col="id")
         if not aois:
             raise ValueError("No AOIs found")
-        svc = LandcoverService(logger=logger)
+        svc = LandcoverService(logger=logger, storage=LocalFS())
         for aoi in aois:
             svc.download(aoi, year, out_dir)
         echo(f"✅  Landcover rasters written under {out_dir}/")
