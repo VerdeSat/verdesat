@@ -42,14 +42,13 @@ def test_dataset_choice_esri(monkeypatch, dummy_aoi):
         "verdesat.services.landcover.ee.ImageCollection",
         lambda cid: DummyCollection(cid),
     )
-    dummy_geom = SimpleNamespace(bounds=lambda: "bbox")
+    dummy_geom = SimpleNamespace()
     monkeypatch.setattr(
         "verdesat.geo.aoi.AOI.ee_geometry",
         lambda self: dummy_geom,
     )
 
     mgr = MagicMock()
-    mgr.safe_get_info.return_value = {"coordinates": [[(0, 0), (0, 1), (1, 1), (1, 0)]]}
     svc = LandcoverService(ee_manager_instance=mgr)
     svc.get_image(dummy_aoi, 2019)
 
@@ -84,7 +83,7 @@ def test_dataset_fallback(monkeypatch, dummy_aoi):
         return DummyImg()
 
     monkeypatch.setattr("verdesat.services.landcover.ee.Image", fake_image)
-    dummy_geom = SimpleNamespace(bounds=lambda: "bbox")
+    dummy_geom = SimpleNamespace()
     monkeypatch.setattr("verdesat.geo.aoi.AOI.ee_geometry", lambda self: dummy_geom)
 
     svc = LandcoverService(ee_manager_instance=MagicMock())
@@ -97,6 +96,8 @@ def test_dataset_fallback(monkeypatch, dummy_aoi):
 
 
 def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
+    captured = {}
+
     class DummyImg:
         def remap(self, *a, **k):
             return self
@@ -110,7 +111,8 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
         def clip(self, *a, **k):
             return self
 
-        def getDownloadURL(self, _p):
+        def getDownloadURL(self, params):
+            captured["region"] = params.get("region")
             return "http://example.com/lc.tif"
 
     def fake_get_image(self, *_a, **_k):
@@ -121,7 +123,7 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
         "verdesat.services.landcover.LandcoverService.get_image",
         fake_get_image,
     )
-    dummy_geom = SimpleNamespace(bounds=lambda: "bbox")
+    dummy_geom = SimpleNamespace()
     monkeypatch.setattr("verdesat.geo.aoi.AOI.ee_geometry", lambda self: dummy_geom)
 
     class FakeResp:
@@ -155,14 +157,13 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
     )
 
     mgr = MagicMock()
-    mgr.safe_get_info.return_value = {"coordinates": [[(0, 0), (0, 1), (1, 1), (1, 0)]]}
     svc = LandcoverService(ee_manager_instance=mgr)
     svc.download(dummy_aoi, 2021, str(tmp_path))
 
     out = tmp_path / "LANDCOVER_1_2021.tiff"
     assert out.exists() and out.read_bytes() == b"DATA"
     assert mgr.initialize.called
-    assert mgr.safe_get_info.called
+    assert captured["region"] is dummy_geom
 
 
 def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
@@ -197,7 +198,7 @@ def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
     monkeypatch.setattr(
         "verdesat.services.landcover.LandcoverService.get_image", fake_get_image
     )
-    dummy_geom = SimpleNamespace(bounds=lambda: "bbox")
+    dummy_geom = SimpleNamespace()
     monkeypatch.setattr("verdesat.geo.aoi.AOI.ee_geometry", lambda self: dummy_geom)
 
     class FakeResp:
@@ -225,9 +226,6 @@ def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
     )
 
     mgr2 = MagicMock()
-    mgr2.safe_get_info.return_value = {
-        "coordinates": [[(0, 0), (0, 1), (1, 1), (1, 0)]]
-    }
     svc = LandcoverService(ee_manager_instance=mgr2)
     svc.download(dummy_aoi, LandcoverService.LATEST_ESRI_YEAR, str(tmp_path))
 

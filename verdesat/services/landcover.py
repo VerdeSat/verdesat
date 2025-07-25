@@ -143,16 +143,7 @@ class LandcoverService(BaseService):
         img = self.get_image(aoi, year)
         geom = aoi.ee_geometry()
 
-        region: ee.Geometry | list[float] = geom
-        try:
-            bbox_info = self.ee_manager.safe_get_info(geom.bounds()) or {}
-            coords = bbox_info.get("coordinates", [[]])[0]
-            if coords:
-                xs = [pt[0] for pt in coords]
-                ys = [pt[1] for pt in coords]
-                region = [min(xs), min(ys), max(xs), max(ys)]
-        except ee_exception.EEException as ee_err:  # pragma: no cover - safety
-            self.logger.warning("Could not compute bbox for AOI: %s", ee_err)
+        region: ee.Geometry = geom
 
         try:
             url = img.getDownloadURL(
