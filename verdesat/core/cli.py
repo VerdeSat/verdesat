@@ -352,14 +352,15 @@ def chips(
     help="Output directory",
 )
 def landcover(geojson, year, out_dir):
-    """Download 10 m land-cover raster for the first polygon in GEOJSON."""
+    """Download 10 m land-cover rasters for all polygons in GEOJSON."""
     try:
         aois = AOI.from_geojson(geojson, id_col="id")
         if not aois:
             raise ValueError("No AOIs found")
         svc = LandcoverService(logger=logger)
-        dest = svc.download(aois[0], year, out_dir)
-        echo(f"✅  Landcover saved to {dest}")
+        for aoi in aois:
+            svc.download(aoi, year, out_dir)
+        echo(f"✅  Landcover rasters written under {out_dir}/")
     # pylint: disable=broad-exception-caught
     except Exception as e:
         logger.error("Landcover command failed", exc_info=True)

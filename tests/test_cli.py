@@ -86,3 +86,28 @@ def test_landcover_cli(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert svc.download.called
     assert svc.download.call_args.args[2] == "dest"
+
+
+def test_landcover_cli_multiple_polygons(monkeypatch, tmp_path):
+    svc = MagicMock()
+    monkeypatch.setattr("verdesat.core.cli.LandcoverService", lambda logger=None: svc)
+
+    runner = CliRunner()
+    geojson = tmp_path / "aoi.geojson"
+    geojson.write_text(
+        '{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[0,1],[1,1],[1,0],[0,0]]]},"properties":{"id":1}},{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[1,1],[1,2],[2,2],[2,1],[1,1]]]},"properties":{"id":2}}]}'
+    )
+    result = runner.invoke(
+        cli,
+        [
+            "download",
+            "landcover",
+            str(geojson),
+            "--year",
+            "2021",
+            "--out-dir",
+            "dest",
+        ],
+    )
+    assert result.exit_code == 0
+    assert svc.download.call_count == 2
