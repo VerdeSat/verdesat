@@ -11,30 +11,42 @@ from verdesat.services.landcover import LandcoverService
 def test_dataset_choice_esri(monkeypatch, dummy_aoi):
     called = {}
 
-    class DummyImg:
+    class DummyCollection:
+        def __init__(self, cid):
+            called["cid"] = cid
+
+        def filterDate(self, start, end):
+            called["start"] = start
+            called["end"] = end
+            return self
+
+        def mosaic(self):
+            return self
+
         def remap(self, keys, vals):
             called["keys"] = keys
             called["vals"] = vals
             return self
 
-        def rename(self, *a, **k):
+        def rename(self, *_a, **_k):
             return self
 
-        def clip(self, *a, **k):
+        def clip(self, *_a, **_k):
             return self
 
-    def fake_image(img_id):
-        called["id"] = img_id
-        return DummyImg()
-
-    monkeypatch.setattr("verdesat.services.landcover.ee.Image", fake_image)
+    monkeypatch.setattr(
+        "verdesat.services.landcover.ee.ImageCollection",
+        lambda cid: DummyCollection(cid),
+    )
     monkeypatch.setattr("verdesat.geo.aoi.AOI.ee_geometry", lambda self: "geom")
 
     mgr = MagicMock()
     svc = LandcoverService(ee_manager_instance=mgr)
     svc.get_image(dummy_aoi, 2019)
 
-    assert LandcoverService.ESRI_COLLECTION in called["id"]
+    assert called["cid"] == LandcoverService.ESRI_COLLECTION
+    assert list(called["keys"]) == list(LandcoverService.ESRI_CLASS_MAP_6.keys())
+    assert list(called["vals"]) == list(LandcoverService.ESRI_CLASS_MAP_6.values())
     assert mgr.initialize.called
 
 
@@ -47,10 +59,10 @@ def test_dataset_fallback(monkeypatch, dummy_aoi):
             called["vals"] = vals
             return self
 
-        def rename(self, *a, **k):
+        def rename(self, *_a, **_k):
             return self
 
-        def clip(self, *a, **k):
+        def clip(self, *_a, **_k):
             return self
 
     def fake_image(img_id):
@@ -82,8 +94,13 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
         def getDownloadURL(self, _p):
             return "http://example.com/lc.tif"
 
+    def fake_get_image(self, *_a, **_k):
+        self.ee_manager.initialize()
+        return DummyImg()
+
     monkeypatch.setattr(
-        "verdesat.services.landcover.ee.Image", lambda *_a, **_k: DummyImg()
+        "verdesat.services.landcover.LandcoverService.get_image",
+        fake_get_image,
     )
     monkeypatch.setattr("verdesat.geo.aoi.AOI.ee_geometry", lambda self: "geom")
 

@@ -70,8 +70,8 @@ class LandcoverService(BaseService):
         """Return dataset identifier appropriate for *year*."""
 
         if 2017 <= year <= self.LATEST_ESRI_YEAR:
-            return f"{self.ESRI_COLLECTION}/{year}"
-        if year > self.LATEST_ESRI_YEAR:
+            return self.ESRI_COLLECTION
+        if year > self.LATEST_ESRI_YEAR or year < 2017:
             self.logger.warning(
                 "ESRI landcover for %s unavailable; falling back to WorldCover", year
             )
@@ -80,15 +80,20 @@ class LandcoverService(BaseService):
     def get_image(self, aoi: AOI, year: int) -> ee.Image:
         """Return the remapped land-cover image clipped to *aoi*."""
 
-        image_id = self._dataset_for_year(year)
-        self.logger.info("Loading landcover image %s", image_id)
+        dataset = self._dataset_for_year(year)
+        self.logger.info("Loading landcover image %s", dataset)
         self.ee_manager.initialize()
-        img = ee.Image(image_id)
-        class_map = (
-            self.ESRI_CLASS_MAP_6
-            if image_id.startswith(self.ESRI_COLLECTION)
-            else self.WORLD_COVER_CLASS_MAP_6
-        )
+
+        if dataset == self.ESRI_COLLECTION:
+            collection = ee.ImageCollection(dataset)
+            start = ee.Date.fromYMD(year, 1, 1)
+            end = ee.Date.fromYMD(year, 12, 31)
+            img = collection.filterDate(start, end).mosaic()
+            class_map = self.ESRI_CLASS_MAP_6
+        else:
+            img = ee.Image(dataset)
+            class_map = self.WORLD_COVER_CLASS_MAP_6
+
         remapped = img.remap(
             list(class_map.keys()),
             list(class_map.values()),
