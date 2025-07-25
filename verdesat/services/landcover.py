@@ -114,7 +114,8 @@ class LandcoverService(BaseService):
         try:
             with rasterio.open(path) as src:
                 profile = src.profile
-                data = src.read()
+                data = src.read(1)
+                mask = src.dataset_mask()
 
             profile.update(
                 driver="GTiff",
@@ -125,7 +126,8 @@ class LandcoverService(BaseService):
             )
 
             with rasterio.open(path, "w", **profile) as dst:
-                dst.write(data)
+                dst.write(data, 1)
+                dst.write_mask(mask)
                 dst.build_overviews([2, 4, 8, 16], Resampling.nearest)
                 dst.update_tags(OVR_RESAMPLING="NEAREST")
 

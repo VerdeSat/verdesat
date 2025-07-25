@@ -132,8 +132,10 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
     fake_rasterio = MagicMock()
     ctx = fake_rasterio.open.return_value.__enter__.return_value
     ctx.read.return_value = b""
+    ctx.dataset_mask.return_value = b""
     ctx.profile = {}
     ctx.write = MagicMock()
+    ctx.write_mask = MagicMock()
     ctx.build_overviews = MagicMock()
     ctx.update_tags = MagicMock()
     monkeypatch.setattr(
@@ -199,8 +201,12 @@ def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
         SimpleNamespace(get=lambda *_a, **_k: FakeResp()),
         raising=False,
     )
+    fake_rasterio = MagicMock()
+    ctx = fake_rasterio.open.return_value.__enter__.return_value
+    ctx.write_mask = MagicMock()
+    ctx.dataset_mask.return_value = b""
     monkeypatch.setattr(
-        "verdesat.services.landcover.rasterio", MagicMock(), raising=False
+        "verdesat.services.landcover.rasterio", fake_rasterio, raising=False
     )
     monkeypatch.setattr(
         "verdesat.services.landcover.Resampling",
