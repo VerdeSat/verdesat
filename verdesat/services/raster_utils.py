@@ -66,15 +66,17 @@ def convert_to_cog(
             tiled=True,
             blockxsize=512,
             blockysize=512,
+            count=arr.shape[0],
         )
 
         with rasterio.open(path, "w", **profile) as dst:
+            data = arr.filled(0)
+            dst.write(data)
             if geometry is not None:
-                dst.write(arr.data[0], 1)
-                mask = (~arr.mask[0]).astype("uint8") * 255
+                import numpy as np
+
+                mask = (~np.all(arr.mask, axis=0)).astype("uint8") * 255
                 dst.write_mask(mask)
-            else:
-                dst.write(arr)
             dst.build_overviews([2, 4, 8, 16], Resampling.nearest)
             dst.update_tags(OVR_RESAMPLING="NEAREST")
         logger.info("\u2714 Converted to COG: %s", path)
