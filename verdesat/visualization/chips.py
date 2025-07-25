@@ -7,12 +7,7 @@ import ee
 import requests
 from ee import EEException
 
-try:
-    import rasterio
-    from rasterio.enums import Resampling
-except ImportError:
-    rasterio = None
-    Resampling = None
+from verdesat.services.raster_utils import convert_to_cog
 
 from verdesat.analytics.engine import AnalyticsEngine
 from verdesat.geo.aoi import AOI
@@ -90,45 +85,6 @@ class ChipExporter:
             params["format"] = "GEOTIFF"
 
         return params
-
-    def _convert_to_cog(self, path: str) -> None:
-        """
-        Convert a just‐written GeoTIFF into a Cloud‐Optimized GeoTIFF (COG).
-        If conversion fails, issue a warning.
-        """
-        if not isinstance(self.storage, LocalFS):
-            self.logger.warning(
-                "COG conversion skipped for non-local storage: %s", path
-            )
-            return
-
-        if rasterio is None or Resampling is None:
-            self.logger.warning(
-                "rasterio not installed; skipping COG conversion for %s", path
-            )
-            return
-
-        try:
-            with rasterio.open(path) as src:
-                profile = src.profile
-                data = src.read()
-
-            profile.update(
-                driver="GTiff",
-                compress="deflate",
-                tiled=True,
-                blockxsize=512,
-                blockysize=512,
-            )
-
-            with rasterio.open(path, "w", **profile) as dst:
-                dst.write(data)
-                dst.build_overviews([2, 4, 8, 16], Resampling.nearest)
-                dst.update_tags(OVR_RESAMPLING="NEAREST")
-
-            self.logger.info("✔ Converted to COG: %s", path)
-        except rasterio.errors.RasterioError as cog_err:
-            self.logger.warning("⚠ COG conversion failed for %s: %s", path, cog_err)
 
     def export_one(
         self,
@@ -222,7 +178,12 @@ class ChipExporter:
             return None
 
         if ext != "png":
-            self._convert_to_cog(out_path)
+            convert_to_cog(
+                out_path,
+                storage=self.storage,
+                geometry=aoi.geometry,
+                logger=self.logger,
+            )
 
         return out_path
 

@@ -163,10 +163,10 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
         transform_geom=lambda *_a, **_k: {"geom": True}
     )
     monkeypatch.setattr(
-        "verdesat.services.landcover.rasterio", fake_rasterio, raising=False
+        "verdesat.services.raster_utils.rasterio", fake_rasterio, raising=False
     )
     monkeypatch.setattr(
-        "verdesat.services.landcover.Resampling",
+        "verdesat.services.raster_utils.Resampling",
         SimpleNamespace(nearest="nearest"),
         raising=False,
     )
@@ -264,10 +264,10 @@ def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
         transform_geom=lambda *_a, **_k: {"geom": True}
     )
     monkeypatch.setattr(
-        "verdesat.services.landcover.rasterio", fake_rasterio, raising=False
+        "verdesat.services.raster_utils.rasterio", fake_rasterio, raising=False
     )
     monkeypatch.setattr(
-        "verdesat.services.landcover.Resampling",
+        "verdesat.services.raster_utils.Resampling",
         SimpleNamespace(nearest="nearest"),
         raising=False,
     )
