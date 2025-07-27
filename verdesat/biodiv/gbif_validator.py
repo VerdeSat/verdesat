@@ -88,6 +88,7 @@ class OccurrenceService(BaseService):
         geom = _to_geometry(aoi_geojson)
         bbox = geom.bounds
         records: list[gpd.GeoDataFrame] = []
+        self.logger.info("Fetching occurrences since %s for bbox %s", start_year, bbox)
 
         gbif_gdf: gpd.GeoDataFrame
         if gbif_occ is not None:
@@ -108,11 +109,6 @@ class OccurrenceService(BaseService):
                 columns=["geometry", "source"], geometry="geometry", crs="EPSG:4326"
             )
             records.append(gbif_gdf)
-
-        if len(gbif_gdf) >= 250:
-            return gpd.GeoDataFrame(
-                pd.concat(records, ignore_index=True), crs="EPSG:4326"
-            )
 
         if get_nearby_observations is not None:
             token = os.getenv("EBIRD_TOKEN")
@@ -150,9 +146,14 @@ class OccurrenceService(BaseService):
                 self.logger.warning("iNaturalist request failed: %s", exc)
 
         if records:
-            return gpd.GeoDataFrame(
+            final = gpd.GeoDataFrame(
                 pd.concat(records, ignore_index=True), crs="EPSG:4326"
             )
+            counts = final["source"].value_counts().to_dict()
+            self.logger.info("Total records: %s", counts)
+            return final
+
+        self.logger.info("No occurrence records found")
         return gpd.GeoDataFrame(
             columns=["geometry", "source"], geometry="geometry", crs="EPSG:4326"
         )
