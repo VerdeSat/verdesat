@@ -89,29 +89,58 @@ class OccurrenceService(BaseService):
     def fetch_occurrences(
         self, aoi_geojson: dict | str | gpd.GeoDataFrame, start_year: int = 2000
     ) -> gpd.GeoDataFrame:
-        """Return occurrences for *aoi_geojson* since *start_year*."""
+        """Return occurrences for *aoi_geojson* since *start_year*.
+
+        Attempts a GBIF polygon search first and falls back to the
+        bounding box if GBIF rejects the geometry.
+        """
 
         geom = _to_geometry(aoi_geojson)
         bbox = geom.bounds
+        gbif_geom = geom
+        use_bbox = False
+        if len(geom.wkt) > 5000:
+            self.logger.info(
+                "AOI geometry too large for GBIF; using bounding box instead"
+            )
+            from shapely.geometry import box
+
+            gbif_geom = box(*bbox)
+            use_bbox = True
         records: list[gpd.GeoDataFrame] = []
         self.logger.info("Fetching occurrences since %s for bbox %s", start_year, bbox)
 
         gbif_gdf: gpd.GeoDataFrame
         gbif_count = 0
         if gbif_occ is not None:
+            year_param = f"{start_year},{datetime.date.today().year}"
             try:
-                year_param = f"{start_year},{datetime.date.today().year}"
-                res = gbif_occ.search(geometry=geom.wkt, year=year_param, limit=300)
-                gbif_gdf = _records_to_gdf(res.get("results", []), "gbif")
-                gbif_count = len(gbif_gdf)
-                records.append(gbif_gdf)
-                self.logger.info("Fetched %d GBIF records", gbif_count)
-            except Exception as exc:  # pragma: no cover - optional broad catch
-                self.logger.warning("GBIF search failed: %s", exc)
-                gbif_gdf = gpd.GeoDataFrame(
-                    columns=["geometry", "source"], geometry="geometry", crs="EPSG:4326"
+                res = gbif_occ.search(
+                    geometry=gbif_geom.wkt, year=year_param, limit=300
                 )
-                records.append(gbif_gdf)
+            except Exception as exc:  # pragma: no cover - optional broad catch
+                if not use_bbox:
+                    self.logger.warning(
+                        "GBIF search failed: %s; retrying with bounding box", exc
+                    )
+                    from shapely.geometry import box
+
+                    gbif_geom = box(*bbox)
+                    use_bbox = True
+                    try:
+                        res = gbif_occ.search(
+                            geometry=gbif_geom.wkt, year=year_param, limit=300
+                        )
+                    except Exception as exc2:  # pragma: no cover - optional broad catch
+                        self.logger.warning("GBIF retry failed: %s", exc2)
+                        res = {"results": []}
+                else:
+                    self.logger.warning("GBIF search failed: %s", exc)
+                    res = {"results": []}
+            gbif_gdf = _records_to_gdf(res.get("results", []), "gbif")
+            gbif_count = len(gbif_gdf)
+            records.append(gbif_gdf)
+            self.logger.info("Fetched %d GBIF records", gbif_count)
         else:  # pragma: no cover - optional path
             self.logger.info("pygbif not available; skipping GBIF search")
             gbif_gdf = gpd.GeoDataFrame(
