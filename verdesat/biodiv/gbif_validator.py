@@ -33,19 +33,29 @@ logger = logging.getLogger(__name__)
 
 
 def _to_geometry(aoi_geojson: dict | str | gpd.GeoDataFrame) -> BaseGeometry:
-    """Extract shapely geometry from GeoJSON string/dict or GeoDataFrame."""
+    """Return WGS84 geometry from various AOI representations."""
+
     if isinstance(aoi_geojson, gpd.GeoDataFrame):
-        return aoi_geojson.unary_union
-    if isinstance(aoi_geojson, str):
+        gdf = aoi_geojson
+    elif isinstance(aoi_geojson, str):
         gdf = gpd.read_file(aoi_geojson)
-        return gdf.unary_union
-    if isinstance(aoi_geojson, dict):
+    elif isinstance(aoi_geojson, dict):
         if "features" in aoi_geojson:
             geoms = [shape(f["geometry"]) for f in aoi_geojson["features"]]
-            return gpd.GeoSeries(geoms).unary_union
-        if "geometry" in aoi_geojson:
-            return shape(aoi_geojson["geometry"])
-    raise TypeError("Unsupported input type for AOI")
+            gdf = gpd.GeoDataFrame({"geometry": geoms}, crs="EPSG:4326")
+        elif "geometry" in aoi_geojson:
+            gdf = gpd.GeoDataFrame(
+                {"geometry": [shape(aoi_geojson["geometry"])]}, crs="EPSG:4326"
+            )
+        else:
+            raise TypeError("Unsupported input type for AOI")
+    else:
+        raise TypeError("Unsupported input type for AOI")
+
+    if gdf.crs and gdf.crs.to_epsg() != 4326:
+        gdf = gdf.to_crs(epsg=4326)
+
+    return gdf.unary_union
 
 
 def _records_to_gdf(records: Iterable[dict], source: str) -> gpd.GeoDataFrame:

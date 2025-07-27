@@ -2,6 +2,7 @@ import os
 from types import SimpleNamespace
 import geopandas as gpd
 from shapely.geometry import Polygon
+from shapely import wkt
 
 import pytest
 
@@ -86,6 +87,28 @@ def test_fetch_occurrences_with_fallbacks(monkeypatch):
     gdf = svc.fetch_occurrences(dummy_geojson())
     assert len(gdf) == 18
     assert set(gdf["source"]) == {"gbif", "ebird", "inat"}
+
+
+def test_fetch_occurrences_crs_conversion(monkeypatch):
+    captured = {}
+
+    def fake_gbif(geometry, **_k):
+        captured["geom"] = geometry
+        return {"results": _fake_records(1)}
+
+    monkeypatch.setattr(
+        "verdesat.biodiv.gbif_validator.gbif_occ",
+        SimpleNamespace(search=fake_gbif),
+    )
+
+    svc = OccurrenceService()
+    gdf = gpd.GeoDataFrame(
+        {"geometry": [Polygon([(0, 0), (0, 1000), (1000, 1000), (1000, 0)])]},
+        crs="EPSG:3857",
+    )
+    svc.fetch_occurrences(gdf)
+    poly = wkt.loads(captured["geom"])
+    assert poly.bounds[2] <= 180 and poly.bounds[3] <= 90
 
 
 def test_occurrence_density():
