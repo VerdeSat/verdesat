@@ -29,6 +29,7 @@ except Exception:  # pragma: no cover - optional
 
 
 from verdesat.services.base import BaseService
+from verdesat.core.logger import Logger
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,10 @@ def _records_to_gdf(records: Iterable[dict], source: str) -> gpd.GeoDataFrame:
 
 class OccurrenceService(BaseService):
     """Fetch species occurrences from citizen-science portals."""
+
+    def __init__(self, logger: logging.Logger | None = None) -> None:
+        """Create service with module-aware logger by default."""
+        super().__init__(logger or Logger.get_logger(__name__))
 
     def fetch_occurrences(
         self, aoi_geojson: dict | str | gpd.GeoDataFrame, start_year: int = 2000
