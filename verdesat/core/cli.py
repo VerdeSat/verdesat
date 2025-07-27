@@ -10,6 +10,7 @@ from pathlib import Path
 from datetime import datetime
 
 import pandas as pd
+import geopandas as gpd
 import click  # type: ignore
 from click import echo
 from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
@@ -32,6 +33,7 @@ from verdesat.visualization.visualizer import Visualizer
 from verdesat.core.pipeline import ReportPipeline
 from verdesat.biodiv.bscore import BScoreCalculator, WeightsConfig
 from verdesat.biodiv.metrics import MetricsResult, FragmentStats
+from verdesat.biodiv.gbif_validator import OccurrenceService
 from verdesat.services import compute_bscores as svc_compute_bscores
 
 logger = Logger.get_logger(__name__)
@@ -612,6 +614,47 @@ def bscore_from_geojson(geojson, year, weights, output):
         echo(df.to_csv(index=False))
     else:
         echo(f"✅  Results saved to {output}")
+
+
+@cli.group()
+def validate():
+    """Occurrence validation utilities."""
+    pass
+
+
+@validate.command(name="occurrence-density")
+@click.argument("geojson", type=click.Path(exists=True))
+@click.option(
+    "--start-year", "-s", default=2000, type=int, help="Start year for records"
+)
+@click.option(
+    "--output",
+    "-o",
+    default="occurrence_density.csv",
+    type=click.Path(),
+    help="CSV output path",
+)
+def validate_occurrence_density(geojson, start_year, output):
+    """Compute occurrence density for AOIs in GEOJSON."""
+    svc = OccurrenceService(logger=logger)
+    aois = AOI.from_geojson(geojson, id_col="id")
+
+    rows = []
+    for aoi in aois:
+        aoi_gdf = gpd.GeoDataFrame({"geometry": [aoi.geometry]}, crs="EPSG:4326")
+        occ = svc.fetch_occurrences(aoi_gdf, start_year=start_year)
+        area_km2 = (
+            gpd.GeoSeries([aoi.geometry], crs="EPSG:4326")
+            .to_crs(epsg=6933)
+            .area.iloc[0]
+            / 1e6
+        )
+        dens = svc.occurrence_density_km2(occ, area_km2)
+        rows.append({"id": aoi.static_props.get("id"), "density": dens})
+
+    df = pd.DataFrame.from_records(rows)
+    df.to_csv(output, index=False)
+    echo(f"✅  Occurrence densities saved to {output}")
 
 
 @cli.group()
