@@ -154,7 +154,9 @@ def test_bscore_cli(tmp_path):
 def test_bscore_geojson_cli(monkeypatch, tmp_path):
     called = {}
 
-    def fake_compute_bscores(geojson, year, weights, output=None, logger=None, storage=None):
+    def fake_compute_bscores(
+        geojson, year, weights, output=None, logger=None, storage=None
+    ):
         called["geojson"] = geojson
         called["year"] = year
         return pd.DataFrame({"id": [1], "bscore": [42.0]})
@@ -203,10 +205,16 @@ def test_validate_occurrence_density_cli(monkeypatch, tmp_path, dummy_aoi):
             svc["density"] = True
             return 0.5
 
-    monkeypatch.setattr("verdesat.core.cli.OccurrenceService", lambda logger=None: DummyService())
-    monkeypatch.setattr("verdesat.core.cli.AOI.from_geojson", lambda p, id_col: [dummy_aoi])
     monkeypatch.setattr(
-        pd.DataFrame, "to_csv", lambda self, path, index=False: Path(path).write_text("x")
+        "verdesat.core.cli.OccurrenceService", lambda logger=None: DummyService()
+    )
+    monkeypatch.setattr(
+        "verdesat.core.cli.AOI.from_geojson", lambda p, id_col: [dummy_aoi]
+    )
+    monkeypatch.setattr(
+        pd.DataFrame,
+        "to_csv",
+        lambda self, path, index=False: Path(path).write_text("x"),
     )
 
     runner = CliRunner()

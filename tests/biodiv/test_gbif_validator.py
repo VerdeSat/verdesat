@@ -46,8 +46,12 @@ def test_fetch_occurrences_gbif_only(monkeypatch):
         "verdesat.biodiv.gbif_validator.gbif_occ",
         SimpleNamespace(search=fake_gbif),
     )
-    monkeypatch.setattr("verdesat.biodiv.gbif_validator.get_nearby_observations", fail_ebird)
-    monkeypatch.setattr("verdesat.biodiv.gbif_validator.inat_get_observations", fail_inat)
+    monkeypatch.setattr(
+        "verdesat.biodiv.gbif_validator.get_nearby_observations", fail_ebird
+    )
+    monkeypatch.setattr(
+        "verdesat.biodiv.gbif_validator.inat_get_observations", fail_inat
+    )
 
     svc = OccurrenceService()
     gdf = svc.fetch_occurrences(dummy_geojson())
@@ -70,8 +74,12 @@ def test_fetch_occurrences_with_fallbacks(monkeypatch):
         "verdesat.biodiv.gbif_validator.gbif_occ",
         SimpleNamespace(search=fake_gbif),
     )
-    monkeypatch.setattr("verdesat.biodiv.gbif_validator.get_nearby_observations", fake_ebird)
-    monkeypatch.setattr("verdesat.biodiv.gbif_validator.inat_get_observations", fake_inat)
+    monkeypatch.setattr(
+        "verdesat.biodiv.gbif_validator.get_nearby_observations", fake_ebird
+    )
+    monkeypatch.setattr(
+        "verdesat.biodiv.gbif_validator.inat_get_observations", fake_inat
+    )
     os.environ["EBIRD_TOKEN"] = "x"
 
     svc = OccurrenceService()

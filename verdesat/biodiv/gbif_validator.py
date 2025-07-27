@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Iterable
 import os
 import logging
+import datetime
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import shape, Point
@@ -52,7 +53,7 @@ def _records_to_gdf(records: Iterable[dict], source: str) -> gpd.GeoDataFrame:
     for rec in records:
         lon = rec.get("decimalLongitude") or rec.get("lng")
         lat = rec.get("decimalLatitude") or rec.get("lat")
-        if not lat or not lon:
+        if lat is None or lon is None:
             coords = rec.get("geojson", {}).get("coordinates")
             if coords:
                 lon, lat = coords
@@ -61,7 +62,9 @@ def _records_to_gdf(records: Iterable[dict], source: str) -> gpd.GeoDataFrame:
         rows.append({"geometry": Point(float(lon), float(lat)), "source": source})
     if rows:
         return gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
-    return gpd.GeoDataFrame(columns=["geometry", "source"], geometry="geometry", crs="EPSG:4326")
+    return gpd.GeoDataFrame(
+        columns=["geometry", "source"], geometry="geometry", crs="EPSG:4326"
+    )
 
 
 class OccurrenceService(BaseService):
@@ -79,10 +82,11 @@ class OccurrenceService(BaseService):
         gbif_gdf: gpd.GeoDataFrame
         if gbif_occ is not None:
             try:
-                year_param = f"{start_year},"
+                year_param = f"{start_year},{datetime.date.today().year}"
                 res = gbif_occ.search(geometry=geom.wkt, year=year_param, limit=300)
                 gbif_gdf = _records_to_gdf(res.get("results", []), "gbif")
                 records.append(gbif_gdf)
+                self.logger.info("Fetched %d GBIF records", len(gbif_gdf))
             except Exception as exc:  # pragma: no cover - optional broad catch
                 self.logger.warning("GBIF search failed: %s", exc)
                 gbif_gdf = gpd.GeoDataFrame(
@@ -96,7 +100,9 @@ class OccurrenceService(BaseService):
             records.append(gbif_gdf)
 
         if len(gbif_gdf) >= 250:
-            return gpd.GeoDataFrame(pd.concat(records, ignore_index=True), crs="EPSG:4326")
+            return gpd.GeoDataFrame(
+                pd.concat(records, ignore_index=True), crs="EPSG:4326"
+            )
 
         if get_nearby_observations is not None:
             token = os.getenv("EBIRD_TOKEN")
@@ -111,7 +117,9 @@ class OccurrenceService(BaseService):
                         back=30,
                         max_results=10000,
                     )
-                    records.append(_records_to_gdf(ebird_res or [], "ebird"))
+                    ebird_gdf = _records_to_gdf(ebird_res or [], "ebird")
+                    self.logger.info("Fetched %d eBird records", len(ebird_gdf))
+                    records.append(ebird_gdf)
                 except Exception as exc:  # pragma: no cover - optional broad catch
                     self.logger.warning("eBird request failed: %s", exc)
 
@@ -125,12 +133,16 @@ class OccurrenceService(BaseService):
                     d1=f"{start_year}-01-01",
                 )
                 items = inat_res.get("results", inat_res)
-                records.append(_records_to_gdf(items, "inat"))
+                inat_gdf = _records_to_gdf(items, "inat")
+                self.logger.info("Fetched %d iNaturalist records", len(inat_gdf))
+                records.append(inat_gdf)
             except Exception as exc:  # pragma: no cover - optional broad catch
                 self.logger.warning("iNaturalist request failed: %s", exc)
 
         if records:
-            return gpd.GeoDataFrame(pd.concat(records, ignore_index=True), crs="EPSG:4326")
+            return gpd.GeoDataFrame(
+                pd.concat(records, ignore_index=True), crs="EPSG:4326"
+            )
         return gpd.GeoDataFrame(
             columns=["geometry", "source"], geometry="geometry", crs="EPSG:4326"
         )
@@ -143,7 +155,9 @@ class OccurrenceService(BaseService):
         return float(len(gdf) / aoi_area_km2)
 
 
-def plot_score_vs_density(scores: list[float], densities: list[float], out_png: str) -> None:
+def plot_score_vs_density(
+    scores: list[float], densities: list[float], out_png: str
+) -> None:
     """Plot score versus occurrence density and save to *out_png*."""
     import matplotlib.pyplot as plt  # imported lazily
 
