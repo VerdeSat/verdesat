@@ -94,8 +94,8 @@ class MetricEngine(BaseService):
         """Compute edge density and normalised value for *biome_id*."""
         arr = result.array
         edges = 0
-        edges += np.count_nonzero(arr[:, 1:] != arr[:, :-1])
-        edges += np.count_nonzero(arr[1:, :] != arr[:-1, :])
+        edges += int(np.count_nonzero(arr[:, 1:] != arr[:, :-1]))
+        edges += int(np.count_nonzero(arr[1:, :] != arr[:-1, :]))
         edge_density = edges / arr.size
         rng = self.edge_ranges.get(str(biome_id), {"min": 0.0, "max": 1.0})
         min_val = float(rng.get("min", 0.0))
@@ -107,11 +107,20 @@ class MetricEngine(BaseService):
         norm = float(np.clip(norm, 0.0, 1.0))
         return FragmentStats(edge_density=float(edge_density), normalised_density=norm)
 
-    def run_all(self, aoi, year: int) -> MetricsResult:
-        """Download landcover for *aoi* and compute all metrics."""
-        with TemporaryDirectory() as tmpdir:
-            path = self.lc_service.download(aoi, year, tmpdir)
-            lc = self._read_raster(path)
+    def run_all(
+        self, aoi, year: int, *, landcover_path: str | None = None
+    ) -> MetricsResult:
+        """Compute all metrics for *aoi* in *year*.
+
+        If *landcover_path* is not provided the land‑cover raster is
+        downloaded via :class:`LandcoverService`.
+        """
+        if landcover_path is None:
+            with TemporaryDirectory() as tmpdir:
+                path = self.lc_service.download(aoi, year, tmpdir)
+                lc = self._read_raster(path)
+        else:
+            lc = self._read_raster(landcover_path)
         intact = self.calc_intactness(lc)
         shannon = self.calc_shannon(lc)
         biome_id = int(aoi.static_props.get("biome_id", 0))

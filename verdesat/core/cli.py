@@ -5,6 +5,8 @@ and basic workflows. Dynamically loads available indices from the registry.
 
 import os
 import sys
+import json
+from pathlib import Path
 from datetime import datetime
 
 import pandas as pd
@@ -28,6 +30,9 @@ from verdesat.visualization._chips_config import ChipsConfig
 from verdesat.visualization.chips import ChipService
 from verdesat.visualization.visualizer import Visualizer
 from verdesat.core.pipeline import ReportPipeline
+from verdesat.biodiv.bscore import BScoreCalculator, WeightsConfig
+from verdesat.biodiv.metrics import MetricsResult, FragmentStats
+from verdesat.services import compute_bscores as svc_compute_bscores
 
 logger = Logger.get_logger(__name__)
 viz = Visualizer()
@@ -539,6 +544,74 @@ def trend(input_csv, index_col, output):
     echo(f"Saving trend data to {output}...")
     trend_res.to_csv(output)
     echo(f"✅  Trend data saved to {output}")
+
+
+@cli.group()
+def bscore():
+    """Biodiversity score utilities."""
+    pass
+
+
+@bscore.command(name="compute")
+@click.argument("metrics_json", type=click.Path(exists=True))
+@click.option(
+    "--weights",
+    "-w",
+    type=click.Path(exists=True),
+    default=str(
+        Path(__file__).resolve().parent.parent / "config" / "bscore_weights.yaml"
+    ),
+    help="Path to weights YAML",
+)
+def compute_bscore(metrics_json, weights):
+    """Compute biodiversity score from a metrics JSON file."""
+    with open(metrics_json, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    metrics = MetricsResult(
+        intactness=float(data["intactness"]),
+        shannon=float(data["shannon"]),
+        fragmentation=FragmentStats(
+            edge_density=float(data["fragmentation"]["edge_density"]),
+            normalised_density=float(data["fragmentation"]["normalised_density"]),
+        ),
+    )
+    calc = BScoreCalculator(WeightsConfig.from_yaml(weights))
+    score = calc.score(metrics)
+    echo(f"{score:.2f}")
+
+
+@bscore.command(name="from-geojson")
+@click.argument("geojson", type=click.Path(exists=True))
+@click.option("--year", "-y", required=True, type=int, help="Landcover year")
+@click.option(
+    "--weights",
+    "-w",
+    type=click.Path(exists=True),
+    default=str(
+        Path(__file__).resolve().parent.parent / "config" / "bscore_weights.yaml"
+    ),
+    help="Path to weights YAML",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default=None,
+    help="Optional CSV output path",
+)
+def bscore_from_geojson(geojson, year, weights, output):
+    """Compute B-Score for polygons in GEOJSON."""
+    df = svc_compute_bscores(
+        geojson,
+        year=year,
+        weights=WeightsConfig.from_yaml(weights),
+        output=output,
+        logger=logger,
+    )
+    if output is None:
+        echo(df.to_csv(index=False))
+    else:
+        echo(f"✅  Results saved to {output}")
 
 
 @cli.group()
