@@ -72,6 +72,9 @@ verdesat/
 Other top‑level directories include `tests/`, `docs/` and the standard
 `Dockerfile` and `pyproject.toml`.
 
+See `docs/development_principles.md` for coding guidelines and
+`docs/roadmap.md` for open tasks.
+
 ## Dependencies
 Core packages include `earthengine-api`, `geopandas`, `pandas` and
 `matplotlib`.  Development dependencies are pinned in

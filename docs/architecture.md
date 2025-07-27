@@ -229,13 +229,10 @@ class Visualizer:
 
 ---
 
-## 7. Roadmap for Next Steps
+## 7. Open Roadmap
 
-1. Implement core classes as stubs, then fill in methods during refactor.
-2. Move critical logic from scripts into class methods.
-3. Parameterize all “critical” hardcoded logic from the audit.
-4. Write initial unit tests for each class and method.
-5. Document all public interfaces.
+The initial refactor has aligned the code with this architecture.
+Current backlog items are listed in `roadmap.md`.
 
 ---
 
