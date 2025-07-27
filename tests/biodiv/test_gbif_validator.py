@@ -58,7 +58,8 @@ def test_fetch_occurrences_gbif_only(monkeypatch):
     gdf = svc.fetch_occurrences(dummy_geojson())
     assert len(gdf) == 300
     assert gdf["source"].unique().tolist() == ["gbif"]
-    assert calls == {"ebird": 0, "inat": 1}
+    # Fallbacks shouldn't run when GBIF returns ample records
+    assert calls == {"ebird": 0, "inat": 0}
 
 
 def test_fetch_occurrences_with_fallbacks(monkeypatch):

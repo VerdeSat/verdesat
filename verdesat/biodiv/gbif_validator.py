@@ -91,13 +91,15 @@ class OccurrenceService(BaseService):
         self.logger.info("Fetching occurrences since %s for bbox %s", start_year, bbox)
 
         gbif_gdf: gpd.GeoDataFrame
+        gbif_count = 0
         if gbif_occ is not None:
             try:
                 year_param = f"{start_year},{datetime.date.today().year}"
                 res = gbif_occ.search(geometry=geom.wkt, year=year_param, limit=300)
                 gbif_gdf = _records_to_gdf(res.get("results", []), "gbif")
+                gbif_count = len(gbif_gdf)
                 records.append(gbif_gdf)
-                self.logger.info("Fetched %d GBIF records", len(gbif_gdf))
+                self.logger.info("Fetched %d GBIF records", gbif_count)
             except Exception as exc:  # pragma: no cover - optional broad catch
                 self.logger.warning("GBIF search failed: %s", exc)
                 gbif_gdf = gpd.GeoDataFrame(
@@ -110,7 +112,7 @@ class OccurrenceService(BaseService):
             )
             records.append(gbif_gdf)
 
-        if get_nearby_observations is not None:
+        if gbif_count < 250 and get_nearby_observations is not None:
             token = os.getenv("EBIRD_TOKEN")
             if token:
                 try:
@@ -129,7 +131,7 @@ class OccurrenceService(BaseService):
                 except Exception as exc:  # pragma: no cover - optional broad catch
                     self.logger.warning("eBird request failed: %s", exc)
 
-        if inat_get_observations is not None:
+        if gbif_count < 250 and inat_get_observations is not None:
             try:
                 inat_res = inat_get_observations(
                     nelat=bbox[3],
