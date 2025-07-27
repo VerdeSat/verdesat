@@ -10,6 +10,7 @@ from pathlib import Path
 from datetime import datetime
 
 import pandas as pd
+import geopandas as gpd
 import click  # type: ignore
 from click import echo
 from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
@@ -32,6 +33,7 @@ from verdesat.visualization.visualizer import Visualizer
 from verdesat.core.pipeline import ReportPipeline
 from verdesat.biodiv.bscore import BScoreCalculator, WeightsConfig
 from verdesat.biodiv.metrics import MetricsResult, FragmentStats
+from verdesat.biodiv.gbif_validator import OccurrenceService
 from verdesat.services import compute_bscores as svc_compute_bscores
 
 logger = Logger.get_logger(__name__)
@@ -51,9 +53,7 @@ def prepare(input_dir):
     try:
         vp = VectorPreprocessor(input_dir, logger=logger)
         gdf = vp.run()
-        output_path = os.path.join(
-            input_dir, f"{os.path.basename(input_dir)}_processed.geojson"
-        )
+        output_path = os.path.join(input_dir, f"{os.path.basename(input_dir)}_processed.geojson")
         gdf.to_file(output_path, driver="GeoJSON")
         echo(f"✅  GeoJSON written to `{output_path}`")
     # pylint: disable=broad-exception-caught
@@ -430,9 +430,7 @@ def preprocess():
     default=ConfigManager.VALUE_COL_TEMPLATE.format(index=ConfigManager.DEFAULT_INDEX),
     help="Column to fill gaps in (e.g. mean_ndvi)",
 )
-@click.option(
-    "--method", "-m", default="time", help="Interpolation method (time, linear, etc.)"
-)
+@click.option("--method", "-m", default="time", help="Interpolation method (time, linear, etc.)")
 @click.option(
     "--output",
     "-o",
@@ -469,9 +467,7 @@ def fill_gaps_cmd(input_csv, value_col, method, output):
     default="additive",
     help="Decomposition model",
 )
-@click.option(
-    "--period", "-p", type=int, default=12, help="Seasonal period (e.g. 12 for monthly)"
-)
+@click.option("--period", "-p", type=int, default=12, help="Seasonal period (e.g. 12 for monthly)")
 @click.option(
     "--output-dir",
     "-o",
@@ -558,9 +554,7 @@ def bscore():
     "--weights",
     "-w",
     type=click.Path(exists=True),
-    default=str(
-        Path(__file__).resolve().parent.parent / "config" / "bscore_weights.yaml"
-    ),
+    default=str(Path(__file__).resolve().parent.parent / "config" / "bscore_weights.yaml"),
     help="Path to weights YAML",
 )
 def compute_bscore(metrics_json, weights):
@@ -587,9 +581,7 @@ def compute_bscore(metrics_json, weights):
     "--weights",
     "-w",
     type=click.Path(exists=True),
-    default=str(
-        Path(__file__).resolve().parent.parent / "config" / "bscore_weights.yaml"
-    ),
+    default=str(Path(__file__).resolve().parent.parent / "config" / "bscore_weights.yaml"),
     help="Path to weights YAML",
 )
 @click.option(
@@ -612,6 +604,38 @@ def bscore_from_geojson(geojson, year, weights, output):
         echo(df.to_csv(index=False))
     else:
         echo(f"✅  Results saved to {output}")
+
+
+@cli.group()
+def validate():
+    """Occurrence validation utilities."""
+    pass
+
+
+@validate.command(name="occurrence-density")
+@click.argument("geojson", type=click.Path(exists=True))
+@click.option("--start-year", "-s", default=2000, type=int, help="Start year for records")
+@click.option(
+    "--output", "-o", default="occurrence_density.csv", type=click.Path(), help="CSV output path"
+)
+def validate_occurrence_density(geojson, start_year, output):
+    """Compute occurrence density for AOIs in GEOJSON."""
+    svc = OccurrenceService(logger=logger)
+    aois = AOI.from_geojson(geojson, id_col="id")
+
+    rows = []
+    for aoi in aois:
+        aoi_gdf = gpd.GeoDataFrame({"geometry": [aoi.geometry]}, crs="EPSG:4326")
+        occ = svc.fetch_occurrences(aoi_gdf, start_year=start_year)
+        area_km2 = (
+            gpd.GeoSeries([aoi.geometry], crs="EPSG:4326").to_crs(epsg=6933).area.iloc[0] / 1e6
+        )
+        dens = svc.occurrence_density_km2(occ, area_km2)
+        rows.append({"id": aoi.static_props.get("id"), "density": dens})
+
+    df = pd.DataFrame.from_records(rows)
+    df.to_csv(output, index=False)
+    echo(f"✅  Occurrence densities saved to {output}")
 
 
 @cli.group()
@@ -859,15 +883,11 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title):
 
     aois = AOI.from_geojson(geojson, id_col="id")
     sensor = SensorSpec.from_collection_id("NASA/HLS/HLSL30/v002")
-    ingestor = create_ingestor(
-        "ee", sensor, ee_manager_instance=ee_manager, logger=logger
-    )
+    ingestor = create_ingestor("ee", sensor, ee_manager_instance=ee_manager, logger=logger)
     viz = Visualizer()
 
     pipeline = ReportPipeline(aois=aois, ingestor=ingestor, visualizer=viz)
-    report_path = pipeline.run(
-        start=start, end=end, out_dir=out_dir, map_png=map_png, title=title
-    )
+    report_path = pipeline.run(start=start, end=end, out_dir=out_dir, map_png=map_png, title=title)
     click.echo(f"\n✅  All done! Your full report is here: {report_path}")
 
 

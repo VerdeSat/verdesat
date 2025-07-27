@@ -1,5 +1,7 @@
 import json
+from pathlib import Path
 import pandas as pd
+import geopandas as gpd
 from click.testing import CliRunner
 from unittest.mock import MagicMock
 
@@ -152,9 +154,7 @@ def test_bscore_cli(tmp_path):
 def test_bscore_geojson_cli(monkeypatch, tmp_path):
     called = {}
 
-    def fake_compute_bscores(
-        geojson, year, weights, output=None, logger=None, storage=None
-    ):
+    def fake_compute_bscores(geojson, year, weights, output=None, logger=None, storage=None):
         called["geojson"] = geojson
         called["year"] = year
         return pd.DataFrame({"id": [1], "bscore": [42.0]})
@@ -184,3 +184,40 @@ def test_bscore_geojson_cli(monkeypatch, tmp_path):
 
     assert result.exit_code == 0
     assert called["year"] == 2021
+
+
+def test_validate_occurrence_density_cli(monkeypatch, tmp_path, dummy_aoi):
+    svc = {}
+
+    class DummyService:
+        def __init__(self, logger=None):
+            pass
+
+        def fetch_occurrences(self, *_a, **_k):
+            svc.setdefault("fetch", 0)
+            svc["fetch"] += 1
+            return gpd.GeoDataFrame({"geometry": [dummy_aoi.geometry]}, crs="EPSG:4326")
+
+        @staticmethod
+        def occurrence_density_km2(_gdf, _area):
+            svc["density"] = True
+            return 0.5
+
+    monkeypatch.setattr("verdesat.core.cli.OccurrenceService", lambda logger=None: DummyService())
+    monkeypatch.setattr("verdesat.core.cli.AOI.from_geojson", lambda p, id_col: [dummy_aoi])
+    monkeypatch.setattr(
+        pd.DataFrame, "to_csv", lambda self, path, index=False: Path(path).write_text("x")
+    )
+
+    runner = CliRunner()
+    geojson = tmp_path / "aoi.geojson"
+    geojson.write_text("{}")
+    out = tmp_path / "dens.csv"
+    result = runner.invoke(
+        cli,
+        ["validate", "occurrence-density", str(geojson), "--output", str(out)],
+    )
+    assert result.exit_code == 0
+    assert svc["fetch"] == 1
+    assert svc.get("density")
+    assert out.exists()
