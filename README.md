@@ -48,6 +48,8 @@ in a configuration file loaded by `ConfigManager`.
 - `visualize animate` – build GIF animations from chip folders.
 - `gallery` – generate a simple HTML gallery of images.
 - `report` – assemble a one‑page HTML summary from all outputs.
+- `validate occurrence-density` – compute citizen-science record density for AOIs.
+  Example: `verdesat validate occurrence-density aoi.geojson -s 2015 -o dens.csv`.
 - `pipeline report` – run the whole NDVI → report workflow in one go.
 
 Run `verdesat --help` for the full set of options.
