@@ -10,6 +10,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import shape, Point
 from shapely.geometry.base import BaseGeometry
+from shapely.ops import unary_union
 
 try:
     from pygbif import occurrences as gbif_occ
@@ -55,7 +56,7 @@ def _to_geometry(aoi_geojson: dict | str | gpd.GeoDataFrame) -> BaseGeometry:
     if gdf.crs and gdf.crs.to_epsg() != 4326:
         gdf = gdf.to_crs(epsg=4326)
 
-    return gdf.unary_union
+    return unary_union(gdf.geometry)
 
 
 def _records_to_gdf(records: Iterable[dict], source: str) -> gpd.GeoDataFrame:
@@ -107,6 +108,7 @@ class OccurrenceService(BaseService):
                 )
                 records.append(gbif_gdf)
         else:  # pragma: no cover - optional path
+            self.logger.info("pygbif not available; skipping GBIF search")
             gbif_gdf = gpd.GeoDataFrame(
                 columns=["geometry", "source"], geometry="geometry", crs="EPSG:4326"
             )
@@ -117,6 +119,9 @@ class OccurrenceService(BaseService):
             if token:
                 try:
                     center = geom.centroid
+                    self.logger.info(
+                        "Querying eBird around (%f, %f)", center.y, center.x
+                    )
                     ebird_res = get_nearby_observations(
                         token,
                         center.y,
@@ -130,9 +135,13 @@ class OccurrenceService(BaseService):
                     records.append(ebird_gdf)
                 except Exception as exc:  # pragma: no cover - optional broad catch
                     self.logger.warning("eBird request failed: %s", exc)
-
+            else:
+                self.logger.info("EBIRD_TOKEN not set; skipping eBird fallback")
+        elif gbif_count < 250:
+            self.logger.info("ebird.api not available; skipping eBird fallback")
         if gbif_count < 250 and inat_get_observations is not None:
             try:
+                self.logger.info("Querying iNaturalist within bbox %s", bbox)
                 inat_res = inat_get_observations(
                     nelat=bbox[3],
                     nelng=bbox[2],
@@ -146,6 +155,10 @@ class OccurrenceService(BaseService):
                 records.append(inat_gdf)
             except Exception as exc:  # pragma: no cover - optional broad catch
                 self.logger.warning("iNaturalist request failed: %s", exc)
+        elif gbif_count < 250:
+            self.logger.info(
+                "pyinaturalist not available; skipping iNaturalist fallback"
+            )
 
         if records:
             final = gpd.GeoDataFrame(
