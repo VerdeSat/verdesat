@@ -93,6 +93,14 @@ class OccurrenceService(BaseService):
 
         geom = _to_geometry(aoi_geojson)
         bbox = geom.bounds
+        gbif_geom = geom
+        if len(geom.wkt) > 5000:
+            self.logger.info(
+                "AOI geometry too large for GBIF; using bounding box instead"
+            )
+            from shapely.geometry import box
+
+            gbif_geom = box(*bbox)
         records: list[gpd.GeoDataFrame] = []
         self.logger.info("Fetching occurrences since %s for bbox %s", start_year, bbox)
 
@@ -101,7 +109,9 @@ class OccurrenceService(BaseService):
         if gbif_occ is not None:
             try:
                 year_param = f"{start_year},{datetime.date.today().year}"
-                res = gbif_occ.search(geometry=geom.wkt, year=year_param, limit=300)
+                res = gbif_occ.search(
+                    geometry=gbif_geom.wkt, year=year_param, limit=300
+                )
                 gbif_gdf = _records_to_gdf(res.get("results", []), "gbif")
                 gbif_count = len(gbif_gdf)
                 records.append(gbif_gdf)
