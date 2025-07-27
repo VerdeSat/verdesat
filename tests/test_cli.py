@@ -1,3 +1,4 @@
+import json
 import pandas as pd
 from click.testing import CliRunner
 from unittest.mock import MagicMock
@@ -126,3 +127,60 @@ def test_landcover_cli_multiple_polygons(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert svc.download.call_count == 2
     assert isinstance(created["storage"], LocalFS)
+
+
+def test_bscore_cli(tmp_path):
+    metrics = {
+        "intactness": 0.6,
+        "shannon": 0.4,
+        "fragmentation": {"edge_density": 0.1, "normalised_density": 0.1},
+    }
+    metrics_path = tmp_path / "metrics.json"
+    metrics_path.write_text(json.dumps(metrics))
+    weights_path = tmp_path / "weights.yaml"
+    weights_path.write_text("intactness: 1\nshannon: 1\nfragmentation: 1\n")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["bscore", "compute", str(metrics_path), "--weights", str(weights_path)],
+    )
+    assert result.exit_code == 0
+    assert result.output.strip()
+
+
+def test_bscore_geojson_cli(monkeypatch, tmp_path):
+    called = {}
+
+    def fake_compute_bscores(
+        geojson, year, weights, output=None, logger=None, storage=None
+    ):
+        called["geojson"] = geojson
+        called["year"] = year
+        return pd.DataFrame({"id": [1], "bscore": [42.0]})
+
+    monkeypatch.setattr("verdesat.core.cli.svc_compute_bscores", fake_compute_bscores)
+
+    geojson = tmp_path / "aoi.geojson"
+    geojson.write_text(
+        '{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[0,1],[1,1],[1,0],[0,0]]]},"properties":{"id":1}}]}'
+    )
+    weights_path = tmp_path / "weights.yaml"
+    weights_path.write_text("intactness: 1\nshannon: 1\nfragmentation: 1\n")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "bscore",
+            "from-geojson",
+            str(geojson),
+            "--year",
+            "2021",
+            "--weights",
+            str(weights_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert called["year"] == 2021

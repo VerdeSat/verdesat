@@ -2,7 +2,12 @@
 
 from importlib import import_module
 
-__all__ = ["download_timeseries", "build_report", "LandcoverService"]
+__all__ = [
+    "download_timeseries",
+    "build_report",
+    "LandcoverService",
+    "compute_bscores",
+]
 
 
 def __getattr__(name):
@@ -12,4 +17,6 @@ def __getattr__(name):
         return import_module(".report", __name__).build_report
     if name == "LandcoverService":
         return import_module(".landcover", __name__).LandcoverService
+    if name == "compute_bscores":
+        return import_module(".bscore", __name__).compute_bscores
     raise AttributeError(name)
