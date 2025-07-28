@@ -129,6 +129,14 @@ def test_fetch_occurrences_with_shapely(monkeypatch):
         "verdesat.biodiv.gbif_validator.gbif_occ",
         SimpleNamespace(search=fake_gbif),
     )
+    monkeypatch.setattr(
+        "verdesat.biodiv.gbif_validator.get_nearby_observations",
+        lambda *_a, **_k: [],
+    )
+    monkeypatch.setattr(
+        "verdesat.biodiv.gbif_validator.inat_get_observations",
+        lambda *_a, **_k: {"results": []},
+    )
 
     svc = OccurrenceService()
     poly = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
@@ -143,6 +151,14 @@ def test_fetch_occurrences_with_aoi(monkeypatch):
     monkeypatch.setattr(
         "verdesat.biodiv.gbif_validator.gbif_occ",
         SimpleNamespace(search=fake_gbif),
+    )
+    monkeypatch.setattr(
+        "verdesat.biodiv.gbif_validator.get_nearby_observations",
+        lambda *_a, **_k: [],
+    )
+    monkeypatch.setattr(
+        "verdesat.biodiv.gbif_validator.inat_get_observations",
+        lambda *_a, **_k: {"results": []},
     )
 
     aoi = AOI(Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]), static_props={"id": 1})
