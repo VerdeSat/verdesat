@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import geopandas as gpd
 from shapely.geometry import Polygon
 from shapely import wkt
+from verdesat.geo.aoi import AOI
 
 import pytest
 
@@ -118,6 +119,36 @@ def test_occurrence_density():
     svc = OccurrenceService()
     dens = svc.occurrence_density_km2(gdf, 1.0)
     assert dens == 2.0
+
+
+def test_fetch_occurrences_with_shapely(monkeypatch):
+    def fake_gbif(**_k):
+        return {"results": _fake_records(2)}
+
+    monkeypatch.setattr(
+        "verdesat.biodiv.gbif_validator.gbif_occ",
+        SimpleNamespace(search=fake_gbif),
+    )
+
+    svc = OccurrenceService()
+    poly = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
+    gdf = svc.fetch_occurrences(poly)
+    assert len(gdf) == 2
+
+
+def test_fetch_occurrences_with_aoi(monkeypatch):
+    def fake_gbif(**_k):
+        return {"results": _fake_records(1)}
+
+    monkeypatch.setattr(
+        "verdesat.biodiv.gbif_validator.gbif_occ",
+        SimpleNamespace(search=fake_gbif),
+    )
+
+    aoi = AOI(Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]), static_props={"id": 1})
+    svc = OccurrenceService()
+    gdf = svc.fetch_occurrences(aoi)
+    assert len(gdf) == 1
 
 
 def test_plot_score_vs_density(tmp_path):
