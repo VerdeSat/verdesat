@@ -14,7 +14,7 @@
         "cloud_mask_method": "fmask",
         "fmask_exclude": [1, 2, 4, 8, 16]
     },
-    "COPERNICUS/S2_SR": {
+    "NASA/HLS/HLSS30/v002": {
         "bands": {
             "coastal": "B1",
             "blue": "B2",
@@ -27,6 +27,46 @@
             "rededge4": "B8A",
             "water_vapor": "B9",
             "cirrus": "B10",
+            "swir1": "B11",
+            "swir2": "B12",
+            "qa": "Fmask"
+        },
+        "native_resolution": 30,
+        "cloud_mask_method": "fmask",
+        "fmask_exclude": [1, 2, 4, 8, 16]
+    },
+    "COPERNICUS/S2_SR": {
+        "bands": {
+            "coastal": "B1",
+            "blue": "B2",
+            "green": "B3",
+            "red": "B4",
+            "rededge1": "B5",
+            "rededge2": "B6",
+            "rededge3": "B7",
+            "nir": "B8",
+            "rededge4": "B8A",
+            "water_vapor": "B9",
+            "swir1": "B11",
+            "swir2": "B12",
+            "scl": "SCL"
+        },
+        "native_resolution": 10,
+        "cloud_mask_method": "s2_scl",
+        "scl_exclude": [3, 7, 8, 9, 10]
+    },
+    "COPERNICUS/S2_SR_HARMONIZED": {
+        "bands": {
+            "coastal": "B1",
+            "blue": "B2",
+            "green": "B3",
+            "red": "B4",
+            "rededge1": "B5",
+            "rededge2": "B6",
+            "rededge3": "B7",
+            "nir": "B8",
+            "rededge4": "B8A",
+            "water_vapor": "B9",
             "swir1": "B11",
             "swir2": "B12",
             "scl": "SCL"
