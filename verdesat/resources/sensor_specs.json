@@ -47,7 +47,6 @@
             "nir": "B8",
             "rededge4": "B8A",
             "water_vapor": "B9",
-            "cirrus": "B10",
             "swir1": "B11",
             "swir2": "B12",
             "scl": "SCL"
@@ -68,7 +67,6 @@
             "nir": "B8",
             "rededge4": "B8A",
             "water_vapor": "B9",
-            "cirrus": "B10",
             "swir1": "B11",
             "swir2": "B12",
             "scl": "SCL"
