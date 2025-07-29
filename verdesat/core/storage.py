@@ -19,6 +19,10 @@ class StorageAdapter(ABC):
     def write_bytes(self, uri: str, data: bytes) -> str:
         """Write bytes to the destination and return the URI."""
 
+    @abstractmethod
+    def open_raster(self, uri: str, **kwargs):
+        """Open *uri* for reading with rasterio."""
+
 
 class LocalFS(StorageAdapter):
     """Store files on the local filesystem."""
@@ -31,6 +35,14 @@ class LocalFS(StorageAdapter):
         with open(uri, "wb") as fh:
             fh.write(data)
         return uri
+
+    def open_raster(self, uri: str, **kwargs):
+        """Open a local raster file using rasterio."""
+        try:
+            import rasterio
+        except ImportError as exc:  # pragma: no cover - optional
+            raise ImportError("rasterio is required for open_raster") from exc
+        return rasterio.open(uri, **kwargs)
 
 
 class S3Bucket(StorageAdapter):
@@ -54,3 +66,16 @@ class S3Bucket(StorageAdapter):
         key = parsed.path.lstrip("/")
         self.client.put_object(Bucket=parsed.netloc or self.bucket, Key=key, Body=data)
         return uri
+
+    def open_raster(self, uri: str, **kwargs):
+        """Open an S3 object for reading via rasterio."""
+        try:
+            import rasterio
+        except ImportError as exc:  # pragma: no cover - optional
+            raise ImportError("rasterio is required for open_raster") from exc
+
+        parsed = urlparse(uri)
+        bucket = parsed.netloc or self.bucket
+        key = parsed.path.lstrip("/")
+        path = f"/vsis3/{bucket}/{key}"
+        return rasterio.open(path, **kwargs)
