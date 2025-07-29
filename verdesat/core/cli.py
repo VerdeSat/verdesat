@@ -895,13 +895,19 @@ def pipeline():
     default=ConfigManager.DEFAULT_REPORT_TITLE,
     help="Report title",
 )
-def pipeline_report(geojson, start, end, out_dir, map_png, title):
+@click.option(
+    "--collection",
+    "-c",
+    default="NASA/HLS/HLSL30/v002",
+    help="Earth Engine ImageCollection ID",
+)
+def pipeline_report(geojson, start, end, out_dir, map_png, title, collection):
     """Run full NDVI → report pipeline in one go."""
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir, exist_ok=True)
 
     aois = AOI.from_geojson(geojson, id_col="id")
-    sensor = SensorSpec.from_collection_id("NASA/HLS/HLSL30/v002")
+    sensor = SensorSpec.from_collection_id(collection)
     ingestor = create_ingestor(
         "ee", sensor, ee_manager_instance=ee_manager, logger=logger
     )
