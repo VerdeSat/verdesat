@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 import logging
+import sys
 from pandas import DataFrame
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry import mapping
@@ -53,12 +54,14 @@ class _BudgetDataset:
 class MSAService(BaseService):
     """Fetch mean Total MSA values from the Globio dataset."""
 
-    # The dataset is publicly accessible via Cloudflare R2. Using the HTTPS
-    # URL avoids any S3 configuration hurdles while still allowing GDAL to
-    # stream the file via ``/vsicurl``.
+    # Cloudflare R2 endpoint hosting the raster.
+    R2_ENDPOINT = "https://534d0d2f2b8c813de733c916315d3277.r2.cloudflarestorage.com"
+
+    # ``s3://`` URI so that rasterio uses GDAL's ``/vsis3`` driver.  Query
+    # parameters configure the endpoint and allow unsigned access.
     DEFAULT_DATASET_URI = (
-        "https://534d0d2f2b8c813de733c916315d3277.r2.cloudflarestorage.com/"
-        "verdesat-data/msa/GlobioMSA_2015_cog.tif"
+        "s3://verdesat-data/msa/GlobioMSA_2015_cog.tif"
+        "?AWS_NO_SIGN_REQUEST=YES&AWS_S3_ENDPOINT=" + R2_ENDPOINT + "&AWS_REGION=auto"
     )
 
     def __init__(
@@ -77,7 +80,51 @@ class MSAService(BaseService):
     def _open_dataset(self, uri: str):
         if rasterio is None:
             raise RuntimeError("rasterio not installed")
-        return self.storage.open_raster(uri)
+
+        env_opts = {
+            "GDAL_DISABLE_READDIR_ON_OPEN": "YES",
+            "CPL_VSIL_CURL_USE_HEAD": "NO",
+        }
+
+        if uri.startswith("s3://"):
+            env_opts.update(
+                {
+                    "AWS_NO_SIGN_REQUEST": "YES",
+                    "AWS_S3_ENDPOINT": self.R2_ENDPOINT,
+                    "AWS_REGION": "auto",
+                }
+            )
+
+        env = rasterio.Env(**env_opts)
+        env.__enter__()
+        try:
+            ds = self.storage.open_raster(uri)
+        except Exception:
+            env.__exit__(*sys.exc_info())
+            raise
+
+        class _Dataset:
+            def __init__(self, dataset, env):
+                self._ds = dataset
+                self._env = env
+
+            def close(self):
+                try:
+                    self._ds.close()
+                finally:
+                    self._env.__exit__(None, None, None)
+
+            def __getattr__(self, name):
+                return getattr(self._ds, name)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                self.close()
+                return False
+
+        return _Dataset(ds, env)
 
     def mean_msa(self, aoi: BaseGeometry, dataset_uri: Optional[str] = None) -> float:
         """Return mean MSA value of *aoi* from dataset."""
