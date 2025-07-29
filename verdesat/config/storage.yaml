@@ -1,0 +1,10 @@
+storage:
+  default: s3_r2
+  stores:
+    s3_r2:
+      driver: s3
+      bucket: verdesat-data
+      endpoint_url: https://534d0d2f2b8c813de733c916315d3277.r2.cloudflarestorage.com
+      region_name: auto
+      aws_access_key_id: ${R2_KEY}       # pull from env at runtime
+      aws_secret_access_key: ${R2_SECRET}

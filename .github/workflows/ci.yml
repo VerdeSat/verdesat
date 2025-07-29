@@ -40,6 +40,8 @@ jobs:
     env:
       VERDESAT_EE_PROJECT: ${{ secrets.VERDESAT_EE_PROJECT }}
       EARTHENGINE_TOKEN: ${{ secrets.EARTHENGINE_TOKEN }}
+      R2_KEY: ${{ secrets.R2_KEY }}
+      R2_SECRET: ${{ secrets.R2_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python

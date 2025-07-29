@@ -13,6 +13,17 @@ import yaml
 import toml
 
 
+def _expand_env(text: str) -> str:
+    """
+    Expand ${VAR} placeholders using the current process environment.
+
+    This keeps secrets (e.g. R2_KEY, R2_SECRET) out of committed config files:
+    the YAML/TOML/JSON can reference them as ${VAR} and they'll be replaced
+    at runtime.
+    """
+    return os.path.expandvars(text)
+
+
 # Exception for config validation errors
 class ConfigValidationError(Exception):
     """Raised when configuration loading or validation fails."""
@@ -61,20 +72,23 @@ class ConfigManager:
 
     def load(self, path: str) -> None:
         """
-        Load configuration from a file (YAML, TOML, or JSON).
-        Overwrites existing keys in self.config.
+        Load configuration from a file (YAML, TOML, or JSON).  Environment
+        placeholders in the form ${VAR} are expanded before parsing.  Overwrites
+        existing keys in self.config.
         """
         ext = os.path.splitext(path)[1].lower()
         try:
             with open(path, "r", encoding="utf-8") as f:
-                if ext in (".yaml", ".yml"):
-                    data = yaml.safe_load(f)
-                elif ext == ".toml":
-                    data = toml.load(f)
-                elif ext == ".json":
-                    data = json.load(f)
-                else:
-                    raise ConfigValidationError(f"Unsupported config format: {ext}")
+                raw = _expand_env(f.read())
+
+            if ext in (".yaml", ".yml"):
+                data = yaml.safe_load(raw)
+            elif ext == ".toml":
+                data = toml.loads(raw)
+            elif ext == ".json":
+                data = json.loads(raw)
+            else:
+                raise ConfigValidationError(f"Unsupported config format: {ext}")
         except Exception as e:
             raise ConfigValidationError(
                 f"Failed to load config from {path}: {e}"
