@@ -5,7 +5,7 @@ import rasterio
 from rasterio.transform import from_origin
 
 from verdesat.geo.aoi import AOI
-from verdesat.services.msa import MSAService, EgressBudget
+from verdesat.services.msa import MSAService, EgressBudget, compute_msa_means
 from verdesat.core.storage import LocalFS
 
 
@@ -42,3 +42,15 @@ def test_budget_exceeded(tmp_path):
     svc = MSAService(storage=LocalFS(), budget_bytes=8)
     with pytest.raises(RuntimeError):
         svc.mean_msa(aoi.geometry, dataset_uri=str(raster_path))
+
+
+def test_compute_msa_means(tmp_path):
+    raster_path = tmp_path / "msa.tif"
+    create_raster(raster_path)
+    geojson = tmp_path / "aoi.geojson"
+    geojson.write_text(
+        '{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[0,2],[2,2],[2,0],[0,0]]]},"properties":{"id":1}}]}'
+    )
+
+    df = compute_msa_means(str(geojson), dataset_uri=str(raster_path))
+    assert abs(df.loc[0, "mean_msa"] - 0.5) < 1e-6
