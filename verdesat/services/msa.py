@@ -53,7 +53,7 @@ class _BudgetDataset:
 class MSAService(BaseService):
     """Fetch mean Total MSA values from the Globio dataset."""
 
-    DATASET_KEY = "msa/GlobioMSA_2015_cog.tif"
+    DEFAULT_DATASET_URI = "s3://verdesat-data/msa/GlobioMSA_2015_cog.tif"
 
     def __init__(
         self,
@@ -61,10 +61,12 @@ class MSAService(BaseService):
         storage: StorageAdapter | None = None,
         logger=None,
         budget_bytes: int = 50_000_000,
+        dataset_uri: str | None = None,
     ) -> None:
         super().__init__(logger)
         self.storage = storage or LocalFS()
         self.budget_bytes = int(budget_bytes)
+        self.dataset_uri = dataset_uri or self.DEFAULT_DATASET_URI
 
     def _open_dataset(self, uri: str):
         if rasterio is None:
@@ -73,7 +75,7 @@ class MSAService(BaseService):
 
     def mean_msa(self, aoi: BaseGeometry, dataset_uri: Optional[str] = None) -> float:
         """Return mean MSA value of *aoi* from dataset."""
-        uri = dataset_uri or self.storage.join(self.DATASET_KEY)
+        uri = dataset_uri or self.dataset_uri
         budget = EgressBudget(self.budget_bytes)
         with self._open_dataset(uri) as src:
             ds = _BudgetDataset(src, budget)
@@ -114,7 +116,8 @@ def compute_msa_means(
     geojson:
         Path to an AOI GeoJSON file with an ``id`` property.
     dataset_uri:
-        Optional URI of the Globio MSA raster. Defaults to :data:`DATASET_KEY`.
+        Optional URI of the Globio MSA raster. Defaults to
+        :data:`MSAService.DEFAULT_DATASET_URI`.
     budget_bytes:
         Maximum bytes allowed to be read from the dataset.
     logger:
