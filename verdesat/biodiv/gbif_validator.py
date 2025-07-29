@@ -12,6 +12,8 @@ from shapely.geometry import shape, Point
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
+from verdesat.geo.aoi import AOI
+
 try:
     from pygbif import occurrences as gbif_occ
 except Exception:  # pragma: no cover - optional
@@ -34,10 +36,16 @@ from verdesat.core.logger import Logger
 logger = logging.getLogger(__name__)
 
 
-def _to_geometry(aoi_geojson: dict | str | gpd.GeoDataFrame) -> BaseGeometry:
+def _to_geometry(
+    aoi_geojson: dict | str | gpd.GeoDataFrame | BaseGeometry | AOI,
+) -> BaseGeometry:
     """Return WGS84 geometry from various AOI representations."""
 
-    if isinstance(aoi_geojson, gpd.GeoDataFrame):
+    if isinstance(aoi_geojson, AOI):
+        return _to_geometry(aoi_geojson.geometry)
+    if isinstance(aoi_geojson, BaseGeometry):
+        gdf = gpd.GeoDataFrame({"geometry": [aoi_geojson]}, crs="EPSG:4326")
+    elif isinstance(aoi_geojson, gpd.GeoDataFrame):
         gdf = aoi_geojson
     elif isinstance(aoi_geojson, str):
         gdf = gpd.read_file(aoi_geojson)
@@ -87,7 +95,9 @@ class OccurrenceService(BaseService):
         super().__init__(logger or Logger.get_logger(__name__))
 
     def fetch_occurrences(
-        self, aoi_geojson: dict | str | gpd.GeoDataFrame, start_year: int = 2000
+        self,
+        aoi_geojson: dict | str | gpd.GeoDataFrame | BaseGeometry | AOI,
+        start_year: int = 2000,
     ) -> gpd.GeoDataFrame:
         """Return occurrences for *aoi_geojson* since *start_year*.
 
