@@ -37,9 +37,6 @@ in a configuration file loaded by `ConfigManager`.
 - `download timeseries` – fetch spectral index values for each polygon.
 - `download chips` – export yearly or monthly imagery chips.
 - `download landcover` – export 10 m land-cover rasters.
-  Example: `verdesat download landcover aoi.geojson --year 2021 --out-dir landcover`.
-  Uses the ESRI dataset when available and falls back to ESA WorldCover.
-  Outputs are named `LANDCOVER_<id>_<year>.tiff`.
 - `preprocess fill-gaps` – interpolate missing values in a CSV.
 - `stats aggregate` – resample daily data to monthly or yearly.
 - `stats decompose` – seasonal decomposition with optional plots.
