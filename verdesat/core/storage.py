@@ -74,8 +74,7 @@ class S3Bucket(StorageAdapter):
         except ImportError as exc:  # pragma: no cover - optional
             raise ImportError("rasterio is required for open_raster") from exc
 
-        parsed = urlparse(uri)
-        bucket = parsed.netloc or self.bucket
-        key = parsed.path.lstrip("/")
-        path = f"/vsis3/{bucket}/{key}"
-        return rasterio.open(path, **kwargs)
+        # Rasterio maps the ``s3://`` scheme to GDAL's ``/vsis3`` handler.
+        # Using the original URI lets rasterio handle credentials and session
+        # management without constructing a VSI path ourselves.
+        return rasterio.open(uri, **kwargs)
