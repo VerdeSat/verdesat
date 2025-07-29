@@ -53,7 +53,13 @@ class _BudgetDataset:
 class MSAService(BaseService):
     """Fetch mean Total MSA values from the Globio dataset."""
 
-    DEFAULT_DATASET_URI = "s3://verdesat-data/msa/GlobioMSA_2015_cog.tif"
+    # The dataset is publicly accessible via Cloudflare R2. Using the HTTPS
+    # URL avoids any S3 configuration hurdles while still allowing GDAL to
+    # stream the file via ``/vsicurl``.
+    DEFAULT_DATASET_URI = (
+        "https://534d0d2f2b8c813de733c916315d3277.r2.cloudflarestorage.com/"
+        "verdesat-data/msa/GlobioMSA_2015_cog.tif"
+    )
 
     def __init__(
         self,
