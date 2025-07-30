@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Optional
 import logging
-import sys
 from pandas import DataFrame
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry import mapping
+import shapely.geometry
 
 from verdesat.core.storage import LocalFS, StorageAdapter
 from verdesat.services.base import BaseService
@@ -30,11 +30,10 @@ except ImportError:  # pragma: no cover - optional
 class MSAService(BaseService):
     """Fetch mean Total MSA values from the Globio dataset."""
 
-    # Cloudflare R2 endpoint (scheme-less; GDAL prepends the bucket)
+    # Cloudflare R2 endpoint
     R2_ENDPOINT = "534d0d2f2b8c813de733c916315d3277.r2.cloudflarestorage.com"
 
-    # ``s3://`` URI so that rasterio uses GDAL's ``/vsis3`` driver. Query
-    # parameters configure unsigned access. Endpoint is set by environment.
+    # ``s3://`` URI so that rasterio uses GDAL's ``/vsis3`` driver.
     DEFAULT_DATASET_URI = "s3://verdesat-data/msa/GlobioMSA_2015_cog.tif"
 
     def __init__(
@@ -61,18 +60,24 @@ class MSAService(BaseService):
                 geom = rasterio.warp.transform_geom(
                     "EPSG:4326", src.crs.to_string(), geom
                 )
-            arr, _ = rasterio.mask.mask(ds, [geom], crop=True)
+            arr, _ = rasterio.mask.mask(ds, [geom], crop=True, all_touched=True)
             data = arr[0]
             if hasattr(data, "mask"):
                 valid = ~data.mask
                 if not valid.any():
-                    return float("nan")
+                    # fallback: sample the centroid of the polygon
+                    cy, cx = shapely.geometry.shape(geom).centroid.coords[0][::-1]
+                    sample = list(src.sample([(cx, cy)]))[0][0]
+                    return float(sample) if sample != src.nodata else float("nan")
                 return float(data.data[valid].mean())
             nodata = src.nodata
             if nodata is not None:
                 valid = data != nodata
                 if not valid.any():
-                    return float("nan")
+                    # fallback: sample the centroid of the polygon
+                    cy, cx = shapely.geometry.shape(geom).centroid.coords[0][::-1]
+                    sample = list(src.sample([(cx, cy)]))[0][0]
+                    return float(sample) if sample != src.nodata else float("nan")
                 return float(data[valid].mean())
             return float(data.mean())
 
