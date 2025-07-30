@@ -4,7 +4,8 @@ from folium.raster_layers import TileLayer
 from streamlit_folium import st_folium
 from verdesat.webapp.services.r2 import signed_url
 
-DEMO_CENTER = (43.355, -6.055)  # adjust to AOI centroid
+DEMO_CENTER = (16.79162, -92.53845)
+  # adjust to AOI centroid
 
 
 def _cog_to_tile_url(cog_key: str) -> str:
