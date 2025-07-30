@@ -579,6 +579,7 @@ def compute_bscore(metrics_json, weights):
             edge_density=float(data["fragmentation"]["edge_density"]),
             normalised_density=float(data["fragmentation"]["normalised_density"]),
         ),
+        msa=float(data.get("msa", 0.0)),
     )
     calc = BScoreCalculator(WeightsConfig.from_yaml(weights))
     score = calc.score(metrics)
@@ -604,12 +605,21 @@ def compute_bscore(metrics_json, weights):
     default=None,
     help="Optional CSV output path",
 )
-def bscore_from_geojson(geojson, year, weights, output):
+@click.option("--dataset-uri", default=None, help="Optional custom MSA raster URI")
+@click.option(
+    "--budget-bytes",
+    type=int,
+    default=50_000_000,
+    help="Maximum bytes to read from the dataset",
+)
+def bscore_from_geojson(geojson, year, weights, output, dataset_uri, budget_bytes):
     """Compute B-Score for polygons in GEOJSON."""
     df = svc_compute_bscores(
         geojson,
         year=year,
         weights=WeightsConfig.from_yaml(weights),
+        dataset_uri=dataset_uri,
+        budget_bytes=budget_bytes,
         output=output,
         logger=logger,
     )

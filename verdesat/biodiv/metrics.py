@@ -43,6 +43,7 @@ class MetricsResult:
     intactness: float
     shannon: float
     fragmentation: FragmentStats
+    msa: float = 0.0
 
 
 class MetricEngine(BaseService):
@@ -125,4 +126,9 @@ class MetricEngine(BaseService):
         shannon = self.calc_shannon(lc)
         biome_id = int(aoi.static_props.get("biome_id", 0))
         frag = self.calc_fragmentation(lc, biome_id)
-        return MetricsResult(intactness=intact, shannon=shannon, fragmentation=frag)
+        return MetricsResult(
+            intactness=intact,
+            shannon=shannon,
+            fragmentation=frag,
+            msa=0.0,
+        )

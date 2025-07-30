@@ -136,11 +136,12 @@ def test_bscore_cli(tmp_path):
         "intactness": 0.6,
         "shannon": 0.4,
         "fragmentation": {"edge_density": 0.1, "normalised_density": 0.1},
+        "msa": 0.5,
     }
     metrics_path = tmp_path / "metrics.json"
     metrics_path.write_text(json.dumps(metrics))
     weights_path = tmp_path / "weights.yaml"
-    weights_path.write_text("intactness: 1\nshannon: 1\nfragmentation: 1\n")
+    weights_path.write_text("intactness: 1\nshannon: 1\nfragmentation: 1\nmsa: 1\n")
 
     runner = CliRunner()
     result = runner.invoke(
@@ -155,10 +156,19 @@ def test_bscore_geojson_cli(monkeypatch, tmp_path):
     called = {}
 
     def fake_compute_bscores(
-        geojson, year, weights, output=None, logger=None, storage=None
+        geojson,
+        year,
+        weights,
+        dataset_uri=None,
+        budget_bytes=50_000_000,
+        output=None,
+        logger=None,
+        storage=None,
     ):
         called["geojson"] = geojson
         called["year"] = year
+        called["dataset_uri"] = dataset_uri
+        called["budget_bytes"] = budget_bytes
         return pd.DataFrame({"id": [1], "bscore": [42.0]})
 
     monkeypatch.setattr("verdesat.core.cli.svc_compute_bscores", fake_compute_bscores)
@@ -168,7 +178,7 @@ def test_bscore_geojson_cli(monkeypatch, tmp_path):
         '{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[0,1],[1,1],[1,0],[0,0]]]},"properties":{"id":1}}]}'
     )
     weights_path = tmp_path / "weights.yaml"
-    weights_path.write_text("intactness: 1\nshannon: 1\nfragmentation: 1\n")
+    weights_path.write_text("intactness: 1\nshannon: 1\nfragmentation: 1\nmsa: 1\n")
 
     runner = CliRunner()
     result = runner.invoke(
@@ -181,11 +191,17 @@ def test_bscore_geojson_cli(monkeypatch, tmp_path):
             "2021",
             "--weights",
             str(weights_path),
+            "--dataset-uri",
+            "s3://msafile.tif",
+            "--budget-bytes",
+            "123",
         ],
     )
 
     assert result.exit_code == 0
     assert called["year"] == 2021
+    assert called["dataset_uri"] == "s3://msafile.tif"
+    assert called["budget_bytes"] == 123
 
 
 def test_validate_occurrence_density_cli(monkeypatch, tmp_path, dummy_aoi):
