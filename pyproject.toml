@@ -35,6 +35,7 @@ types-pyyaml = "^6.0.12.20250516"
 pygbif = "^0.6.5"
 ebird-api = "^4.0.0"
 pyinaturalist = "^0.20.1"
+boto3 = "^1.39.16"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"

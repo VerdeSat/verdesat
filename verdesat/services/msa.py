@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Optional
 import logging
 import sys
+import os
 from pandas import DataFrame
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry import mapping
@@ -54,15 +55,12 @@ class _BudgetDataset:
 class MSAService(BaseService):
     """Fetch mean Total MSA values from the Globio dataset."""
 
-    # Cloudflare R2 endpoint hosting the raster.
-    R2_ENDPOINT = "https://534d0d2f2b8c813de733c916315d3277.r2.cloudflarestorage.com"
+    # Cloudflare R2 endpoint (scheme-less; GDAL prepends the bucket)
+    R2_ENDPOINT = "534d0d2f2b8c813de733c916315d3277.r2.cloudflarestorage.com"
 
-    # ``s3://`` URI so that rasterio uses GDAL's ``/vsis3`` driver.  Query
-    # parameters configure the endpoint and allow unsigned access.
-    DEFAULT_DATASET_URI = (
-        "s3://verdesat-data/msa/GlobioMSA_2015_cog.tif"
-        "?AWS_NO_SIGN_REQUEST=YES&AWS_S3_ENDPOINT=" + R2_ENDPOINT + "&AWS_REGION=auto"
-    )
+    # ``s3://`` URI so that rasterio uses GDAL's ``/vsis3`` driver. Query
+    # parameters configure unsigned access. Endpoint is set by environment.
+    DEFAULT_DATASET_URI = "s3://verdesat-data/msa/GlobioMSA_2015_cog.tif"
 
     def __init__(
         self,
@@ -89,11 +87,15 @@ class MSAService(BaseService):
         if uri.startswith("s3://"):
             env_opts.update(
                 {
-                    "AWS_NO_SIGN_REQUEST": "YES",
                     "AWS_S3_ENDPOINT": self.R2_ENDPOINT,
                     "AWS_REGION": "auto",
                 }
             )
+
+            r2_key = os.getenv("R2_KEY")
+            r2_secret = os.getenv("R2_SECRET")
+            if not (r2_key and r2_secret):
+                env_opts["AWS_NO_SIGN_REQUEST"] = "YES"
 
         env = rasterio.Env(**env_opts)
         env.__enter__()
