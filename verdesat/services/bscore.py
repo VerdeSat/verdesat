@@ -47,6 +47,12 @@ def compute_bscores(
         Optional logger for progress messages.
     storage:
         Storage backend used by ``MetricEngine``. Defaults to ``LocalFS``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A dataframe containing ``id`` and all metric values alongside the
+        computed ``bscore`` for each AOI.
     """
 
     log = logger or Logger.get_logger(__name__)
@@ -67,7 +73,17 @@ def compute_bscores(
         metrics = engine.run_all(aoi, year)
         metrics.msa = msa_svc.mean_msa(aoi.geometry)
         score = calc.score(metrics)
-        records.append({"id": aoi.static_props.get("id"), "bscore": score})
+        records.append(
+            {
+                "id": aoi.static_props.get("id"),
+                "intactness": metrics.intactness,
+                "shannon": metrics.shannon,
+                "edge_density": metrics.fragmentation.edge_density,
+                "fragmentation": metrics.fragmentation.normalised_density,
+                "msa": metrics.msa,
+                "bscore": score,
+            }
+        )
 
     df = pd.DataFrame.from_records(records)
     if output:

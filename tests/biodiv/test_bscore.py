@@ -40,3 +40,8 @@ def test_compute_bscores(monkeypatch, tmp_path):
     df = compute_bscores(str(geojson), year=2021, weights=WeightsConfig())
 
     assert df.loc[0, "bscore"] > 0
+    assert df.loc[0, "intactness"] == 0.5
+    assert df.loc[0, "shannon"] == 0.5
+    assert df.loc[0, "edge_density"] == 0.2
+    assert df.loc[0, "fragmentation"] == 0.2
+    assert df.loc[0, "msa"] == 0.5
