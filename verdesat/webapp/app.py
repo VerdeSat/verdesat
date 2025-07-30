@@ -36,7 +36,7 @@ if st.sidebar.checkbox("Show log pane"):
 
 # --- load demo AOI & rasters (fast; cached) -------------------
 DEMO_AOI = gpd.read_file(
-    Path(__file__).parent / ".." / "resources" / "reference.geojson"
+    "AOI", "resources/reference.geojson"
 )
 NDVI_COGS = [
     ("NDVI AOI 1", "resources/NDVI_1_2024-01-01.tif"),
