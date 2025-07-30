@@ -11,14 +11,18 @@ DEMO_CENTER = (16.79162, -92.53845)
 def _cog_to_tile_url(cog_key: str) -> str:
     """
     Build a Titiler tile URL for a *private* COG in R2 using a presigned URL.
+
+    Use the public Titiler endpoint with explicit WebMercatorQuad TMS to avoid
+    blank tiles on some instances.
     """
     import urllib.parse
 
     presigned = signed_url(cog_key)
+    encoded = urllib.parse.quote_plus(presigned)
+
     return (
-        "https://tiles.rdnt.io/cog/{z}/{x}/{y}.png?url="
-        + urllib.parse.quote_plus(presigned)
-        + "&rescale=0,1"
+        "https://titiler.xyz/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png"
+        f"?url={encoded}&rescale=0,1"
     )
 
 
