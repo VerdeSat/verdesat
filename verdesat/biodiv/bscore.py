@@ -16,6 +16,7 @@ class WeightsConfig:
     intactness: float = 1.0
     shannon: float = 1.0
     fragmentation: float = 1.0
+    msa: float = 1.0
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "WeightsConfig":
@@ -26,6 +27,7 @@ class WeightsConfig:
             intactness=float(data.get("intactness", 1.0)),
             shannon=float(data.get("shannon", 1.0)),
             fragmentation=float(data.get("fragmentation", 1.0)),
+            msa=float(data.get("msa", 1.0)),
         )
 
 
@@ -43,12 +45,13 @@ class BScoreCalculator:
     def score(self, metrics: MetricsResult) -> float:
         """Return the weighted B-Score as a value between 0 and 100."""
         w = self.weights
-        total_w = w.intactness + w.shannon + w.fragmentation
+        total_w = w.intactness + w.shannon + w.fragmentation + w.msa
         if total_w == 0:
             return 0.0
         value = (
             w.intactness * metrics.intactness
             + w.shannon * metrics.shannon
             + w.fragmentation * (1 - metrics.fragmentation.normalised_density)
+            + w.msa * metrics.msa
         )
         return float(100.0 * value / total_w)

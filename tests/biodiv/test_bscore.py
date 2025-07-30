@@ -5,16 +5,17 @@ from verdesat.services.bscore import compute_bscores
 
 def test_bscore_calculation(tmp_path):
     weights_path = tmp_path / "weights.yaml"
-    weights_path.write_text("intactness: 1\nshannon: 1\nfragmentation: 1\n")
+    weights_path.write_text("intactness: 1\nshannon: 1\nfragmentation: 1\nmsa: 1\n")
     weights = WeightsConfig.from_yaml(weights_path)
     calc = BScoreCalculator(weights)
     metrics = MetricsResult(
         intactness=0.5,
         shannon=0.5,
         fragmentation=FragmentStats(edge_density=0.2, normalised_density=0.2),
+        msa=0.5,
     )
     score = calc.score(metrics)
-    expected = 100 * (0.5 + 0.5 + (1 - 0.2)) / 3
+    expected = 100 * (0.5 + 0.5 + (1 - 0.2) + 0.5) / 4
     assert score == expected
 
 
@@ -27,6 +28,10 @@ def test_compute_bscores(monkeypatch, tmp_path):
         )
 
     monkeypatch.setattr("verdesat.services.bscore.MetricEngine.run_all", fake_run_all)
+
+    monkeypatch.setattr(
+        "verdesat.services.bscore.MSAService.mean_msa", lambda self, geom: 0.5
+    )
 
     geojson = tmp_path / "aoi.geojson"
     geojson.write_text(

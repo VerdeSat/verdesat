@@ -11,6 +11,7 @@ from verdesat.core.storage import LocalFS, StorageAdapter
 from verdesat.geo.aoi import AOI
 from verdesat.biodiv.metrics import MetricEngine
 from verdesat.biodiv.bscore import BScoreCalculator, WeightsConfig
+from verdesat.services.msa import MSAService
 
 
 def compute_bscores(
@@ -18,6 +19,8 @@ def compute_bscores(
     *,
     year: int,
     weights: WeightsConfig | None = None,
+    dataset_uri: str | None = None,
+    budget_bytes: int = 50_000_000,
     output: str | None = None,
     logger: logging.Logger | None = None,
     storage: StorageAdapter | None = None,
@@ -33,6 +36,11 @@ def compute_bscores(
     weights:
         Optional ``WeightsConfig``. When not provided values are loaded from the
         default YAML file.
+    dataset_uri:
+        Optional URI of the MSA raster. Defaults to
+        :data:`MSAService.DEFAULT_DATASET_URI`.
+    budget_bytes:
+        Maximum bytes allowed to be read from the dataset.
     output:
         Optional CSV path. If provided, the resulting DataFrame is written.
     logger:
@@ -46,11 +54,18 @@ def compute_bscores(
     aois = AOI.from_geojson(geojson, id_col="id")
 
     engine = MetricEngine(storage=storage or LocalFS(), logger=log)
+    msa_svc = MSAService(
+        storage=storage or LocalFS(),
+        logger=log,
+        budget_bytes=budget_bytes,
+        dataset_uri=dataset_uri,
+    )
     calc = BScoreCalculator(weights)
 
     records = []
     for aoi in aois:
         metrics = engine.run_all(aoi, year)
+        metrics.msa = msa_svc.mean_msa(aoi.geometry)
         score = calc.score(metrics)
         records.append({"id": aoi.static_props.get("id"), "bscore": score})
 
