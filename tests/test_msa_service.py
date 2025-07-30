@@ -5,7 +5,8 @@ import rasterio
 from rasterio.transform import from_origin
 
 from verdesat.geo.aoi import AOI
-from verdesat.services.msa import MSAService, EgressBudget, compute_msa_means
+from verdesat.services.msa import MSAService, compute_msa_means
+from verdesat.services.raster_reader import EgressBudget
 from verdesat.core.storage import LocalFS
 
 

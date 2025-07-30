@@ -2,11 +2,9 @@ from __future__ import annotations
 
 """Service for retrieving mean MSA values for AOIs."""
 
-from dataclasses import dataclass
 from typing import Optional
 import logging
 import sys
-import os
 from pandas import DataFrame
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry import mapping
@@ -15,6 +13,11 @@ from verdesat.core.storage import LocalFS, StorageAdapter
 from verdesat.services.base import BaseService
 from verdesat.core.logger import Logger
 from verdesat.geo.aoi import AOI
+from verdesat.services.raster_reader import (
+    EgressBudget,
+    _BudgetDataset,
+    open_dataset,
+)
 
 try:  # pragma: no cover - optional dependency
     import rasterio
@@ -22,34 +25,6 @@ try:  # pragma: no cover - optional dependency
     import rasterio.warp
 except ImportError:  # pragma: no cover - optional
     rasterio = None
-
-
-@dataclass
-class EgressBudget:
-    """Simple byte counter to limit remote reads."""
-
-    remaining: int
-
-    def consume(self, amount: int) -> None:
-        self.remaining -= amount
-        if self.remaining < 0:
-            raise RuntimeError("Egress budget exceeded")
-
-
-class _BudgetDataset:
-    """Wrap a rasterio dataset to track bytes read."""
-
-    def __init__(self, dataset, budget: EgressBudget) -> None:
-        self._ds = dataset
-        self._budget = budget
-
-    def read(self, *args, **kwargs):
-        arr = self._ds.read(*args, **kwargs)
-        self._budget.consume(arr.nbytes)
-        return arr
-
-    def __getattr__(self, name):  # pragma: no cover - passthrough
-        return getattr(self._ds, name)
 
 
 class MSAService(BaseService):
@@ -75,64 +50,11 @@ class MSAService(BaseService):
         self.budget_bytes = int(budget_bytes)
         self.dataset_uri = dataset_uri or self.DEFAULT_DATASET_URI
 
-    def _open_dataset(self, uri: str):
-        if rasterio is None:
-            raise RuntimeError("rasterio not installed")
-
-        env_opts = {
-            "GDAL_DISABLE_READDIR_ON_OPEN": "YES",
-            "CPL_VSIL_CURL_USE_HEAD": "NO",
-        }
-
-        if uri.startswith("s3://"):
-            env_opts.update(
-                {
-                    "AWS_S3_ENDPOINT": self.R2_ENDPOINT,
-                    "AWS_REGION": "auto",
-                }
-            )
-
-            r2_key = os.getenv("R2_KEY")
-            r2_secret = os.getenv("R2_SECRET")
-            if not (r2_key and r2_secret):
-                env_opts["AWS_NO_SIGN_REQUEST"] = "YES"
-
-        env = rasterio.Env(**env_opts)
-        env.__enter__()
-        try:
-            ds = self.storage.open_raster(uri)
-        except Exception:
-            env.__exit__(*sys.exc_info())
-            raise
-
-        class _Dataset:
-            def __init__(self, dataset, env):
-                self._ds = dataset
-                self._env = env
-
-            def close(self):
-                try:
-                    self._ds.close()
-                finally:
-                    self._env.__exit__(None, None, None)
-
-            def __getattr__(self, name):
-                return getattr(self._ds, name)
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                self.close()
-                return False
-
-        return _Dataset(ds, env)
-
     def mean_msa(self, aoi: BaseGeometry, dataset_uri: Optional[str] = None) -> float:
         """Return mean MSA value of *aoi* from dataset."""
         uri = dataset_uri or self.dataset_uri
         budget = EgressBudget(self.budget_bytes)
-        with self._open_dataset(uri) as src:
+        with open_dataset(uri, self.storage, endpoint=self.R2_ENDPOINT) as src:
             ds = _BudgetDataset(src, budget)
             geom = mapping(aoi)
             if src.crs and src.crs.to_string() != "EPSG:4326":
