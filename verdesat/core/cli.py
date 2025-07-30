@@ -34,10 +34,7 @@ from verdesat.core.pipeline import ReportPipeline
 from verdesat.biodiv.bscore import BScoreCalculator, WeightsConfig
 from verdesat.biodiv.metrics import MetricsResult, FragmentStats
 from verdesat.biodiv.gbif_validator import OccurrenceService
-from verdesat.services import (
-    compute_bscores as svc_compute_bscores,
-    compute_msa_means as svc_compute_msa_means,
-)
+from verdesat.services import compute_bscores as svc_compute_bscores
 
 logger = Logger.get_logger(__name__)
 viz = Visualizer()
@@ -612,34 +609,6 @@ def bscore_from_geojson(geojson, year, weights, output):
         weights=WeightsConfig.from_yaml(weights),
         output=output,
         logger=logger,
-    )
-    if output is None:
-        echo(df.to_csv(index=False))
-    else:
-        echo(f"✅  Results saved to {output}")
-
-
-@cli.command(name="msa")
-@click.argument("geojson", type=click.Path(exists=True))
-@click.option("--dataset-uri", default=None, help="Optional custom MSA raster URI")
-@click.option(
-    "--budget-bytes",
-    type=int,
-    default=50_000_000,
-    help="Maximum bytes to read from the dataset",
-)
-@click.option(
-    "--output", "-o", type=click.Path(), default="msa.csv", help="Output CSV path"
-)
-def msa_cmd(geojson, dataset_uri, budget_bytes, output):
-    """Compute mean MSA for polygons in GEOJSON."""
-    df = svc_compute_msa_means(
-        geojson,
-        dataset_uri=dataset_uri,
-        budget_bytes=budget_bytes,
-        output=output,
-        logger=logger,
-        storage=LocalFS(),
     )
     if output is None:
         echo(df.to_csv(index=False))
