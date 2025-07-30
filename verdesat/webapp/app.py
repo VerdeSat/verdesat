@@ -1,5 +1,6 @@
 import streamlit as st
 import geopandas as gpd
+from verdesat.webapp.services.r2 import signed_url
 from verdesat.webapp.components.map_widget import display_map
 
 # ---- Page config -----------------------------------------------------------
@@ -34,10 +35,10 @@ st.info("This is just the skeleton—compute & map coming next.")
 if st.sidebar.checkbox("Show log pane"):
     st.code("Logger output placeholder")
 
+#
 # --- load demo AOI & rasters (fast; cached) -------------------
-DEMO_AOI = gpd.read_file(
-    "AOI", "resources/reference.geojson"
-)
+DEMO_AOI_KEY = "resources/reference.geojson"  # adjust if key differs
+DEMO_AOI = gpd.read_file(signed_url(DEMO_AOI_KEY))
 NDVI_COGS = [
     ("NDVI AOI 1", "resources/NDVI_1_2024-01-01.tif"),
     ("NDVI AOI 2", "resources/NDVI_2_2024-01-01.tif"),
