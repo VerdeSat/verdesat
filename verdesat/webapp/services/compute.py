@@ -18,7 +18,8 @@ def _read_remote_raster(key: str) -> np.ndarray:
     """Return first band of a COG stored on R2 as a float array."""
     url = signed_url(key)
     with rasterio.open(url) as src:
-        return src.read(1, masked=True).filled(np.nan).astype(float)
+        arr = src.read(1, masked=True).astype(float)
+        return arr.filled(np.nan)
 
 
 def _basic_stats(arr: np.ndarray) -> tuple[float, float]:
