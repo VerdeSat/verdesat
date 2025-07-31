@@ -5,7 +5,7 @@ from streamlit_folium import st_folium
 from verdesat.webapp.services.r2 import signed_url
 
 DEMO_CENTER = (16.79162, -92.53845)
-  # adjust to AOI centroid
+# adjust to AOI centroid
 
 
 def _cog_to_tile_url(cog_key: str) -> str:
@@ -26,7 +26,12 @@ def _cog_to_tile_url(cog_key: str) -> str:
     )
 
 
-def display_map(aoi_gdf, ndvi_keys: Sequence[tuple[str, str]], msavi_keys: Sequence[tuple[str, str]], layer_state):
+def display_map(
+    aoi_gdf,
+    ndvi_keys: Sequence[tuple[str, str]],
+    msavi_keys: Sequence[tuple[str, str]],
+    layer_state,
+):
     """Render Folium map inside Streamlit, return updated layer_state dict."""
     m = folium.Map(location=DEMO_CENTER, zoom_start=15, tiles="CartoDB positron")
 

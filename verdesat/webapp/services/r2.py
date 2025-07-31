@@ -1,5 +1,3 @@
-
-
 """
 verdesat.webapp.services.r2
 ---------------------------

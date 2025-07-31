@@ -2,6 +2,8 @@ import streamlit as st
 import geopandas as gpd
 from verdesat.webapp.services.r2 import signed_url
 from verdesat.webapp.components.map_widget import display_map
+from verdesat.webapp.components.kpi_cards import Metrics, display_metrics, bscore_gauge
+from verdesat.webapp.services.compute import load_demo_metrics
 
 # ---- Page config -----------------------------------------------------------
 st.set_page_config(
@@ -26,7 +28,7 @@ col1, col2 = st.columns([3, 1])
 with col1:
     st.write("🗺️  Map will appear here")
 with col2:
-    st.metric("B-Score", "—")
+    placeholder_gauge = st.empty()
 
 st.markdown("---")
 st.info("This is just the skeleton—compute & map coming next.")
@@ -52,6 +54,15 @@ MSAVI_COGS = [
 layer_state = {"ndvi": True, "msavi": True}
 
 with col1:
-    layer_state = display_map(
-        DEMO_AOI, NDVI_COGS, MSAVI_COGS, layer_state
-    )
+    layer_state = display_map(DEMO_AOI, NDVI_COGS, MSAVI_COGS, layer_state)
+
+metrics_data = load_demo_metrics(
+    "verdesat/resources/NDVI_1_2024-01-01.tiff",
+    "verdesat/resources/MSAVI_1_2024-01-01.tiff",
+)
+metrics = Metrics(**metrics_data)
+with col2:
+    bscore_gauge(metrics.bscore)
+
+st.markdown("---")
+display_metrics(metrics)
