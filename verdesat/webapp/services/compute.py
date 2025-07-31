@@ -36,7 +36,7 @@ def load_demo_metrics(aoi_id: int) -> dict[str, float]:
 
     intactness = float(np.isin(landcover, [1, 2, 6]).sum() / landcover.size)
 
-    vals = landcover.ravel().astype(int)
+    vals = landcover[~np.isnan(landcover)].astype(int).ravel()
     counts = np.bincount(vals)
     probs = counts[counts > 0] / vals.size
     shannon = float(-np.sum(probs * np.log(probs)))
