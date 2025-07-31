@@ -7,7 +7,7 @@ from verdesat.webapp.components.charts import (
     msavi_bar_chart,
     ndvi_decomposition_chart,
 )
-from verdesat.webapp.services.compute import load_demo_metrics
+from verdesat.webapp.services.compute import load_demo_metrics, compute_live_metrics
 
 # ---- Page config -----------------------------------------------------------
 st.set_page_config(
@@ -24,6 +24,9 @@ st.sidebar.header("VerdeSat B-Score v0.1")
 mode = st.sidebar.radio("Mode", ["Demo AOI", "Upload AOI"])
 year = st.sidebar.slider("Year", 2017, 2024, value=2024)
 aoi_id = st.sidebar.selectbox("Demo AOI", [1, 2], format_func=lambda x: f"AOI {x}")
+uploaded_file = None
+if mode == "Upload AOI":
+    uploaded_file = st.sidebar.file_uploader("GeoJSON AOI", type="geojson")
 run_button = st.sidebar.button("Run 🚀")
 
 # ---- Main canvas placeholders ---------------------------------------------
@@ -61,13 +64,17 @@ layer_state = {"ndvi": True, "msavi": True}
 with col1:
     layer_state = display_map(DEMO_AOI, NDVI_COGS, MSAVI_COGS, layer_state)
 
-metrics_data = load_demo_metrics(aoi_id)
-metrics = Metrics(**metrics_data)
-with col2:
-    bscore_gauge(metrics.bscore)
-
-st.markdown("---")
-display_metrics(metrics)
+if run_button:
+    if mode == "Upload AOI" and uploaded_file is not None:
+        gdf = gpd.read_file(uploaded_file)
+        metrics_data = compute_live_metrics(gdf, year=year)
+    else:
+        metrics_data = load_demo_metrics(aoi_id)
+    metrics = Metrics(**metrics_data)
+    with col2:
+        bscore_gauge(metrics.bscore)
+    st.markdown("---")
+    display_metrics(metrics)
 
 # ---- Charts tab ------------------------------------------------------------
 st.markdown("---")

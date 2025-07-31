@@ -65,3 +65,10 @@ def signed_url(key: str, expires: int = 86_400) -> str:
         Params={"Bucket": bucket, "Key": key},
         ExpiresIn=expires,
     )
+
+
+def upload_bytes(key: str, data: bytes, *, content_type: str = "text/csv") -> None:
+    """Upload ``data`` to R2 under ``key``."""
+
+    bucket = os.getenv("R2_BUCKET", "verdesat-data")
+    _client().put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type)

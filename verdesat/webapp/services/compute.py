@@ -5,7 +5,12 @@ from __future__ import annotations
 import numpy as np
 import rasterio
 
-from verdesat.webapp.services.r2 import signed_url
+import tempfile
+import geopandas as gpd
+import pandas as pd
+
+from verdesat.webapp.services.r2 import signed_url, upload_bytes
+from verdesat.services.bscore import compute_bscores
 
 from verdesat.biodiv.bscore import BScoreCalculator, WeightsConfig
 from verdesat.biodiv.metrics import MetricsResult, FragmentStats
@@ -70,4 +75,26 @@ def load_demo_metrics(aoi_id: int) -> dict[str, float]:
         "msavi_mean": msavi_mean,
         "msavi_std": msavi_std,
         "bscore": bscore,
+    }
+
+
+def compute_live_metrics(gdf: gpd.GeoDataFrame, *, year: int) -> dict[str, float]:
+    """Compute metrics for an uploaded AOI and persist the CSV to R2."""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        aoi_path = f"{tmpdir}/aoi.geojson"
+        gdf.to_file(aoi_path, driver="GeoJSON")
+        df: pd.DataFrame = compute_bscores(aoi_path, year=year)
+        csv_bytes = df.to_csv(index=False).encode("utf-8")
+        upload_bytes("results/live_metrics.csv", csv_bytes, content_type="text/csv")
+    row = df.iloc[0]
+    return {
+        "intactness": float(row["intactness"]),
+        "shannon": float(row["shannon"]),
+        "fragmentation": float(row["fragmentation"]),
+        "ndvi_mean": float("nan"),
+        "ndvi_std": float("nan"),
+        "msavi_mean": row.get("msa", float("nan")),
+        "msavi_std": float("nan"),
+        "bscore": float(row["bscore"]),
     }
