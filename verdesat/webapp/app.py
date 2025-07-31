@@ -2,7 +2,11 @@ import streamlit as st
 import geopandas as gpd
 from verdesat.webapp.services.r2 import signed_url
 from verdesat.webapp.components.map_widget import display_map
-from verdesat.webapp.components.kpi_cards import Metrics, display_metrics, bscore_gauge
+from verdesat.webapp.components.kpi_cards import Metrics, bscore_gauge, display_metrics
+from verdesat.webapp.components.charts import (
+    msavi_bar_chart,
+    ndvi_decomposition_chart,
+)
 from verdesat.webapp.services.compute import load_demo_metrics
 
 # ---- Page config -----------------------------------------------------------
@@ -64,3 +68,13 @@ with col2:
 
 st.markdown("---")
 display_metrics(metrics)
+
+# ---- Charts tab ------------------------------------------------------------
+st.markdown("---")
+tab_decomp, tab_msavi, tab_about = st.tabs(["NDVI Decomp", "MSAVI", "About"])
+with tab_decomp:
+    ndvi_decomposition_chart(aoi_id)
+with tab_msavi:
+    msavi_bar_chart(aoi_id)
+with tab_about:
+    st.write("NDVI decomposition and MSAVI plots from demo datasets.")
