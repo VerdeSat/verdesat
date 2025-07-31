@@ -5,6 +5,7 @@ encapsulate Google Earth Engine initialization, retries, and image collection re
 
 import os
 import json
+import tempfile
 import time
 from typing import Optional, Any
 
@@ -37,6 +38,7 @@ class EarthEngineManager:
         """
         Authenticate & initialize Earth Engine.
         If a service‑account JSON path is given, use it; otherwise prompt.
+        Supports inline service-account JSON via EARTHENGINE_TOKEN environment variable.
         """
         project = self.project
         try:
@@ -69,6 +71,19 @@ class EarthEngineManager:
                         quota_project_id=creds_data.get("project"),
                     )
                     ee.Initialize(token_credentials, project=project)
+                elif creds_data.get("type") == "service_account":
+                    # Inline service‑account JSON provided via EARTHENGINE_TOKEN.
+                    # Write it to a temporary file so ee.ServiceAccountCredentials can consume it.
+                    with tempfile.NamedTemporaryFile(
+                        "w", delete=False, suffix=".json"
+                    ) as fp:
+                        json.dump(creds_data, fp)
+                        temp_path = fp.name
+                    sa_credentials: Any = ee.ServiceAccountCredentials(
+                        creds_data.get("client_email"), temp_path
+                    )
+                    ee.Initialize(sa_credentials, project=project)
+                    return
                 else:
                     ee.Initialize(project=project)
             else:

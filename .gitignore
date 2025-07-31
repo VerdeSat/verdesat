@@ -39,6 +39,7 @@ venv/
 .venv/
 .env
 .env.*
+.ee-andreydara.json
 
 # OS temp files
 *.swp
