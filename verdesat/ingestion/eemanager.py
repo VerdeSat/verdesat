@@ -5,6 +5,7 @@ encapsulate Google Earth Engine initialization, retries, and image collection re
 
 import os
 import json
+import tempfile
 import time
 from typing import Optional, Any
 
@@ -37,6 +38,7 @@ class EarthEngineManager:
         """
         Authenticate & initialize Earth Engine.
         If a service‑account JSON path is given, use it; otherwise prompt.
+        Supports inline service-account JSON via EARTHENGINE_TOKEN environment variable.
         """
         project = self.project
         try:
@@ -47,7 +49,7 @@ class EarthEngineManager:
                 )
                 ee.Initialize(sa_credentials, project=project)
             elif self.token_env:
-                creds_data = None
+                creds_data: Optional[dict[str, Any]] = None
                 if os.path.exists(self.token_env):
                     with open(self.token_env, "r", encoding="utf-8") as fh:
                         creds_data = json.load(fh)
@@ -56,10 +58,11 @@ class EarthEngineManager:
                         creds_data = json.loads(self.token_env)
                     except json.JSONDecodeError:
                         pass
-                if creds_data and "refresh_token" in creds_data:
+
+                if creds_data is not None and "refresh_token" in creds_data:
                     token_credentials: Any = Credentials(
                         None,
-                        refresh_token=creds_data.get("refresh_token"),
+                        refresh_token=creds_data["refresh_token"],
                         token_uri=creds_data.get("token_uri", ee.oauth.TOKEN_URI),
                         client_id=creds_data.get("client_id", ee.oauth.CLIENT_ID),
                         client_secret=creds_data.get(
@@ -69,6 +72,22 @@ class EarthEngineManager:
                         quota_project_id=creds_data.get("project"),
                     )
                     ee.Initialize(token_credentials, project=project)
+
+                elif (
+                    creds_data is not None
+                    and creds_data.get("type") == "service_account"
+                ):
+                    # Inline service‑account JSON provided via EARTHENGINE_TOKEN.
+                    with tempfile.NamedTemporaryFile(
+                        "w", delete=False, suffix=".json"
+                    ) as fp:
+                        json.dump(creds_data, fp)
+                        temp_path = fp.name
+                    sa_inline_credentials: Any = ee.ServiceAccountCredentials(
+                        creds_data.get("client_email"), temp_path
+                    )
+                    ee.Initialize(sa_inline_credentials, project=project)
+                    return
                 else:
                     ee.Initialize(project=project)
             else:
