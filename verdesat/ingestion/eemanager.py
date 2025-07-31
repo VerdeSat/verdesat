@@ -4,10 +4,12 @@ encapsulate Google Earth Engine initialization, retries, and image collection re
 """
 
 import os
+import json
 import time
-from typing import Optional
+from typing import Optional, Any
 
 from verdesat.core.logger import Logger
+from google.oauth2.credentials import Credentials
 
 import ee
 from ee import EEException
@@ -26,6 +28,8 @@ class EarthEngineManager:
         logger=None,
     ):
         self.credential_path = credential_path
+        # Allow non-interactive auth using a refresh token passed via env.
+        self.token_env = os.getenv("EARTHENGINE_TOKEN")
         self.project = project or os.getenv("VERDESAT_EE_PROJECT")
         self.logger = logger or Logger.get_logger(__name__)
 
@@ -38,10 +42,35 @@ class EarthEngineManager:
         try:
             if self.credential_path:
                 # type: ignore[arg-type]
-                creds = ee.ServiceAccountCredentials(
+                sa_credentials: Any = ee.ServiceAccountCredentials(
                     None, self.credential_path  # type: ignore[arg-type]
                 )
-                ee.Initialize(creds, project=project)
+                ee.Initialize(sa_credentials, project=project)
+            elif self.token_env:
+                creds_data = None
+                if os.path.exists(self.token_env):
+                    with open(self.token_env, "r", encoding="utf-8") as fh:
+                        creds_data = json.load(fh)
+                else:
+                    try:
+                        creds_data = json.loads(self.token_env)
+                    except json.JSONDecodeError:
+                        pass
+                if creds_data and "refresh_token" in creds_data:
+                    token_credentials: Any = Credentials(
+                        None,
+                        refresh_token=creds_data.get("refresh_token"),
+                        token_uri=creds_data.get("token_uri", ee.oauth.TOKEN_URI),
+                        client_id=creds_data.get("client_id", ee.oauth.CLIENT_ID),
+                        client_secret=creds_data.get(
+                            "client_secret", ee.oauth.CLIENT_SECRET
+                        ),
+                        scopes=creds_data.get("scopes", ee.oauth.SCOPES),
+                        quota_project_id=creds_data.get("project"),
+                    )
+                    ee.Initialize(token_credentials, project=project)
+                else:
+                    ee.Initialize(project=project)
             else:
                 ee.Initialize(project=project)
         except EEException:

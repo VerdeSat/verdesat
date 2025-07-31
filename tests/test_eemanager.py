@@ -7,6 +7,9 @@ Tests for EarthEngineManager: initialization and get_image_collection behavior.
 from unittest.mock import MagicMock
 
 from verdesat.ingestion.eemanager import EarthEngineManager, ee_manager
+import json
+import ee
+from google.oauth2.credentials import Credentials
 
 
 def test_initialize_does_not_raise():
@@ -38,3 +41,26 @@ def test_get_image_collection_applies_cloud_mask(monkeypatch, dummy_sensor):
     )
     # Since no .map call, mapped_with remains None
     assert coll2.mapped_with is None
+
+
+def test_initialize_with_env_token(monkeypatch):
+    """initialize() should use EARTHENGINE_TOKEN without prompting."""
+    token_info = {
+        "refresh_token": "abc",
+        "client_id": "id",
+        "client_secret": "secret",
+    }
+    monkeypatch.setenv("EARTHENGINE_TOKEN", json.dumps(token_info))
+
+    captured = {}
+
+    def fake_initialize(creds=None, project=None):
+        captured["creds"] = creds
+        captured["project"] = project
+
+    monkeypatch.setattr(ee, "Initialize", fake_initialize)
+    mgr = EarthEngineManager()
+    mgr.initialize()
+
+    assert isinstance(captured.get("creds"), Credentials)
+    monkeypatch.delenv("EARTHENGINE_TOKEN", raising=False)
