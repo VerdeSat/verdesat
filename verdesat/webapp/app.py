@@ -19,6 +19,7 @@ st.set_page_config(
 st.sidebar.header("VerdeSat B-Score v0.1")
 mode = st.sidebar.radio("Mode", ["Demo AOI", "Upload AOI"])
 year = st.sidebar.slider("Year", 2017, 2024, value=2024)
+aoi_id = st.sidebar.selectbox("Demo AOI", [1, 2], format_func=lambda x: f"AOI {x}")
 run_button = st.sidebar.button("Run 🚀")
 
 # ---- Main canvas placeholders ---------------------------------------------
@@ -56,10 +57,7 @@ layer_state = {"ndvi": True, "msavi": True}
 with col1:
     layer_state = display_map(DEMO_AOI, NDVI_COGS, MSAVI_COGS, layer_state)
 
-metrics_data = load_demo_metrics(
-    "verdesat/resources/NDVI_1_2024-01-01.tiff",
-    "verdesat/resources/MSAVI_1_2024-01-01.tiff",
-)
+metrics_data = load_demo_metrics(aoi_id)
 metrics = Metrics(**metrics_data)
 with col2:
     bscore_gauge(metrics.bscore)
