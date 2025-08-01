@@ -234,7 +234,6 @@ class ComputeService:
             raise
 
     # ------------------------------------------------------------------
-    @st.cache_data(hash_funcs={gpd.GeoDataFrame: _hash_gdf})
     def compute_live_metrics(
         _self, gdf: gpd.GeoDataFrame, *, start_year: int, end_year: int
     ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
@@ -311,6 +310,7 @@ class ComputeService:
             raise
 
 
+@st.cache_data
 def _ndvi_stats(
     aoi_path: str, start_year: int, end_year: int
 ) -> tuple[dict[str, float | str], pd.DataFrame]:
@@ -361,6 +361,7 @@ def _ndvi_stats(
     return stats, decomp_df[["date", "observed", "trend", "seasonal"]]
 
 
+@st.cache_data
 def _msavi_stats(
     aoi_path: str, start_year: int, end_year: int
 ) -> tuple[dict[str, float], pd.DataFrame]:
