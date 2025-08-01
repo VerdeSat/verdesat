@@ -241,8 +241,18 @@ class ComputeService:
     # ------------------------------------------------------------------
     def compute_live_metrics(
         _self, gdf: gpd.GeoDataFrame, *, start_year: int, end_year: int
-    ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
-        """Compute metrics and vegetation indices for uploaded AOIs."""
+    ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """Compute metrics and vegetation indices for uploaded AOIs.
+
+        Returns
+        -------
+        tuple
+            ``(summary, df, ndvi_decomp, msavi_df)`` where ``summary`` contains
+            aggregated metrics across all AOIs, ``df`` holds per-AOI metrics and
+            the remaining DataFrames provide NDVI decomposition and MSAVI time
+            series for the first AOI.  The ``df`` output enables batch exports in
+            the caller.
+        """
 
         self = _self
         logger.info(
@@ -297,22 +307,40 @@ class ComputeService:
                     str(aoi_path), start_year, end_year
                 )
 
-            row = df.iloc[0]
-            data: dict[str, float | str] = {
-                "intactness": float(row["intactness"]),
-                "shannon": float(row["shannon"]),
-                "fragmentation": float(row["fragmentation"]),
-                "bscore": float(row["bscore"]),
+            summary: dict[str, float | str] = {
+                "intactness": float(df["intactness"].mean()),
+                "shannon": float(df["shannon"].mean()),
+                "fragmentation": float(df["fragmentation"].mean()),
+                "bscore": float(df["bscore"].mean()),
             }
-            data.update(ndvi_stats)
-            data.update(msavi_stats)
-            result = (data, ndvi_decomp, msavi_df)
+            summary.update(ndvi_stats)
+            summary.update(msavi_stats)
+            result = (summary, df, ndvi_decomp, msavi_df)
             _persist_cache(self.storage, cache_key, result)
             logger.info("computed live metrics for %s AOI(s)", len(aois))
             return result
         except Exception:
             logger.exception("live metrics computation failed")
             raise
+
+    # ------------------------------------------------------------------
+    def persist_project(self, project: VerdeSatProject) -> str:
+        """Persist ``project`` AOIs and metadata using the configured storage.
+
+        The project AOIs are serialized to GeoJSON and written under a
+        ``projects/`` prefix.  The returned URI can be stored for later
+        retrieval.  This is a lightweight hook that can be extended to use a
+        database or cloud bucket for authenticated users.
+        """
+
+        gdf = gpd.GeoDataFrame(
+            [{**a.static_props, "geometry": a.geometry} for a in project.aois],
+            crs="EPSG:4326",
+        )
+        data = gdf.to_json().encode("utf-8")
+        key = self.storage.join("projects", f"{project.name.replace(' ', '_')}.geojson")
+        self.storage.write_bytes(key, data)
+        return key
 
 
 @st.cache_data

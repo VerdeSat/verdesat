@@ -9,6 +9,9 @@ from verdesat.biodiv.bscore import BScoreCalculator
 from verdesat.services.msa import MSAService
 from verdesat.core.storage import StorageAdapter
 from verdesat.biodiv.metrics import MetricsResult, FragmentStats
+from verdesat.geo.aoi import AOI
+from verdesat.project.project import VerdeSatProject
+from verdesat.core.config import ConfigManager
 
 
 class DummyMSA(MSAService):
@@ -93,11 +96,12 @@ def test_compute_live_metrics_single_aoi(monkeypatch):
     storage = DummyStorage()
     svc = ComputeService(msa, calc, storage)
 
-    data, ndvi_out, msavi_out = svc.compute_live_metrics(
+    data, df, ndvi_out, msavi_out = svc.compute_live_metrics(
         gdf, start_year=2020, end_year=2021
     )
 
     assert data["bscore"] == 42.0
+    assert df.shape[0] == 1
     assert msa.called
     assert calc.last_metrics.msa == 0.7
     assert storage.writes
@@ -149,6 +153,21 @@ def test_compute_live_metrics_multi_aoi_project(monkeypatch):
     )
 
     svc = ComputeService(DummyMSA(), DummyCalc(), DummyStorage())
-    svc.compute_live_metrics(gdf, start_year=2020, end_year=2021)
+    _, df, _, _ = svc.compute_live_metrics(gdf, start_year=2020, end_year=2021)
 
     assert len(created["aois"]) == 2
+    assert df.shape[0] == 2
+
+
+def test_persist_project():
+    """Project persistence should write a GeoJSON."""
+
+    aois = [AOI(Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]), {"id": 1})]
+    project = VerdeSatProject("Test", "Customer", aois, ConfigManager())
+    storage = DummyStorage()
+    svc = ComputeService(DummyMSA(), DummyCalc(), storage)
+
+    uri = svc.persist_project(project)
+
+    assert storage.writes
+    assert uri.endswith(".geojson")

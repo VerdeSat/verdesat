@@ -1,8 +1,10 @@
+import json
 import logging
 from pathlib import Path
 from typing import Any, cast
 
 import geopandas as gpd
+import pandas as pd
 import streamlit as st
 
 from verdesat.biodiv.bscore import BScoreCalculator
@@ -10,6 +12,7 @@ from verdesat.core.config import ConfigManager
 from verdesat.core.logger import Logger
 from verdesat.core.storage import LocalFS
 from verdesat.geo.aoi import AOI
+from verdesat.project.project import VerdeSatProject
 from verdesat.services.msa import MSAService
 from verdesat.webapp.components.charts import (
     msavi_bar_chart,
@@ -152,9 +155,17 @@ if run_button:
     try:
         if mode == "Upload AOI" and uploaded_file is not None:
             logger.info("Loading uploaded AOI")
-            gdf = gpd.read_file(uploaded_file)
+            feature_collection = json.load(uploaded_file)
+            aois = AOI.from_geojson(feature_collection)
+            st.session_state["aois"] = aois
+            project = VerdeSatProject("Web Upload", "WebApp", aois, ConfigManager())
+            st.session_state["project"] = project
+            gdf = gpd.GeoDataFrame(
+                [{**a.static_props, "geometry": a.geometry} for a in aois],
+                crs="EPSG:4326",
+            )
             logger.info("Computing live metrics")
-            metrics_data, ndvi_chart_df, msavi_chart_df = (
+            metrics_data, metrics_df, ndvi_chart_df, msavi_chart_df = (
                 compute_service.compute_live_metrics(
                     gdf, start_year=start_year, end_year=end_year
                 )
@@ -170,6 +181,15 @@ if run_button:
                     aoi_id, demo_gdf, start_year=start_year, end_year=end_year
                 )
             )
+            metrics_df = pd.DataFrame(
+                [
+                    {
+                        k: v
+                        for k, v in metrics_data.items()
+                        if k in {"intactness", "shannon", "fragmentation", "bscore"}
+                    }
+                ]
+            )
             current_gdf = demo_gdf
             current_aoi_id = aoi_id
         metrics = Metrics(**cast(dict[str, Any], metrics_data))
@@ -178,18 +198,34 @@ if run_button:
         st.markdown("---")
         display_metrics(metrics)
 
-        aoi_obj = AOI.from_gdf(current_gdf)[0]
-        logger.info("Exporting metrics")
-        csv_url = export_metrics_csv(metrics, aoi_obj)
-        pdf_url = export_metrics_pdf(
-            metrics,
-            aoi_obj,
-            project="VerdeSat Demo",
-            ndvi_df=ndvi_chart_df,
-            msavi_df=msavi_chart_df,
-        )
-        st.markdown(f"[⬇️ Download CSV]({csv_url})")
-        st.markdown(f"[⬇️ Download PDF]({pdf_url})")
+        aois = st.session_state.get("aois", AOI.from_gdf(current_gdf))
+        export_links: list[tuple[Any, str, str]] = []
+        for idx, (aoi, row) in enumerate(
+            zip(aois, metrics_df.to_dict(orient="records"))
+        ):
+            ndvi_df = ndvi_chart_df if idx == 0 else None
+            msavi_df = msavi_chart_df if idx == 0 else None
+            csv_url = export_metrics_csv(row, aoi)
+            project_name = (
+                st.session_state.get("project").name
+                if st.session_state.get("project")
+                else "VerdeSat Demo"
+            )
+            pdf_url = export_metrics_pdf(
+                row,
+                aoi,
+                project=project_name,
+                ndvi_df=ndvi_df,
+                msavi_df=msavi_df,
+            )
+            export_links.append((aoi.static_props.get("id", idx), csv_url, pdf_url))
+        for pid, csv_url, pdf_url in export_links:
+            st.markdown(
+                f"AOI {pid}: [⬇️ Download CSV]({csv_url}) | [⬇️ Download PDF]({pdf_url})"
+            )
+
+        if st.session_state.get("user") and st.session_state.get("project"):
+            compute_service.persist_project(st.session_state["project"])
     except Exception:
         logger.exception("Processing failed")
         st.error("Processing failed; see log pane for details.")
