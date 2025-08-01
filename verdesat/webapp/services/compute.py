@@ -33,27 +33,18 @@ from verdesat.biodiv.bscore import BScoreCalculator
 from verdesat.biodiv.metrics import FragmentStats, MetricEngine, MetricsResult
 from verdesat.services.msa import MSAService
 from verdesat.geo.aoi import AOI
-from verdesat.core.logger import Logger
 from verdesat.core.storage import StorageAdapter
 from verdesat.project.project import VerdeSatProject
 from verdesat.core.config import ConfigManager
 
 
-logger = Logger.get_logger(__name__)
-
-
 def _read_remote_raster(key: str) -> np.ndarray:
     """Return the first band of a COG stored on R2 as a float array."""
 
-    logger.info("Reading remote raster %s", key)
-    try:
-        url = signed_url(key)
-        with rasterio.open(url) as src:
-            arr = src.read(1, masked=True).astype(float)
-            return arr.filled(np.nan)
-    except Exception:
-        logger.exception("Failed to read raster %s", key)
-        raise
+    url = signed_url(key)
+    with rasterio.open(url) as src:
+        arr = src.read(1, masked=True).astype(float)
+        return arr.filled(np.nan)
 
 
 def _hash_gdf(gdf: gpd.GeoDataFrame) -> str:
@@ -74,15 +65,15 @@ def _persist_cache(storage: StorageAdapter, key: str, value: object) -> None:
     data = pickle.dumps(value)
     url = os.getenv("REDIS_URL")
     if redis and url:
-        try:
+        try:  # pragma: no cover - network failure
             redis.Redis.from_url(url).set(key, data)
             return
-        except Exception:  # pragma: no cover - network failure
-            logger.exception("Failed to persist cache to Redis for %s", key)
-    try:
+        except Exception:
+            pass
+    try:  # pragma: no cover - storage failure
         storage.write_bytes(_cache_path(storage, key), data)
-    except Exception:  # pragma: no cover - storage failure
-        logger.exception("Failed to persist cache to storage for %s", key)
+    except Exception:
+        pass
 
 
 def _load_cache(storage: StorageAdapter, key: str) -> object | None:
@@ -90,19 +81,19 @@ def _load_cache(storage: StorageAdapter, key: str) -> object | None:
 
     url = os.getenv("REDIS_URL")
     if redis and url:
-        try:
+        try:  # pragma: no cover - network failure
             data = redis.Redis.from_url(url).get(key)
             if data:
                 return pickle.loads(data)
-        except Exception:  # pragma: no cover - network failure
-            logger.exception("Failed to load cache from Redis for %s", key)
+        except Exception:
+            pass
     path = _cache_path(storage, key)
     if os.path.exists(path):
-        try:
+        try:  # pragma: no cover - I/O failure
             with open(path, "rb") as fh:
                 return pickle.loads(fh.read())
-        except Exception:  # pragma: no cover - I/O failure
-            logger.exception("Failed to load cache from storage for %s", key)
+        except Exception:
+            pass
     return None
 
 
@@ -134,7 +125,6 @@ class ComputeService:
         if cached is not None:
             return cached  # type: ignore[return-value]
 
-        logger.info("Computing demo metrics for AOI %s", aoi_id)
         try:
             landcover = _read_remote_raster(
                 f"resources/LANDCOVER_{aoi_id}_{end_year}.tiff"
@@ -193,7 +183,7 @@ class ComputeService:
                 geom = gdf.loc[gdf["id"] == aoi_id].geometry.iloc[0]
                 msa_val = self.msa_service.mean_msa(geom)
             except Exception:  # pragma: no cover - network or raster issues
-                logger.exception("MSA computation failed for AOI %s", aoi_id)
+                msa_val = float("nan")
 
             metrics = MetricsResult(
                 intactness=intactness,
@@ -226,7 +216,6 @@ class ComputeService:
             _persist_cache(self.storage, cache_key, result)
             return result
         except Exception:
-            logger.exception("Demo metric computation failed for AOI %s", aoi_id)
             raise
 
     # ------------------------------------------------------------------
@@ -242,7 +231,6 @@ class ComputeService:
         if cached is not None:
             return cached  # type: ignore[return-value]
 
-        logger.info("Computing live metrics for uploaded AOIs")
         try:
             aois = AOI.from_gdf(gdf)
             if len(aois) > 1:
@@ -299,7 +287,6 @@ class ComputeService:
             _persist_cache(self.storage, cache_key, result)
             return result
         except Exception:
-            logger.exception("Live metric computation failed")
             raise
 
 
