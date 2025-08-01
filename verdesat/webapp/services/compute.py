@@ -36,6 +36,7 @@ from verdesat.geo.aoi import AOI
 from verdesat.core.storage import StorageAdapter
 from verdesat.project.project import VerdeSatProject
 from verdesat.core.config import ConfigManager
+from verdesat.core.logger import Logger
 
 
 def _read_remote_raster(key: str) -> np.ndarray:
@@ -59,6 +60,9 @@ def _cache_path(storage: StorageAdapter, key: str) -> str:
     return storage.join("cache", f"{key}.pkl")
 
 
+logger = Logger.get_logger(__name__)
+
+
 def _persist_cache(storage: StorageAdapter, key: str, value: object) -> None:
     """Persist ``value`` under ``key`` using Redis or the provided storage."""
 
@@ -67,13 +71,15 @@ def _persist_cache(storage: StorageAdapter, key: str, value: object) -> None:
     if redis and url:
         try:  # pragma: no cover - network failure
             redis.Redis.from_url(url).set(key, data)
+            logger.debug("stored cache %s in Redis", key)
             return
         except Exception:
-            pass
+            logger.exception("failed to persist %s in Redis", key)
     try:  # pragma: no cover - storage failure
         storage.write_bytes(_cache_path(storage, key), data)
+        logger.debug("stored cache %s at %s", key, _cache_path(storage, key))
     except Exception:
-        pass
+        logger.exception("failed to persist %s to storage", key)
 
 
 def _load_cache(storage: StorageAdapter, key: str) -> object | None:
@@ -84,16 +90,19 @@ def _load_cache(storage: StorageAdapter, key: str) -> object | None:
         try:  # pragma: no cover - network failure
             data = redis.Redis.from_url(url).get(key)
             if data:
+                logger.debug("loaded cache %s from Redis", key)
                 return pickle.loads(data)
         except Exception:
-            pass
+            logger.exception("failed to load cache %s from Redis", key)
     path = _cache_path(storage, key)
     if os.path.exists(path):
         try:  # pragma: no cover - I/O failure
             with open(path, "rb") as fh:
+                logger.debug("loaded cache %s from %s", key, path)
                 return pickle.loads(fh.read())
         except Exception:
-            pass
+            logger.exception("failed to load cache %s from %s", key, path)
+    logger.debug("cache miss for %s", key)
     return None
 
 
@@ -120,9 +129,13 @@ class ComputeService:
         """Compute metrics and vegetation indices for a demo AOI."""
 
         self = _self
+        logger.info(
+            "compute demo metrics for AOI %s (%s-%s)", aoi_id, start_year, end_year
+        )
         cache_key = f"demo_{aoi_id}_{start_year}_{end_year}"
         cached = _load_cache(self.storage, cache_key)
         if cached is not None:
+            logger.info("demo metrics cache hit for AOI %s", aoi_id)
             return cached  # type: ignore[return-value]
 
         try:
@@ -214,8 +227,10 @@ class ComputeService:
             }
             result = (data, ndvi_decomp_df, msavi_df)
             _persist_cache(self.storage, cache_key, result)
+            logger.info("computed demo metrics for AOI %s", aoi_id)
             return result
         except Exception:
+            logger.exception("demo metrics computation failed for AOI %s", aoi_id)
             raise
 
     # ------------------------------------------------------------------
@@ -226,9 +241,13 @@ class ComputeService:
         """Compute metrics and vegetation indices for uploaded AOIs."""
 
         self = _self
+        logger.info(
+            "compute live metrics for uploaded AOI(s) (%s-%s)", start_year, end_year
+        )
         cache_key = f"live_{_hash_gdf(gdf)}_{start_year}_{end_year}"
         cached = _load_cache(self.storage, cache_key)
         if cached is not None:
+            logger.info("live metrics cache hit")
             return cached  # type: ignore[return-value]
 
         try:
@@ -285,8 +304,10 @@ class ComputeService:
             data.update(msavi_stats)
             result = (data, ndvi_decomp, msavi_df)
             _persist_cache(self.storage, cache_key, result)
+            logger.info("computed live metrics for %s AOI(s)", len(aois))
             return result
         except Exception:
+            logger.exception("live metrics computation failed")
             raise
 
 
