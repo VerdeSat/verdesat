@@ -29,6 +29,11 @@ from functools import lru_cache
 import boto3
 from botocore.config import Config
 
+from verdesat.core.logger import Logger
+
+
+logger = Logger.get_logger(__name__)
+
 
 @lru_cache(maxsize=1)
 def _client():
@@ -60,15 +65,27 @@ def signed_url(key: str, expires: int = 86_400) -> str:
         HTTPS URL with signature & expiry.
     """
     bucket = os.getenv("R2_BUCKET", "verdesat-data")
-    return _client().generate_presigned_url(
-        ClientMethod="get_object",
-        Params={"Bucket": bucket, "Key": key},
-        ExpiresIn=expires,
-    )
+    logger.info("Generating signed URL for %s", key)
+    try:
+        return _client().generate_presigned_url(
+            ClientMethod="get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=expires,
+        )
+    except Exception:
+        logger.exception("Failed to generate signed URL for %s", key)
+        raise
 
 
 def upload_bytes(key: str, data: bytes, *, content_type: str = "text/csv") -> None:
     """Upload ``data`` to R2 under ``key``."""
 
     bucket = os.getenv("R2_BUCKET", "verdesat-data")
-    _client().put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type)
+    logger.info("Uploading %s to R2", key)
+    try:
+        _client().put_object(
+            Bucket=bucket, Key=key, Body=data, ContentType=content_type
+        )
+    except Exception:
+        logger.exception("Failed to upload %s", key)
+        raise
