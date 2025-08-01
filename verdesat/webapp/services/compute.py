@@ -36,13 +36,12 @@ def _read_remote_raster(key: str) -> np.ndarray:
         return arr.filled(np.nan)
 
 
-def _basic_stats(arr: np.ndarray) -> tuple[float, float]:
-    mask = ~np.isnan(arr)
-    return float(np.nanmean(arr[mask])), float(np.nanstd(arr[mask]))
-
-
 def load_demo_metrics(
-    aoi_id: int, gdf: gpd.GeoDataFrame, *, year: int
+    aoi_id: int,
+    gdf: gpd.GeoDataFrame,
+    *,
+    start_year: int,
+    end_year: int,
 ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
     """Compute metrics and VI datasets for a demo AOI.
 
@@ -53,14 +52,13 @@ def load_demo_metrics(
     gdf:
         GeoDataFrame containing all demo AOIs. The geometry is required to
         compute MSA using :class:`~verdesat.services.msa.MSAService`.
-    year:
-        Year used for land-cover based metrics. Currently only 2024 demo rasters
-        are available.
+    start_year, end_year:
+        Inclusive temporal range for vegetation indices. The end year is also
+        used for land-cover based metrics as only a single annual layer is
+        available for demo data.
     """
 
-    ndvi = _read_remote_raster(f"resources/NDVI_{aoi_id}_{year}-01-01.tif")
-    msavi = _read_remote_raster(f"resources/MSAVI_{aoi_id}_{year}-01-01.tif")
-    landcover = _read_remote_raster(f"resources/LANDCOVER_{aoi_id}_{year}.tiff")
+    landcover = _read_remote_raster(f"resources/LANDCOVER_{aoi_id}_{end_year}.tiff")
 
     intactness = float(np.isin(landcover, [1, 2, 6]).sum() / landcover.size)
 
@@ -77,6 +75,10 @@ def load_demo_metrics(
     # ---- NDVI stats from demo decomposition/time-series -----------------
     ndvi_decomp_url = signed_url(f"resources/decomp/{aoi_id}_decomposition.csv")
     ndvi_decomp_df = pd.read_csv(ndvi_decomp_url, parse_dates=["date"])
+    mask = (ndvi_decomp_df["date"].dt.year >= start_year) & (
+        ndvi_decomp_df["date"].dt.year <= end_year
+    )
+    ndvi_decomp_df = ndvi_decomp_df.loc[mask]
     ndvi_ts = ndvi_decomp_df[["date", "observed"]].rename(
         columns={"observed": "mean_ndvi"}
     )
@@ -96,6 +98,10 @@ def load_demo_metrics(
     msavi_df = pd.read_csv(msavi_url, parse_dates=["date"])
     if "id" in msavi_df.columns:
         msavi_df = msavi_df[msavi_df["id"] == aoi_id]
+    mask = (msavi_df["date"].dt.year >= start_year) & (
+        msavi_df["date"].dt.year <= end_year
+    )
+    msavi_df = msavi_df.loc[mask]
     with tempfile.TemporaryDirectory() as tmpdir:
         msavi_path = Path(tmpdir) / "msavi.csv"
         msavi_df.to_csv(msavi_path, index=False)
@@ -142,16 +148,22 @@ def load_demo_metrics(
 
 
 def _ndvi_stats(
-    aoi_path: str, year: int
+    aoi_path: str, start_year: int, end_year: int
 ) -> tuple[dict[str, float | str], pd.DataFrame]:
-    """Return NDVI stats and decomposition for ``aoi_path``."""
+    """Return NDVI stats and decomposition for ``aoi_path``.
+
+    The time series is aggregated monthly from the
+    ``COPERNICUS/S2_SR_HARMONIZED`` collection.
+    """
 
     ts_df = download_timeseries(
         geojson=aoi_path,
-        start=f"{year}-01-01",
-        end=f"{year}-12-31",
+        collection="COPERNICUS/S2_SR_HARMONIZED",
+        start=f"{start_year}-01-01",
+        end=f"{end_year}-12-31",
         index="ndvi",
         chunk_freq="ME",
+        agg="ME",
     )
     ts = TimeSeries.from_dataframe(ts_df, index="ndvi").fill_gaps()
     decomp = ts.decompose(period=12)
@@ -189,15 +201,19 @@ def _ndvi_stats(
     return stats, decomp_df[["date", "observed", "trend", "seasonal"]]
 
 
-def _msavi_stats(aoi_path: str, year: int) -> tuple[dict[str, float], pd.DataFrame]:
+def _msavi_stats(
+    aoi_path: str, start_year: int, end_year: int
+) -> tuple[dict[str, float], pd.DataFrame]:
     """Return MSAVI stats and monthly time series for ``aoi_path``."""
 
     ts_df = download_timeseries(
         geojson=aoi_path,
-        start=f"{year}-01-01",
-        end=f"{year}-12-31",
+        collection="COPERNICUS/S2_SR_HARMONIZED",
+        start=f"{start_year}-01-01",
+        end=f"{end_year}-12-31",
         index="msavi",
         chunk_freq="ME",
+        agg="ME",
     )
     ts = TimeSeries.from_dataframe(ts_df, index="msavi").fill_gaps()
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -215,16 +231,16 @@ def _msavi_stats(aoi_path: str, year: int) -> tuple[dict[str, float], pd.DataFra
 
 
 def compute_live_metrics(
-    gdf: gpd.GeoDataFrame, *, year: int
+    gdf: gpd.GeoDataFrame, *, start_year: int, end_year: int
 ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
     """Compute metrics and VI datasets for an uploaded AOI."""
 
     with tempfile.TemporaryDirectory() as tmpdir:
         aoi_path = Path(tmpdir) / "aoi.geojson"
         gdf.to_file(aoi_path, driver="GeoJSON")
-        df: pd.DataFrame = compute_bscores(str(aoi_path), year=year)
-        ndvi_stats, ndvi_decomp = _ndvi_stats(str(aoi_path), year)
-        msavi_stats, msavi_df = _msavi_stats(str(aoi_path), year)
+        df: pd.DataFrame = compute_bscores(str(aoi_path), year=end_year)
+        ndvi_stats, ndvi_decomp = _ndvi_stats(str(aoi_path), start_year, end_year)
+        msavi_stats, msavi_df = _msavi_stats(str(aoi_path), start_year, end_year)
         csv_bytes = df.to_csv(index=False).encode("utf-8")
         upload_bytes("results/live_metrics.csv", csv_bytes, content_type="text/csv")
 

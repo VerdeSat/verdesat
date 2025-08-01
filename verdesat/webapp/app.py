@@ -25,7 +25,7 @@ st.set_page_config(
 # ---- Sidebar controls ------------------------------------------------------
 st.sidebar.header("VerdeSat B-Score v0.1")
 mode = st.sidebar.radio("Mode", ["Demo AOI", "Upload AOI"])
-year = st.sidebar.slider("Year", 2017, 2024, value=2024)
+start_year, end_year = st.sidebar.slider("Years", 2017, 2024, value=(2019, 2024))
 aoi_id = st.sidebar.selectbox("Demo AOI", [1, 2], format_func=lambda x: f"AOI {x}")
 uploaded_file = None
 if mode == "Upload AOI":
@@ -74,14 +74,14 @@ if run_button:
     if mode == "Upload AOI" and uploaded_file is not None:
         gdf = gpd.read_file(uploaded_file)
         metrics_data, ndvi_chart_df, msavi_chart_df = compute_live_metrics(
-            gdf, year=year
+            gdf, start_year=start_year, end_year=end_year
         )
         current_gdf = gdf
         current_aoi_id = 0
     else:
         demo_gdf = DEMO_AOI[DEMO_AOI["id"] == aoi_id]
         metrics_data, ndvi_chart_df, msavi_chart_df = load_demo_metrics(
-            aoi_id, demo_gdf, year=year
+            aoi_id, demo_gdf, start_year=start_year, end_year=end_year
         )
         current_gdf = demo_gdf
         current_aoi_id = aoi_id
@@ -108,13 +108,17 @@ st.markdown("---")
 tab_decomp, tab_msavi, tab_about = st.tabs(["NDVI Decomp", "MSAVI", "About"])
 with tab_decomp:
     if ndvi_chart_df is not None:
-        ndvi_decomposition_chart(data=ndvi_chart_df)
+        ndvi_decomposition_chart(
+            data=ndvi_chart_df, start_year=start_year, end_year=end_year
+        )
     else:
-        ndvi_decomposition_chart(current_aoi_id)
+        ndvi_decomposition_chart(
+            current_aoi_id, start_year=start_year, end_year=end_year
+        )
 with tab_msavi:
     if msavi_chart_df is not None:
-        msavi_bar_chart(data=msavi_chart_df)
+        msavi_bar_chart(data=msavi_chart_df, start_year=start_year, end_year=end_year)
     else:
-        msavi_bar_chart(current_aoi_id)
+        msavi_bar_chart(current_aoi_id, start_year=start_year, end_year=end_year)
 with tab_about:
     st.write("NDVI decomposition and MSAVI plots from demo datasets.")
