@@ -2,7 +2,7 @@
 
 # VerdeSat B‑Score v0.1 — Investor‑Demo Dashboard (Streamlit)
 
-## 1 · Goals & Design Principles  
+## 1 · Goals & Design Principles
 | # | Principle | Implication |
 |---|-----------|-------------|
 | 1 | **Show, don’t tell** | Map, gauges, and plots must be visible within **≤ 10 s** for demo AOIs. |
@@ -123,3 +123,43 @@ verdesat/
 4. NDVI decomposition and MSAVI plots render in Charts tab.  
 5. CSV & PDF exports download with valid data.  
 6. `app.verdesat.com` serves the dashboard over HTTPS.
+
+---
+
+## 10 · Configuration
+
+The Streamlit app reads settings from `verdesat/resources/webapp.toml`:
+
+```toml
+[demo]
+aoi_key = "resources/reference.geojson"
+
+[[demo.aois]]
+id = 1
+name = "AOI 1"
+ndvi = "resources/NDVI_1_2024-01-01.tiff"
+msavi = "resources/MSAVI_1_2024-01-01.tiff"
+
+[[demo.aois]]
+id = 2
+name = "AOI 2"
+ndvi = "resources/NDVI_2_2024-01-01.tiff"
+msavi = "resources/MSAVI_2_2024-01-01.tiff"
+
+[defaults]
+start_year = 2019
+end_year = 2024
+
+[r2]
+endpoint = "${R2_ENDPOINT}"
+bucket = "${R2_BUCKET}"
+key = "${R2_KEY}"
+secret = "${R2_SECRET}"
+
+[cache]
+redis_url = "${REDIS_URL}"
+```
+
+`r2.endpoint`, `r2.key` and `r2.secret` are required; other keys have
+defaults. Environment variables referenced in `${...}` are expanded at load
+time.

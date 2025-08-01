@@ -38,6 +38,11 @@ from verdesat.project.project import VerdeSatProject
 from verdesat.core.config import ConfigManager
 from verdesat.core.logger import Logger
 
+CONFIG = ConfigManager(
+    str(Path(__file__).resolve().parents[2] / "resources" / "webapp.toml")
+)
+REDIS_URL = CONFIG.get("cache", {}).get("redis_url")
+
 
 def _read_remote_raster(key: str) -> np.ndarray:
     """Return the first band of a COG stored on R2 as a float array."""
@@ -67,7 +72,7 @@ def _persist_cache(storage: StorageAdapter, key: str, value: object) -> None:
     """Persist ``value`` under ``key`` using Redis or the provided storage."""
 
     data = pickle.dumps(value)
-    url = os.getenv("REDIS_URL")
+    url = REDIS_URL
     if redis and url:
         try:  # pragma: no cover - network failure
             redis.Redis.from_url(url).set(key, data)
@@ -85,7 +90,7 @@ def _persist_cache(storage: StorageAdapter, key: str, value: object) -> None:
 def _load_cache(storage: StorageAdapter, key: str) -> object | None:
     """Return persisted cache for ``key`` if available."""
 
-    url = os.getenv("REDIS_URL")
+    url = REDIS_URL
     if redis and url:
         try:  # pragma: no cover - network failure
             data = redis.Redis.from_url(url).get(key)
