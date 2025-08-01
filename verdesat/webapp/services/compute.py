@@ -37,6 +37,7 @@ from verdesat.core.storage import StorageAdapter
 from verdesat.project.project import VerdeSatProject
 from verdesat.core.config import ConfigManager
 from verdesat.core.logger import Logger
+from rasterio.errors import RasterioIOError
 
 CONFIG = ConfigManager(
     str(Path(__file__).resolve().parents[2] / "resources" / "webapp.toml")
@@ -48,9 +49,13 @@ def _read_remote_raster(key: str) -> np.ndarray:
     """Return the first band of a COG stored on R2 as a float array."""
 
     url = signed_url(key)
-    with rasterio.open(url) as src:
-        arr = src.read(1, masked=True).astype(float)
-        return arr.filled(np.nan)
+    try:
+        with rasterio.open(url) as src:
+            arr = src.read(1, masked=True).astype(float)
+            return arr.filled(np.nan)
+    except RasterioIOError as exc:
+        logger.error("missing raster %s", key)
+        raise FileNotFoundError(key) from exc
 
 
 def _hash_gdf(gdf: gpd.GeoDataFrame) -> str:
@@ -290,12 +295,6 @@ class ComputeService:
                     }
                 )
 
-            df = pd.DataFrame.from_records(records)
-
-            csv_bytes = df.to_csv(index=False).encode("utf-8")
-            dest = self.storage.join("results", "live_metrics.csv")
-            self.storage.write_bytes(dest, csv_bytes)
-
             first_gdf = gdf.iloc[[0]]
             with tempfile.TemporaryDirectory() as tmpdir:
                 aoi_path = Path(tmpdir) / "aoi.geojson"
@@ -306,6 +305,15 @@ class ComputeService:
                 msavi_stats, msavi_df = _msavi_stats(
                     str(aoi_path), start_year, end_year
                 )
+
+            records[0].update(ndvi_stats)
+            records[0].update(msavi_stats)
+
+            df = pd.DataFrame.from_records(records)
+
+            csv_bytes = df.to_csv(index=False).encode("utf-8")
+            dest = self.storage.join("results", "live_metrics.csv")
+            self.storage.write_bytes(dest, csv_bytes)
 
             summary: dict[str, float | str] = {
                 "intactness": float(df["intactness"].mean()),

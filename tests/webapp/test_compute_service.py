@@ -102,6 +102,8 @@ def test_compute_live_metrics_single_aoi(monkeypatch):
 
     assert data["bscore"] == 42.0
     assert df.shape[0] == 1
+    assert df.loc[0, "ndvi_mean"] == 1.0
+    assert df.loc[0, "msavi_mean"] == 2.0
     assert msa.called
     assert calc.last_metrics.msa == 0.7
     assert storage.writes
@@ -157,6 +159,8 @@ def test_compute_live_metrics_multi_aoi_project(monkeypatch):
 
     assert len(created["aois"]) == 2
     assert df.shape[0] == 2
+    assert df.loc[0, "ndvi_mean"] == 1.0
+    assert df.loc[0, "msavi_mean"] == 2.0
 
 
 def test_persist_project():

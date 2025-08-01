@@ -175,21 +175,15 @@ if run_button:
         else:
             logger.info("Loading demo AOI %s", aoi_id)
             demo_gdf = DEMO_AOI[DEMO_AOI["id"] == aoi_id]
+            st.session_state["aois"] = AOI.from_gdf(demo_gdf)
+            st.session_state.pop("project", None)
             logger.info("Computing demo metrics")
             metrics_data, ndvi_chart_df, msavi_chart_df = (
                 compute_service.load_demo_metrics(
                     aoi_id, demo_gdf, start_year=start_year, end_year=end_year
                 )
             )
-            metrics_df = pd.DataFrame(
-                [
-                    {
-                        k: v
-                        for k, v in metrics_data.items()
-                        if k in {"intactness", "shannon", "fragmentation", "bscore"}
-                    }
-                ]
-            )
+            metrics_df = pd.DataFrame([{**metrics_data, "id": aoi_id}])
             current_gdf = demo_gdf
             current_aoi_id = aoi_id
         metrics = Metrics(**cast(dict[str, Any], metrics_data))
