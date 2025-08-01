@@ -24,18 +24,27 @@ from verdesat.biodiv.bscore import BScoreCalculator
 from verdesat.biodiv.metrics import FragmentStats, MetricEngine, MetricsResult
 from verdesat.services.msa import MSAService
 from verdesat.geo.aoi import AOI
+from verdesat.core.logger import Logger
 from verdesat.core.storage import StorageAdapter
 from verdesat.project.project import VerdeSatProject
 from verdesat.core.config import ConfigManager
 
 
+logger = Logger.get_logger(__name__)
+
+
 def _read_remote_raster(key: str) -> np.ndarray:
     """Return the first band of a COG stored on R2 as a float array."""
 
-    url = signed_url(key)
-    with rasterio.open(url) as src:
-        arr = src.read(1, masked=True).astype(float)
-        return arr.filled(np.nan)
+    logger.info("Reading remote raster %s", key)
+    try:
+        url = signed_url(key)
+        with rasterio.open(url) as src:
+            arr = src.read(1, masked=True).astype(float)
+            return arr.filled(np.nan)
+    except Exception:
+        logger.exception("Failed to read raster %s", key)
+        raise
 
 
 class ComputeService:
@@ -59,91 +68,98 @@ class ComputeService:
     ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
         """Compute metrics and vegetation indices for a demo AOI."""
 
-        landcover = _read_remote_raster(f"resources/LANDCOVER_{aoi_id}_{end_year}.tiff")
-
-        intactness = float(np.isin(landcover, [1, 2, 6]).sum() / landcover.size)
-
-        vals = landcover[~np.isnan(landcover)].astype(int).ravel()
-        counts = np.bincount(vals)
-        probs = counts[counts > 0] / vals.size
-        shannon = float(-np.sum(probs * np.log(probs)))
-
-        edges = np.count_nonzero(
-            landcover[:, 1:] != landcover[:, :-1]
-        ) + np.count_nonzero(landcover[1:, :] != landcover[:-1, :])
-        fragmentation = float(edges / landcover.size)
-
-        ndvi_decomp_url = signed_url(f"resources/decomp/{aoi_id}_decomposition.csv")
-        ndvi_decomp_df = pd.read_csv(ndvi_decomp_url, parse_dates=["date"])
-        mask = (ndvi_decomp_df["date"].dt.year >= start_year) & (
-            ndvi_decomp_df["date"].dt.year <= end_year
-        )
-        ndvi_decomp_df = ndvi_decomp_df.loc[mask]
-        ndvi_ts = ndvi_decomp_df[["date", "observed"]].rename(
-            columns={"observed": "mean_ndvi"}
-        )
-        ndvi_ts["id"] = aoi_id
-        with tempfile.TemporaryDirectory() as tmpdir:
-            ts_path = Path(tmpdir) / "ndvi.csv"
-            decomp_path = Path(tmpdir) / f"{aoi_id}_decomposition.csv"
-            ndvi_ts.to_csv(ts_path, index=False)
-            ndvi_decomp_df.to_csv(decomp_path, index=False)
-            stats_df = compute_summary_stats(
-                str(ts_path), decomp_dir=tmpdir, value_col="mean_ndvi"
-            ).to_dataframe()
-        ndvi_row = stats_df.iloc[0]
-
-        msavi_url = signed_url("resources/msavi.csv")
-        msavi_df = pd.read_csv(msavi_url, parse_dates=["date"])
-        if "id" in msavi_df.columns:
-            msavi_df = msavi_df[msavi_df["id"] == aoi_id]
-        mask = (msavi_df["date"].dt.year >= start_year) & (
-            msavi_df["date"].dt.year <= end_year
-        )
-        msavi_df = msavi_df.loc[mask]
-        with tempfile.TemporaryDirectory() as tmpdir:
-            msavi_path = Path(tmpdir) / "msavi.csv"
-            msavi_df.to_csv(msavi_path, index=False)
-            msavi_stats_df = compute_summary_stats(
-                str(msavi_path), value_col="mean_msavi"
-            ).to_dataframe()
-        msavi_row = msavi_stats_df.iloc[0]
-
-        msa_val = float("nan")
+        logger.info("Computing demo metrics for AOI %s", aoi_id)
         try:
-            geom = gdf.loc[gdf["id"] == aoi_id].geometry.iloc[0]
-            msa_val = self.msa_service.mean_msa(geom)
-        except Exception:  # pragma: no cover - network or raster issues
-            pass
+            landcover = _read_remote_raster(
+                f"resources/LANDCOVER_{aoi_id}_{end_year}.tiff"
+            )
 
-        metrics = MetricsResult(
-            intactness=intactness,
-            shannon=shannon,
-            fragmentation=FragmentStats(
-                edge_density=fragmentation, normalised_density=fragmentation
-            ),
-            msa=msa_val,
-        )
-        bscore = self.calc.score(metrics)
+            intactness = float(np.isin(landcover, [1, 2, 6]).sum() / landcover.size)
 
-        data = {
-            "intactness": intactness,
-            "shannon": shannon,
-            "fragmentation": fragmentation,
-            "ndvi_mean": float(ndvi_row["Mean NDVI"]),
-            "ndvi_std": float(ndvi_row["Std NDVI"]),
-            "ndvi_slope": float(ndvi_row["Sen's Slope (NDVI/yr)"]),
-            "ndvi_delta": float(ndvi_row["Trend ΔNDVI"]),
-            "ndvi_p_value": float(ndvi_row["Mann–Kendall p-value"]),
-            "ndvi_peak": (
-                ndvi_row["Peak Month"] if pd.notna(ndvi_row["Peak Month"]) else ""
-            ),
-            "ndvi_pct_fill": float(ndvi_row["% Gapfilled"]),
-            "msavi_mean": float(msavi_row["Mean MSAVI"]),
-            "msavi_std": float(msavi_row["Std MSAVI"]),
-            "bscore": bscore,
-        }
-        return data, ndvi_decomp_df, msavi_df
+            vals = landcover[~np.isnan(landcover)].astype(int).ravel()
+            counts = np.bincount(vals)
+            probs = counts[counts > 0] / vals.size
+            shannon = float(-np.sum(probs * np.log(probs)))
+
+            edges = np.count_nonzero(
+                landcover[:, 1:] != landcover[:, :-1]
+            ) + np.count_nonzero(landcover[1:, :] != landcover[:-1, :])
+            fragmentation = float(edges / landcover.size)
+
+            ndvi_decomp_url = signed_url(f"resources/decomp/{aoi_id}_decomposition.csv")
+            ndvi_decomp_df = pd.read_csv(ndvi_decomp_url, parse_dates=["date"])
+            mask = (ndvi_decomp_df["date"].dt.year >= start_year) & (
+                ndvi_decomp_df["date"].dt.year <= end_year
+            )
+            ndvi_decomp_df = ndvi_decomp_df.loc[mask]
+            ndvi_ts = ndvi_decomp_df[["date", "observed"]].rename(
+                columns={"observed": "mean_ndvi"}
+            )
+            ndvi_ts["id"] = aoi_id
+            with tempfile.TemporaryDirectory() as tmpdir:
+                ts_path = Path(tmpdir) / "ndvi.csv"
+                decomp_path = Path(tmpdir) / f"{aoi_id}_decomposition.csv"
+                ndvi_ts.to_csv(ts_path, index=False)
+                ndvi_decomp_df.to_csv(decomp_path, index=False)
+                stats_df = compute_summary_stats(
+                    str(ts_path), decomp_dir=tmpdir, value_col="mean_ndvi"
+                ).to_dataframe()
+            ndvi_row = stats_df.iloc[0]
+
+            msavi_url = signed_url("resources/msavi.csv")
+            msavi_df = pd.read_csv(msavi_url, parse_dates=["date"])
+            if "id" in msavi_df.columns:
+                msavi_df = msavi_df[msavi_df["id"] == aoi_id]
+            mask = (msavi_df["date"].dt.year >= start_year) & (
+                msavi_df["date"].dt.year <= end_year
+            )
+            msavi_df = msavi_df.loc[mask]
+            with tempfile.TemporaryDirectory() as tmpdir:
+                msavi_path = Path(tmpdir) / "msavi.csv"
+                msavi_df.to_csv(msavi_path, index=False)
+                msavi_stats_df = compute_summary_stats(
+                    str(msavi_path), value_col="mean_msavi"
+                ).to_dataframe()
+            msavi_row = msavi_stats_df.iloc[0]
+
+            msa_val = float("nan")
+            try:
+                geom = gdf.loc[gdf["id"] == aoi_id].geometry.iloc[0]
+                msa_val = self.msa_service.mean_msa(geom)
+            except Exception:  # pragma: no cover - network or raster issues
+                logger.exception("MSA computation failed for AOI %s", aoi_id)
+
+            metrics = MetricsResult(
+                intactness=intactness,
+                shannon=shannon,
+                fragmentation=FragmentStats(
+                    edge_density=fragmentation, normalised_density=fragmentation
+                ),
+                msa=msa_val,
+            )
+            bscore = self.calc.score(metrics)
+
+            data = {
+                "intactness": intactness,
+                "shannon": shannon,
+                "fragmentation": fragmentation,
+                "ndvi_mean": float(ndvi_row["Mean NDVI"]),
+                "ndvi_std": float(ndvi_row["Std NDVI"]),
+                "ndvi_slope": float(ndvi_row["Sen's Slope (NDVI/yr)"]),
+                "ndvi_delta": float(ndvi_row["Trend ΔNDVI"]),
+                "ndvi_p_value": float(ndvi_row["Mann–Kendall p-value"]),
+                "ndvi_peak": (
+                    ndvi_row["Peak Month"] if pd.notna(ndvi_row["Peak Month"]) else ""
+                ),
+                "ndvi_pct_fill": float(ndvi_row["% Gapfilled"]),
+                "msavi_mean": float(msavi_row["Mean MSAVI"]),
+                "msavi_std": float(msavi_row["Std MSAVI"]),
+                "bscore": bscore,
+            }
+            return data, ndvi_decomp_df, msavi_df
+        except Exception:
+            logger.exception("Demo metric computation failed for AOI %s", aoi_id)
+            raise
 
     # ------------------------------------------------------------------
     def compute_live_metrics(
@@ -151,54 +167,63 @@ class ComputeService:
     ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
         """Compute metrics and vegetation indices for uploaded AOIs."""
 
-        aois = AOI.from_gdf(gdf)
-        if len(aois) > 1:
-            # Keep project around for potential future use
-            config = ConfigManager()
-            project = VerdeSatProject("Web Upload", "WebApp", aois, config)
-            aois_iter = project.aois
-        else:
-            aois_iter = aois
+        logger.info("Computing live metrics for uploaded AOIs")
+        try:
+            aois = AOI.from_gdf(gdf)
+            if len(aois) > 1:
+                # Keep project around for potential future use
+                config = ConfigManager()
+                project = VerdeSatProject("Web Upload", "WebApp", aois, config)
+                aois_iter = project.aois
+            else:
+                aois_iter = aois
 
-        engine = MetricEngine(storage=self.storage)
-        records: list[dict[str, float | int]] = []
-        for aoi in aois_iter:
-            metrics = engine.run_all(aoi, end_year)
-            metrics.msa = self.msa_service.mean_msa(aoi.geometry)
-            bscore = self.calc.score(metrics)
-            records.append(
-                {
-                    "id": int(aoi.static_props.get("id", 0)),
-                    "intactness": metrics.intactness,
-                    "shannon": metrics.shannon,
-                    "fragmentation": metrics.fragmentation.normalised_density,
-                    "bscore": bscore,
-                }
-            )
+            engine = MetricEngine(storage=self.storage)
+            records: list[dict[str, float | int]] = []
+            for aoi in aois_iter:
+                metrics = engine.run_all(aoi, end_year)
+                metrics.msa = self.msa_service.mean_msa(aoi.geometry)
+                bscore = self.calc.score(metrics)
+                records.append(
+                    {
+                        "id": int(aoi.static_props.get("id", 0)),
+                        "intactness": metrics.intactness,
+                        "shannon": metrics.shannon,
+                        "fragmentation": metrics.fragmentation.normalised_density,
+                        "bscore": bscore,
+                    }
+                )
 
-        df = pd.DataFrame.from_records(records)
+            df = pd.DataFrame.from_records(records)
 
-        csv_bytes = df.to_csv(index=False).encode("utf-8")
-        dest = self.storage.join("results", "live_metrics.csv")
-        self.storage.write_bytes(dest, csv_bytes)
+            csv_bytes = df.to_csv(index=False).encode("utf-8")
+            dest = self.storage.join("results", "live_metrics.csv")
+            self.storage.write_bytes(dest, csv_bytes)
 
-        first_gdf = gdf.iloc[[0]]
-        with tempfile.TemporaryDirectory() as tmpdir:
-            aoi_path = Path(tmpdir) / "aoi.geojson"
-            first_gdf.to_file(aoi_path, driver="GeoJSON")
-            ndvi_stats, ndvi_decomp = _ndvi_stats(str(aoi_path), start_year, end_year)
-            msavi_stats, msavi_df = _msavi_stats(str(aoi_path), start_year, end_year)
+            first_gdf = gdf.iloc[[0]]
+            with tempfile.TemporaryDirectory() as tmpdir:
+                aoi_path = Path(tmpdir) / "aoi.geojson"
+                first_gdf.to_file(aoi_path, driver="GeoJSON")
+                ndvi_stats, ndvi_decomp = _ndvi_stats(
+                    str(aoi_path), start_year, end_year
+                )
+                msavi_stats, msavi_df = _msavi_stats(
+                    str(aoi_path), start_year, end_year
+                )
 
-        row = df.iloc[0]
-        data: dict[str, float | str] = {
-            "intactness": float(row["intactness"]),
-            "shannon": float(row["shannon"]),
-            "fragmentation": float(row["fragmentation"]),
-            "bscore": float(row["bscore"]),
-        }
-        data.update(ndvi_stats)
-        data.update(msavi_stats)
-        return data, ndvi_decomp, msavi_df
+            row = df.iloc[0]
+            data: dict[str, float | str] = {
+                "intactness": float(row["intactness"]),
+                "shannon": float(row["shannon"]),
+                "fragmentation": float(row["fragmentation"]),
+                "bscore": float(row["bscore"]),
+            }
+            data.update(ndvi_stats)
+            data.update(msavi_stats)
+            return data, ndvi_decomp, msavi_df
+        except Exception:
+            logger.exception("Live metric computation failed")
+            raise
 
 
 def _ndvi_stats(
