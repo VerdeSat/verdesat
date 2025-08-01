@@ -164,7 +164,7 @@ if run_button:
                 crs="EPSG:4326",
             )
             logger.info("Computing live metrics")
-            metrics_data, metrics_df, ndvi_chart_df, msavi_chart_df = (
+            metrics_data, metrics_df, ndvi_chart_dfs, msavi_chart_dfs = (
                 compute_service.compute_live_metrics(
                     gdf, start_year=start_year, end_year=end_year
                 )
@@ -189,6 +189,8 @@ if run_button:
             current_aoi_id = aoi_id
             with map_container:
                 layer_state = display_map(demo_gdf, NDVI_COGS, MSAVI_COGS, layer_state)
+            ndvi_chart_dfs = [ndvi_chart_df]
+            msavi_chart_dfs = [msavi_chart_df]
         metrics = Metrics(**cast(dict[str, Any], metrics_data))
         with col2:
             bscore_gauge(metrics.bscore)
@@ -197,11 +199,10 @@ if run_button:
 
         aois = st.session_state.get("aois", AOI.from_gdf(current_gdf))
         export_links: list[tuple[Any, str, str]] = []
-        for idx, (aoi, row) in enumerate(
-            zip(aois, metrics_df.to_dict(orient="records"))
-        ):
-            ndvi_df = ndvi_chart_df if idx == 0 else None
-            msavi_df = msavi_chart_df if idx == 0 else None
+        rows = metrics_df.to_dict(orient="records")
+        for idx, (aoi, row) in enumerate(zip(aois, rows)):
+            ndvi_df = ndvi_chart_dfs[idx] if idx < len(ndvi_chart_dfs) else None
+            msavi_df = msavi_chart_dfs[idx] if idx < len(msavi_chart_dfs) else None
             csv_url = export_metrics_csv(row, aoi)
             project_state = st.session_state.get("project")
             project_name = project_state.name if project_state else "VerdeSat Demo"
@@ -228,17 +229,19 @@ if run_button:
 st.markdown("---")
 tab_decomp, tab_msavi, tab_about = st.tabs(["NDVI Decomp", "MSAVI", "About"])
 with tab_decomp:
-    if ndvi_chart_df is not None:
+    if ndvi_chart_dfs:
         ndvi_decomposition_chart(
-            data=ndvi_chart_df, start_year=start_year, end_year=end_year
+            data=ndvi_chart_dfs[0], start_year=start_year, end_year=end_year
         )
     else:
         ndvi_decomposition_chart(
             current_aoi_id, start_year=start_year, end_year=end_year
         )
 with tab_msavi:
-    if msavi_chart_df is not None:
-        msavi_bar_chart(data=msavi_chart_df, start_year=start_year, end_year=end_year)
+    if msavi_chart_dfs:
+        msavi_bar_chart(
+            data=msavi_chart_dfs[0], start_year=start_year, end_year=end_year
+        )
     else:
         msavi_bar_chart(current_aoi_id, start_year=start_year, end_year=end_year)
 with tab_about:

@@ -96,7 +96,7 @@ def test_compute_live_metrics_single_aoi(monkeypatch):
     storage = DummyStorage()
     svc = ComputeService(msa, calc, storage)
 
-    data, df, ndvi_out, msavi_out = svc.compute_live_metrics(
+    data, df, ndvi_list, msavi_list = svc.compute_live_metrics(
         gdf, start_year=2020, end_year=2021
     )
 
@@ -107,8 +107,8 @@ def test_compute_live_metrics_single_aoi(monkeypatch):
     assert msa.called
     assert calc.last_metrics.msa == 0.7
     assert storage.writes
-    assert isinstance(ndvi_out, pd.DataFrame)
-    assert isinstance(msavi_out, pd.DataFrame)
+    assert len(ndvi_list) == 1 and isinstance(ndvi_list[0], pd.DataFrame)
+    assert len(msavi_list) == 1 and isinstance(msavi_list[0], pd.DataFrame)
 
 
 def test_compute_live_metrics_multi_aoi_project(monkeypatch):
@@ -155,12 +155,16 @@ def test_compute_live_metrics_multi_aoi_project(monkeypatch):
     )
 
     svc = ComputeService(DummyMSA(), DummyCalc(), DummyStorage())
-    _, df, _, _ = svc.compute_live_metrics(gdf, start_year=2020, end_year=2021)
+    _, df, ndvi_list, msavi_list = svc.compute_live_metrics(
+        gdf, start_year=2020, end_year=2021
+    )
 
     assert len(created["aois"]) == 2
     assert df.shape[0] == 2
     assert df.loc[0, "ndvi_mean"] == 1.0
     assert df.loc[0, "msavi_mean"] == 2.0
+    assert len(ndvi_list) == 2
+    assert len(msavi_list) == 2
 
 
 def test_compute_live_metrics_stale_cache(monkeypatch):
@@ -196,7 +200,7 @@ def test_compute_live_metrics_stale_cache(monkeypatch):
 
     monkeypatch.setattr(
         "verdesat.webapp.services.compute._load_cache",
-        lambda storage, key: ({}, pd.DataFrame(), pd.DataFrame()),
+        lambda storage, key: ({}, pd.DataFrame(), [pd.DataFrame()]),
     )
     monkeypatch.setattr(
         "verdesat.webapp.services.compute._persist_cache",

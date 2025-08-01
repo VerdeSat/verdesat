@@ -248,17 +248,22 @@ class ComputeService:
     # ------------------------------------------------------------------
     def compute_live_metrics(
         _self, gdf: gpd.GeoDataFrame, *, start_year: int, end_year: int
-    ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    ) -> tuple[
+        dict[str, float | str],
+        pd.DataFrame,
+        list[pd.DataFrame],
+        list[pd.DataFrame],
+    ]:
         """Compute metrics and vegetation indices for uploaded AOIs.
 
         Returns
         -------
         tuple
-            ``(summary, df, ndvi_decomp, msavi_df)`` where ``summary`` contains
-            aggregated metrics across all AOIs, ``df`` holds per-AOI metrics and
-            the remaining DataFrames provide NDVI decomposition and MSAVI time
-            series for the first AOI.  The ``df`` output enables batch exports in
-            the caller.
+            ``(summary, df, ndvi_frames, msavi_frames)`` where ``summary``
+            contains aggregated metrics across all AOIs, ``df`` holds per-AOI
+            metrics and the remaining lists provide NDVI decomposition and MSAVI
+            time-series data for each AOI in order.  The ``df`` output enables
+            batch exports in the caller.
         """
 
         self = _self
@@ -285,33 +290,53 @@ class ComputeService:
 
             engine = MetricEngine(storage=self.storage)
             records: list[dict[str, float | int | str]] = []
+            ndvi_frames: list[pd.DataFrame] = []
+            msavi_frames: list[pd.DataFrame] = []
+
             for aoi in aois_iter:
                 metrics = engine.run_all(aoi, end_year)
                 metrics.msa = self.msa_service.mean_msa(aoi.geometry)
                 bscore = self.calc.score(metrics)
+                aoi_id = int(aoi.static_props.get("id", 0))
+
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    aoi_path = Path(tmpdir) / "aoi.geojson"
+                    gpd.GeoDataFrame(
+                        [{**aoi.static_props, "geometry": aoi.geometry}],
+                        crs="EPSG:4326",
+                    ).to_file(aoi_path, driver="GeoJSON")
+                    ndvi_stats, ndvi_decomp = _ndvi_stats(
+                        str(aoi_path), start_year, end_year
+                    )
+                    msavi_stats, msavi_df = _msavi_stats(
+                        str(aoi_path), start_year, end_year
+                    )
+
                 records.append(
                     {
-                        "id": int(aoi.static_props.get("id", 0)),
+                        "id": aoi_id,
                         "intactness": metrics.intactness,
                         "shannon": metrics.shannon,
                         "fragmentation": metrics.fragmentation.normalised_density,
                         "bscore": bscore,
+                        **ndvi_stats,
+                        **msavi_stats,
                     }
                 )
+                ndvi_frames.append(ndvi_decomp)
+                msavi_frames.append(msavi_df)
 
-            first_gdf = gdf.iloc[[0]]
-            with tempfile.TemporaryDirectory() as tmpdir:
-                aoi_path = Path(tmpdir) / "aoi.geojson"
-                first_gdf.to_file(aoi_path, driver="GeoJSON")
-                ndvi_stats, ndvi_decomp = _ndvi_stats(
-                    str(aoi_path), start_year, end_year
-                )
-                msavi_stats, msavi_df = _msavi_stats(
-                    str(aoi_path), start_year, end_year
-                )
-
-            records[0].update(ndvi_stats)
-            records[0].update(msavi_stats)
+                try:  # pragma: no cover - best-effort persistence
+                    decomp_key = self.storage.join(
+                        "resources", "decomp", f"{aoi_id}_decomposition.csv"
+                    )
+                    self.storage.write_bytes(
+                        decomp_key, ndvi_decomp.to_csv(index=False).encode("utf-8")
+                    )
+                except Exception:
+                    logger.exception(
+                        "failed to persist NDVI decomposition for AOI %s", aoi_id
+                    )
 
             df = pd.DataFrame.from_records(records)
 
@@ -324,10 +349,29 @@ class ComputeService:
                 "shannon": float(df["shannon"].mean()),
                 "fragmentation": float(df["fragmentation"].mean()),
                 "bscore": float(df["bscore"].mean()),
+                "ndvi_mean": float(df.get("ndvi_mean", pd.Series(dtype=float)).mean()),
+                "ndvi_std": float(df.get("ndvi_std", pd.Series(dtype=float)).mean()),
+                "ndvi_slope": float(
+                    df.get("ndvi_slope", pd.Series(dtype=float)).mean()
+                ),
+                "ndvi_delta": float(
+                    df.get("ndvi_delta", pd.Series(dtype=float)).mean()
+                ),
+                "ndvi_p_value": float(
+                    df.get("ndvi_p_value", pd.Series(dtype=float)).mean()
+                ),
+                "ndvi_pct_fill": float(
+                    df.get("ndvi_pct_fill", pd.Series(dtype=float)).mean()
+                ),
+                "msavi_mean": float(
+                    df.get("msavi_mean", pd.Series(dtype=float)).mean()
+                ),
+                "msavi_std": float(df.get("msavi_std", pd.Series(dtype=float)).mean()),
             }
-            summary.update(ndvi_stats)
-            summary.update(msavi_stats)
-            result = (summary, df, ndvi_decomp, msavi_df)
+            if "ndvi_peak" in df.columns and not df["ndvi_peak"].isna().all():
+                summary["ndvi_peak"] = df["ndvi_peak"].iloc[0]
+
+            result = (summary, df, ndvi_frames, msavi_frames)
             _persist_cache(self.storage, cache_key, result)
             logger.info("computed live metrics for %s AOI(s)", len(aois))
             return result
