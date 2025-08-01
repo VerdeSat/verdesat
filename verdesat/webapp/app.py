@@ -1,8 +1,10 @@
+import json
 import logging
 from pathlib import Path
 from typing import Any, cast
 
 import geopandas as gpd
+import pandas as pd
 import streamlit as st
 
 from verdesat.biodiv.bscore import BScoreCalculator
@@ -10,6 +12,7 @@ from verdesat.core.config import ConfigManager
 from verdesat.core.logger import Logger
 from verdesat.core.storage import LocalFS
 from verdesat.geo.aoi import AOI
+from verdesat.project.project import VerdeSatProject
 from verdesat.services.msa import MSAService
 from verdesat.webapp.components.charts import (
     msavi_bar_chart,
@@ -77,8 +80,7 @@ run_button = st.sidebar.button("Run 🚀")
 st.title("VerdeSat Biodiversity Dashboard (Skeleton)")
 
 col1, col2 = st.columns([3, 1])
-with col1:
-    st.write("🗺️  Map will appear here")
+map_container = col1.empty()
 with col2:
     placeholder_gauge = st.empty()
 
@@ -142,7 +144,7 @@ NDVI_COGS, MSAVI_COGS = load_demo_cogs()
 
 layer_state = {"ndvi": True, "msavi": True}
 
-with col1:
+with map_container:
     layer_state = display_map(DEMO_AOI, NDVI_COGS, MSAVI_COGS, layer_state)
 ndvi_chart_df = None
 msavi_chart_df = None
@@ -152,44 +154,73 @@ if run_button:
     try:
         if mode == "Upload AOI" and uploaded_file is not None:
             logger.info("Loading uploaded AOI")
-            gdf = gpd.read_file(uploaded_file)
+            feature_collection = json.load(uploaded_file)
+            aois = AOI.from_geojson(feature_collection)
+            st.session_state["aois"] = aois
+            project = VerdeSatProject("Web Upload", "WebApp", aois, ConfigManager())
+            st.session_state["project"] = project
+            gdf = gpd.GeoDataFrame(
+                [{**a.static_props, "geometry": a.geometry} for a in aois],
+                crs="EPSG:4326",
+            )
             logger.info("Computing live metrics")
-            metrics_data, ndvi_chart_df, msavi_chart_df = (
+            metrics_data, metrics_df, ndvi_chart_dfs, msavi_chart_dfs = (
                 compute_service.compute_live_metrics(
                     gdf, start_year=start_year, end_year=end_year
                 )
             )
             current_gdf = gdf
             current_aoi_id = 0
+            with map_container:
+                layer_state = display_map(gdf, [], [], layer_state)
         else:
             logger.info("Loading demo AOI %s", aoi_id)
             demo_gdf = DEMO_AOI[DEMO_AOI["id"] == aoi_id]
+            st.session_state["aois"] = AOI.from_gdf(demo_gdf)
+            st.session_state.pop("project", None)
             logger.info("Computing demo metrics")
             metrics_data, ndvi_chart_df, msavi_chart_df = (
                 compute_service.load_demo_metrics(
                     aoi_id, demo_gdf, start_year=start_year, end_year=end_year
                 )
             )
+            metrics_df = pd.DataFrame([{**metrics_data, "id": aoi_id}])
             current_gdf = demo_gdf
             current_aoi_id = aoi_id
+            with map_container:
+                layer_state = display_map(demo_gdf, NDVI_COGS, MSAVI_COGS, layer_state)
+            ndvi_chart_dfs = [ndvi_chart_df]
+            msavi_chart_dfs = [msavi_chart_df]
         metrics = Metrics(**cast(dict[str, Any], metrics_data))
         with col2:
             bscore_gauge(metrics.bscore)
         st.markdown("---")
         display_metrics(metrics)
 
-        aoi_obj = AOI.from_gdf(current_gdf)[0]
-        logger.info("Exporting metrics")
-        csv_url = export_metrics_csv(metrics, aoi_obj)
-        pdf_url = export_metrics_pdf(
-            metrics,
-            aoi_obj,
-            project="VerdeSat Demo",
-            ndvi_df=ndvi_chart_df,
-            msavi_df=msavi_chart_df,
-        )
-        st.markdown(f"[⬇️ Download CSV]({csv_url})")
-        st.markdown(f"[⬇️ Download PDF]({pdf_url})")
+        aois = st.session_state.get("aois", AOI.from_gdf(current_gdf))
+        export_links: list[tuple[Any, str, str]] = []
+        rows = metrics_df.to_dict(orient="records")
+        for idx, (aoi, row) in enumerate(zip(aois, rows)):
+            ndvi_df = ndvi_chart_dfs[idx] if idx < len(ndvi_chart_dfs) else None
+            msavi_df = msavi_chart_dfs[idx] if idx < len(msavi_chart_dfs) else None
+            csv_url = export_metrics_csv(row, aoi)
+            project_state = st.session_state.get("project")
+            project_name = project_state.name if project_state else "VerdeSat Demo"
+            pdf_url = export_metrics_pdf(
+                row,
+                aoi,
+                project=project_name,
+                ndvi_df=ndvi_df,
+                msavi_df=msavi_df,
+            )
+            export_links.append((aoi.static_props.get("id", idx), csv_url, pdf_url))
+        for pid, csv_url, pdf_url in export_links:
+            st.markdown(
+                f"AOI {pid}: [⬇️ Download CSV]({csv_url}) | [⬇️ Download PDF]({pdf_url})"
+            )
+
+        if st.session_state.get("user") and st.session_state.get("project"):
+            compute_service.persist_project(st.session_state["project"])
     except Exception:
         logger.exception("Processing failed")
         st.error("Processing failed; see log pane for details.")
@@ -198,17 +229,19 @@ if run_button:
 st.markdown("---")
 tab_decomp, tab_msavi, tab_about = st.tabs(["NDVI Decomp", "MSAVI", "About"])
 with tab_decomp:
-    if ndvi_chart_df is not None:
+    if ndvi_chart_dfs:
         ndvi_decomposition_chart(
-            data=ndvi_chart_df, start_year=start_year, end_year=end_year
+            data=ndvi_chart_dfs[0], start_year=start_year, end_year=end_year
         )
     else:
         ndvi_decomposition_chart(
             current_aoi_id, start_year=start_year, end_year=end_year
         )
 with tab_msavi:
-    if msavi_chart_df is not None:
-        msavi_bar_chart(data=msavi_chart_df, start_year=start_year, end_year=end_year)
+    if msavi_chart_dfs:
+        msavi_bar_chart(
+            data=msavi_chart_dfs[0], start_year=start_year, end_year=end_year
+        )
     else:
         msavi_bar_chart(current_aoi_id, start_year=start_year, end_year=end_year)
 with tab_about:

@@ -37,6 +37,7 @@ from verdesat.core.storage import StorageAdapter
 from verdesat.project.project import VerdeSatProject
 from verdesat.core.config import ConfigManager
 from verdesat.core.logger import Logger
+from rasterio.errors import RasterioIOError
 
 CONFIG = ConfigManager(
     str(Path(__file__).resolve().parents[2] / "resources" / "webapp.toml")
@@ -48,9 +49,13 @@ def _read_remote_raster(key: str) -> np.ndarray:
     """Return the first band of a COG stored on R2 as a float array."""
 
     url = signed_url(key)
-    with rasterio.open(url) as src:
-        arr = src.read(1, masked=True).astype(float)
-        return arr.filled(np.nan)
+    try:
+        with rasterio.open(url) as src:
+            arr = src.read(1, masked=True).astype(float)
+            return arr.filled(np.nan)
+    except RasterioIOError as exc:
+        logger.error("missing raster %s", key)
+        raise FileNotFoundError(key) from exc
 
 
 def _hash_gdf(gdf: gpd.GeoDataFrame) -> str:
@@ -139,9 +144,11 @@ class ComputeService:
         )
         cache_key = f"demo_{aoi_id}_{start_year}_{end_year}"
         cached = _load_cache(self.storage, cache_key)
-        if cached is not None:
+        if isinstance(cached, tuple) and len(cached) == 3:
             logger.info("demo metrics cache hit for AOI %s", aoi_id)
             return cached  # type: ignore[return-value]
+        if cached is not None:
+            logger.warning("discarding stale demo metrics cache for AOI %s", aoi_id)
 
         try:
             landcover = _read_remote_raster(
@@ -241,8 +248,23 @@ class ComputeService:
     # ------------------------------------------------------------------
     def compute_live_metrics(
         _self, gdf: gpd.GeoDataFrame, *, start_year: int, end_year: int
-    ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
-        """Compute metrics and vegetation indices for uploaded AOIs."""
+    ) -> tuple[
+        dict[str, float | str],
+        pd.DataFrame,
+        list[pd.DataFrame],
+        list[pd.DataFrame],
+    ]:
+        """Compute metrics and vegetation indices for uploaded AOIs.
+
+        Returns
+        -------
+        tuple
+            ``(summary, df, ndvi_frames, msavi_frames)`` where ``summary``
+            contains aggregated metrics across all AOIs, ``df`` holds per-AOI
+            metrics and the remaining lists provide NDVI decomposition and MSAVI
+            time-series data for each AOI in order.  The ``df`` output enables
+            batch exports in the caller.
+        """
 
         self = _self
         logger.info(
@@ -250,9 +272,11 @@ class ComputeService:
         )
         cache_key = f"live_{_hash_gdf(gdf)}_{start_year}_{end_year}"
         cached = _load_cache(self.storage, cache_key)
-        if cached is not None:
+        if isinstance(cached, tuple) and len(cached) == 4:
             logger.info("live metrics cache hit")
             return cached  # type: ignore[return-value]
+        if cached is not None:
+            logger.warning("discarding stale live metrics cache")
 
         try:
             aois = AOI.from_gdf(gdf)
@@ -265,20 +289,54 @@ class ComputeService:
                 aois_iter = aois
 
             engine = MetricEngine(storage=self.storage)
-            records: list[dict[str, float | int]] = []
+            records: list[dict[str, float | int | str]] = []
+            ndvi_frames: list[pd.DataFrame] = []
+            msavi_frames: list[pd.DataFrame] = []
+
             for aoi in aois_iter:
                 metrics = engine.run_all(aoi, end_year)
                 metrics.msa = self.msa_service.mean_msa(aoi.geometry)
                 bscore = self.calc.score(metrics)
+                aoi_id = int(aoi.static_props.get("id", 0))
+
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    aoi_path = Path(tmpdir) / "aoi.geojson"
+                    gpd.GeoDataFrame(
+                        [{**aoi.static_props, "geometry": aoi.geometry}],
+                        crs="EPSG:4326",
+                    ).to_file(aoi_path, driver="GeoJSON")
+                    ndvi_stats, ndvi_decomp = _ndvi_stats(
+                        str(aoi_path), start_year, end_year
+                    )
+                    msavi_stats, msavi_df = _msavi_stats(
+                        str(aoi_path), start_year, end_year
+                    )
+
                 records.append(
                     {
-                        "id": int(aoi.static_props.get("id", 0)),
+                        "id": aoi_id,
                         "intactness": metrics.intactness,
                         "shannon": metrics.shannon,
                         "fragmentation": metrics.fragmentation.normalised_density,
                         "bscore": bscore,
+                        **ndvi_stats,
+                        **msavi_stats,
                     }
                 )
+                ndvi_frames.append(ndvi_decomp)
+                msavi_frames.append(msavi_df)
+
+                try:  # pragma: no cover - best-effort persistence
+                    decomp_key = self.storage.join(
+                        "resources", "decomp", f"{aoi_id}_decomposition.csv"
+                    )
+                    self.storage.write_bytes(
+                        decomp_key, ndvi_decomp.to_csv(index=False).encode("utf-8")
+                    )
+                except Exception:
+                    logger.exception(
+                        "failed to persist NDVI decomposition for AOI %s", aoi_id
+                    )
 
             df = pd.DataFrame.from_records(records)
 
@@ -286,33 +344,59 @@ class ComputeService:
             dest = self.storage.join("results", "live_metrics.csv")
             self.storage.write_bytes(dest, csv_bytes)
 
-            first_gdf = gdf.iloc[[0]]
-            with tempfile.TemporaryDirectory() as tmpdir:
-                aoi_path = Path(tmpdir) / "aoi.geojson"
-                first_gdf.to_file(aoi_path, driver="GeoJSON")
-                ndvi_stats, ndvi_decomp = _ndvi_stats(
-                    str(aoi_path), start_year, end_year
-                )
-                msavi_stats, msavi_df = _msavi_stats(
-                    str(aoi_path), start_year, end_year
-                )
-
-            row = df.iloc[0]
-            data: dict[str, float | str] = {
-                "intactness": float(row["intactness"]),
-                "shannon": float(row["shannon"]),
-                "fragmentation": float(row["fragmentation"]),
-                "bscore": float(row["bscore"]),
+            summary: dict[str, float | str] = {
+                "intactness": float(df["intactness"].mean()),
+                "shannon": float(df["shannon"].mean()),
+                "fragmentation": float(df["fragmentation"].mean()),
+                "bscore": float(df["bscore"].mean()),
+                "ndvi_mean": float(df.get("ndvi_mean", pd.Series(dtype=float)).mean()),
+                "ndvi_std": float(df.get("ndvi_std", pd.Series(dtype=float)).mean()),
+                "ndvi_slope": float(
+                    df.get("ndvi_slope", pd.Series(dtype=float)).mean()
+                ),
+                "ndvi_delta": float(
+                    df.get("ndvi_delta", pd.Series(dtype=float)).mean()
+                ),
+                "ndvi_p_value": float(
+                    df.get("ndvi_p_value", pd.Series(dtype=float)).mean()
+                ),
+                "ndvi_pct_fill": float(
+                    df.get("ndvi_pct_fill", pd.Series(dtype=float)).mean()
+                ),
+                "msavi_mean": float(
+                    df.get("msavi_mean", pd.Series(dtype=float)).mean()
+                ),
+                "msavi_std": float(df.get("msavi_std", pd.Series(dtype=float)).mean()),
             }
-            data.update(ndvi_stats)
-            data.update(msavi_stats)
-            result = (data, ndvi_decomp, msavi_df)
+            if "ndvi_peak" in df.columns and not df["ndvi_peak"].isna().all():
+                summary["ndvi_peak"] = df["ndvi_peak"].iloc[0]
+
+            result = (summary, df, ndvi_frames, msavi_frames)
             _persist_cache(self.storage, cache_key, result)
             logger.info("computed live metrics for %s AOI(s)", len(aois))
             return result
         except Exception:
             logger.exception("live metrics computation failed")
             raise
+
+    # ------------------------------------------------------------------
+    def persist_project(self, project: VerdeSatProject) -> str:
+        """Persist ``project`` AOIs and metadata using the configured storage.
+
+        The project AOIs are serialized to GeoJSON and written under a
+        ``projects/`` prefix.  The returned URI can be stored for later
+        retrieval.  This is a lightweight hook that can be extended to use a
+        database or cloud bucket for authenticated users.
+        """
+
+        gdf = gpd.GeoDataFrame(
+            [{**a.static_props, "geometry": a.geometry} for a in project.aois],
+            crs="EPSG:4326",
+        )
+        data = gdf.to_json().encode("utf-8")
+        key = self.storage.join("projects", f"{project.name.replace(' ', '_')}.geojson")
+        self.storage.write_bytes(key, data)
+        return key
 
 
 @st.cache_data
