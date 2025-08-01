@@ -1,5 +1,6 @@
 import streamlit as st
 import geopandas as gpd
+from verdesat.geo.aoi import AOI
 from verdesat.webapp.services.r2 import signed_url
 from verdesat.webapp.components.map_widget import display_map
 from verdesat.webapp.components.kpi_cards import Metrics, bscore_gauge, display_metrics
@@ -81,8 +82,9 @@ if run_button:
     st.markdown("---")
     display_metrics(metrics)
 
-    csv_url = export_metrics_csv(metrics, current_aoi_id)
-    pdf_url = export_metrics_pdf(metrics, current_aoi_id, current_gdf)
+    aoi_obj = AOI.from_gdf(current_gdf)[0]
+    csv_url = export_metrics_csv(metrics, aoi_obj)
+    pdf_url = export_metrics_pdf(metrics, aoi_obj, project="VerdeSat Demo")
     st.markdown(f"[⬇️ Download CSV]({csv_url})")
     st.markdown(f"[⬇️ Download PDF]({pdf_url})")
 
