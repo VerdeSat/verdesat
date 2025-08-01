@@ -2,8 +2,6 @@ from __future__ import annotations
 
 """Plotting helpers for the dashboard Charts tab."""
 
-from typing import Optional
-
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -25,9 +23,16 @@ def load_msavi_timeseries() -> pd.DataFrame:
     return pd.read_csv(url, parse_dates=["date"])
 
 
-def ndvi_decomposition_chart(aoi_id: int) -> None:
+def ndvi_decomposition_chart(
+    aoi_id: int | None = None, data: pd.DataFrame | None = None
+) -> None:
     """Render NDVI observed, trend and seasonal curves."""
-    df = load_ndvi_decomposition(aoi_id)
+    if data is None:
+        if aoi_id is None:
+            raise ValueError("aoi_id or data must be provided")
+        df = load_ndvi_decomposition(aoi_id)
+    else:
+        df = data
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df["date"], y=df["observed"], name="Observed"))
@@ -37,17 +42,20 @@ def ndvi_decomposition_chart(aoi_id: int) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
-def msavi_bar_chart(aoi_id: int) -> None:
+def msavi_bar_chart(
+    aoi_id: int | None = None, data: pd.DataFrame | None = None
+) -> None:
     """Render annual mean MSAVI as a bar chart."""
-    df = load_msavi_timeseries()
-    if "id" in df.columns:
-        df = df[df["id"] == aoi_id]
+    if data is None:
+        if aoi_id is None:
+            raise ValueError("aoi_id or data must be provided")
+        df = load_msavi_timeseries()
+        if "id" in df.columns:
+            df = df[df["id"] == aoi_id]
+    else:
+        df = data
 
-    value_col: Optional[str] = None
-    for col in ("mean_msavi", "msavi"):
-        if col in df.columns:
-            value_col = col
-            break
+    value_col = next((c for c in ("mean_msavi", "msavi") if c in df.columns), None)
     if value_col is None:
         value_col = df.columns[2]
 

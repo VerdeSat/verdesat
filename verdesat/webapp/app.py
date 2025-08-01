@@ -10,6 +10,7 @@ from verdesat.webapp.components.charts import (
 )
 from verdesat.webapp.services.compute import compute_live_metrics, load_demo_metrics
 from verdesat.webapp.services.exports import export_metrics_csv, export_metrics_pdf
+from typing import Any, cast
 
 # ---- Page config -----------------------------------------------------------
 st.set_page_config(
@@ -65,19 +66,26 @@ layer_state = {"ndvi": True, "msavi": True}
 
 with col1:
     layer_state = display_map(DEMO_AOI, NDVI_COGS, MSAVI_COGS, layer_state)
+ndvi_chart_df = None
+msavi_chart_df = None
+current_aoi_id = aoi_id
 
 if run_button:
     if mode == "Upload AOI" and uploaded_file is not None:
         gdf = gpd.read_file(uploaded_file)
-        metrics_data = compute_live_metrics(gdf, year=year)
+        metrics_data, ndvi_chart_df, msavi_chart_df = compute_live_metrics(
+            gdf, year=year
+        )
         current_gdf = gdf
         current_aoi_id = 0
     else:
         demo_gdf = DEMO_AOI[DEMO_AOI["id"] == aoi_id]
-        metrics_data = load_demo_metrics(aoi_id, demo_gdf, year=year)
+        metrics_data, ndvi_chart_df, msavi_chart_df = load_demo_metrics(
+            aoi_id, demo_gdf, year=year
+        )
         current_gdf = demo_gdf
         current_aoi_id = aoi_id
-    metrics = Metrics(**metrics_data)
+    metrics = Metrics(**cast(dict[str, Any], metrics_data))
     with col2:
         bscore_gauge(metrics.bscore)
     st.markdown("---")
@@ -85,7 +93,13 @@ if run_button:
 
     aoi_obj = AOI.from_gdf(current_gdf)[0]
     csv_url = export_metrics_csv(metrics, aoi_obj)
-    pdf_url = export_metrics_pdf(metrics, aoi_obj, project="VerdeSat Demo")
+    pdf_url = export_metrics_pdf(
+        metrics,
+        aoi_obj,
+        project="VerdeSat Demo",
+        ndvi_df=ndvi_chart_df,
+        msavi_df=msavi_chart_df,
+    )
     st.markdown(f"[⬇️ Download CSV]({csv_url})")
     st.markdown(f"[⬇️ Download PDF]({pdf_url})")
 
@@ -93,8 +107,14 @@ if run_button:
 st.markdown("---")
 tab_decomp, tab_msavi, tab_about = st.tabs(["NDVI Decomp", "MSAVI", "About"])
 with tab_decomp:
-    ndvi_decomposition_chart(aoi_id)
+    if ndvi_chart_df is not None:
+        ndvi_decomposition_chart(data=ndvi_chart_df)
+    else:
+        ndvi_decomposition_chart(current_aoi_id)
 with tab_msavi:
-    msavi_bar_chart(aoi_id)
+    if msavi_chart_df is not None:
+        msavi_bar_chart(data=msavi_chart_df)
+    else:
+        msavi_bar_chart(current_aoi_id)
 with tab_about:
     st.write("NDVI decomposition and MSAVI plots from demo datasets.")
