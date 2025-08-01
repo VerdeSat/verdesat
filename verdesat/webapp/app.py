@@ -80,8 +80,7 @@ run_button = st.sidebar.button("Run 🚀")
 st.title("VerdeSat Biodiversity Dashboard (Skeleton)")
 
 col1, col2 = st.columns([3, 1])
-with col1:
-    st.write("🗺️  Map will appear here")
+map_container = col1.empty()
 with col2:
     placeholder_gauge = st.empty()
 
@@ -145,7 +144,7 @@ NDVI_COGS, MSAVI_COGS = load_demo_cogs()
 
 layer_state = {"ndvi": True, "msavi": True}
 
-with col1:
+with map_container:
     layer_state = display_map(DEMO_AOI, NDVI_COGS, MSAVI_COGS, layer_state)
 ndvi_chart_df = None
 msavi_chart_df = None
@@ -172,6 +171,8 @@ if run_button:
             )
             current_gdf = gdf
             current_aoi_id = 0
+            with map_container:
+                layer_state = display_map(gdf, [], [], layer_state)
         else:
             logger.info("Loading demo AOI %s", aoi_id)
             demo_gdf = DEMO_AOI[DEMO_AOI["id"] == aoi_id]
@@ -186,6 +187,8 @@ if run_button:
             metrics_df = pd.DataFrame([{**metrics_data, "id": aoi_id}])
             current_gdf = demo_gdf
             current_aoi_id = aoi_id
+            with map_container:
+                layer_state = display_map(demo_gdf, NDVI_COGS, MSAVI_COGS, layer_state)
         metrics = Metrics(**cast(dict[str, Any], metrics_data))
         with col2:
             bscore_gauge(metrics.bscore)
@@ -200,11 +203,8 @@ if run_button:
             ndvi_df = ndvi_chart_df if idx == 0 else None
             msavi_df = msavi_chart_df if idx == 0 else None
             csv_url = export_metrics_csv(row, aoi)
-            project_name = (
-                st.session_state.get("project").name
-                if st.session_state.get("project")
-                else "VerdeSat Demo"
-            )
+            project_state = st.session_state.get("project")
+            project_name = project_state.name if project_state else "VerdeSat Demo"
             pdf_url = export_metrics_pdf(
                 row,
                 aoi,

@@ -144,9 +144,11 @@ class ComputeService:
         )
         cache_key = f"demo_{aoi_id}_{start_year}_{end_year}"
         cached = _load_cache(self.storage, cache_key)
-        if cached is not None:
+        if isinstance(cached, tuple) and len(cached) == 3:
             logger.info("demo metrics cache hit for AOI %s", aoi_id)
             return cached  # type: ignore[return-value]
+        if cached is not None:
+            logger.warning("discarding stale demo metrics cache for AOI %s", aoi_id)
 
         try:
             landcover = _read_remote_raster(
@@ -265,9 +267,11 @@ class ComputeService:
         )
         cache_key = f"live_{_hash_gdf(gdf)}_{start_year}_{end_year}"
         cached = _load_cache(self.storage, cache_key)
-        if cached is not None:
+        if isinstance(cached, tuple) and len(cached) == 4:
             logger.info("live metrics cache hit")
             return cached  # type: ignore[return-value]
+        if cached is not None:
+            logger.warning("discarding stale live metrics cache")
 
         try:
             aois = AOI.from_gdf(gdf)
@@ -280,7 +284,7 @@ class ComputeService:
                 aois_iter = aois
 
             engine = MetricEngine(storage=self.storage)
-            records: list[dict[str, float | int]] = []
+            records: list[dict[str, float | int | str]] = []
             for aoi in aois_iter:
                 metrics = engine.run_all(aoi, end_year)
                 metrics.msa = self.msa_service.mean_msa(aoi.geometry)

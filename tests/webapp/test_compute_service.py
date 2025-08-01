@@ -163,6 +163,53 @@ def test_compute_live_metrics_multi_aoi_project(monkeypatch):
     assert df.loc[0, "msavi_mean"] == 2.0
 
 
+def test_compute_live_metrics_stale_cache(monkeypatch):
+    """Stale cache entries should be ignored and recomputed."""
+
+    gdf = gpd.GeoDataFrame(
+        {"geometry": [Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])]},
+        crs="EPSG:4326",
+    )
+
+    metrics_stub = MetricsResult(
+        intactness=0.5,
+        shannon=0.3,
+        fragmentation=FragmentStats(edge_density=0.1, normalised_density=0.2),
+        msa=0.0,
+    )
+    monkeypatch.setattr(
+        "verdesat.webapp.services.compute.MetricEngine.run_all",
+        lambda self, aoi, year: metrics_stub,
+    )
+
+    calls = {"ndvi": 0}
+
+    def fake_ndvi(*a, **k):
+        calls["ndvi"] += 1
+        return {"ndvi_mean": 1.0}, pd.DataFrame()
+
+    monkeypatch.setattr("verdesat.webapp.services.compute._ndvi_stats", fake_ndvi)
+    monkeypatch.setattr(
+        "verdesat.webapp.services.compute._msavi_stats",
+        lambda *a, **k: ({"msavi_mean": 2.0}, pd.DataFrame()),
+    )
+
+    monkeypatch.setattr(
+        "verdesat.webapp.services.compute._load_cache",
+        lambda storage, key: ({}, pd.DataFrame(), pd.DataFrame()),
+    )
+    monkeypatch.setattr(
+        "verdesat.webapp.services.compute._persist_cache",
+        lambda *a, **k: None,
+    )
+
+    svc = ComputeService(DummyMSA(), DummyCalc(), DummyStorage())
+    data, _, _, _ = svc.compute_live_metrics(gdf, start_year=2020, end_year=2021)
+
+    assert calls["ndvi"] == 1
+    assert data["ndvi_mean"] == 1.0
+
+
 def test_persist_project():
     """Project persistence should write a GeoJSON."""
 
