@@ -8,7 +8,7 @@ from verdesat.webapp.components.charts import (
     msavi_bar_chart,
     ndvi_decomposition_chart,
 )
-from verdesat.webapp.services.compute import load_demo_metrics, compute_live_metrics
+from verdesat.webapp.services.compute import compute_live_metrics, load_demo_metrics
 from verdesat.webapp.services.exports import export_metrics_csv, export_metrics_pdf
 
 # ---- Page config -----------------------------------------------------------
@@ -73,8 +73,9 @@ if run_button:
         current_gdf = gdf
         current_aoi_id = 0
     else:
-        metrics_data = load_demo_metrics(aoi_id)
-        current_gdf = DEMO_AOI
+        demo_gdf = DEMO_AOI[DEMO_AOI["id"] == aoi_id]
+        metrics_data = load_demo_metrics(aoi_id, demo_gdf, year=year)
+        current_gdf = demo_gdf
         current_aoi_id = aoi_id
     metrics = Metrics(**metrics_data)
     with col2:
