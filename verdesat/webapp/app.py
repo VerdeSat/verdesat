@@ -8,6 +8,7 @@ from verdesat.webapp.components.charts import (
     ndvi_decomposition_chart,
 )
 from verdesat.webapp.services.compute import load_demo_metrics, compute_live_metrics
+from verdesat.webapp.services.exports import export_metrics_csv, export_metrics_pdf
 
 # ---- Page config -----------------------------------------------------------
 st.set_page_config(
@@ -75,6 +76,11 @@ if run_button:
         bscore_gauge(metrics.bscore)
     st.markdown("---")
     display_metrics(metrics)
+
+    csv_url = export_metrics_csv(metrics)
+    pdf_url = export_metrics_pdf(metrics)
+    st.markdown(f"[⬇️ Download CSV]({csv_url})")
+    st.markdown(f"[⬇️ Download PDF]({pdf_url})")
 
 # ---- Charts tab ------------------------------------------------------------
 st.markdown("---")
