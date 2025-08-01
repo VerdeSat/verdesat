@@ -9,11 +9,20 @@ as user uploads.
 
 from pathlib import Path
 import tempfile
+import os
+import pickle
+import hashlib
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
+import streamlit as st
+
+try:
+    import redis  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    redis = None
 
 from verdesat.analytics.stats import compute_summary_stats
 from verdesat.analytics.timeseries import TimeSeries
@@ -47,6 +56,56 @@ def _read_remote_raster(key: str) -> np.ndarray:
         raise
 
 
+def _hash_gdf(gdf: gpd.GeoDataFrame) -> str:
+    """Return a stable hash for a GeoDataFrame."""
+
+    return hashlib.sha256(gdf.to_json().encode("utf-8")).hexdigest()
+
+
+def _cache_path(storage: StorageAdapter, key: str) -> str:
+    """Return the path used for persisted caches."""
+
+    return storage.join("cache", f"{key}.pkl")
+
+
+def _persist_cache(storage: StorageAdapter, key: str, value: object) -> None:
+    """Persist ``value`` under ``key`` using Redis or the provided storage."""
+
+    data = pickle.dumps(value)
+    url = os.getenv("REDIS_URL")
+    if redis and url:
+        try:
+            redis.Redis.from_url(url).set(key, data)
+            return
+        except Exception:  # pragma: no cover - network failure
+            logger.exception("Failed to persist cache to Redis for %s", key)
+    try:
+        storage.write_bytes(_cache_path(storage, key), data)
+    except Exception:  # pragma: no cover - storage failure
+        logger.exception("Failed to persist cache to storage for %s", key)
+
+
+def _load_cache(storage: StorageAdapter, key: str) -> object | None:
+    """Return persisted cache for ``key`` if available."""
+
+    url = os.getenv("REDIS_URL")
+    if redis and url:
+        try:
+            data = redis.Redis.from_url(url).get(key)
+            if data:
+                return pickle.loads(data)
+        except Exception:  # pragma: no cover - network failure
+            logger.exception("Failed to load cache from Redis for %s", key)
+    path = _cache_path(storage, key)
+    if os.path.exists(path):
+        try:
+            with open(path, "rb") as fh:
+                return pickle.loads(fh.read())
+        except Exception:  # pragma: no cover - I/O failure
+            logger.exception("Failed to load cache from storage for %s", key)
+    return None
+
+
 class ComputeService:
     """Orchestrate metric computations for the web application."""
 
@@ -58,8 +117,9 @@ class ComputeService:
         self.storage = storage
 
     # ------------------------------------------------------------------
+    @st.cache_data(hash_funcs={gpd.GeoDataFrame: _hash_gdf})
     def load_demo_metrics(
-        self,
+        _self,
         aoi_id: int,
         gdf: gpd.GeoDataFrame,
         *,
@@ -67,6 +127,12 @@ class ComputeService:
         end_year: int,
     ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
         """Compute metrics and vegetation indices for a demo AOI."""
+
+        self = _self
+        cache_key = f"demo_{aoi_id}_{start_year}_{end_year}"
+        cached = _load_cache(self.storage, cache_key)
+        if cached is not None:
+            return cached  # type: ignore[return-value]
 
         logger.info("Computing demo metrics for AOI %s", aoi_id)
         try:
@@ -156,16 +222,25 @@ class ComputeService:
                 "msavi_std": float(msavi_row["Std MSAVI"]),
                 "bscore": bscore,
             }
-            return data, ndvi_decomp_df, msavi_df
+            result = (data, ndvi_decomp_df, msavi_df)
+            _persist_cache(self.storage, cache_key, result)
+            return result
         except Exception:
             logger.exception("Demo metric computation failed for AOI %s", aoi_id)
             raise
 
     # ------------------------------------------------------------------
+    @st.cache_data(hash_funcs={gpd.GeoDataFrame: _hash_gdf})
     def compute_live_metrics(
-        self, gdf: gpd.GeoDataFrame, *, start_year: int, end_year: int
+        _self, gdf: gpd.GeoDataFrame, *, start_year: int, end_year: int
     ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
         """Compute metrics and vegetation indices for uploaded AOIs."""
+
+        self = _self
+        cache_key = f"live_{_hash_gdf(gdf)}_{start_year}_{end_year}"
+        cached = _load_cache(self.storage, cache_key)
+        if cached is not None:
+            return cached  # type: ignore[return-value]
 
         logger.info("Computing live metrics for uploaded AOIs")
         try:
@@ -220,7 +295,9 @@ class ComputeService:
             }
             data.update(ndvi_stats)
             data.update(msavi_stats)
-            return data, ndvi_decomp, msavi_df
+            result = (data, ndvi_decomp, msavi_df)
+            _persist_cache(self.storage, cache_key, result)
+            return result
         except Exception:
             logger.exception("Live metric computation failed")
             raise

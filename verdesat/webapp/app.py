@@ -86,21 +86,37 @@ if st.sidebar.checkbox("Show log pane"):
 #
 # --- load demo AOI & rasters (fast; cached) -------------------
 DEMO_AOI_KEY = "resources/reference.geojson"  # adjust if key differs
-logger.info("Loading demo AOI from %s", DEMO_AOI_KEY)
-try:
-    DEMO_AOI = gpd.read_file(signed_url(DEMO_AOI_KEY))
-except Exception:
-    logger.exception("Failed to load demo AOI")
-    raise
-NDVI_COGS = [
-    ("NDVI AOI 1", "resources/NDVI_1_2024-01-01.tif"),
-    ("NDVI AOI 2", "resources/NDVI_2_2024-01-01.tif"),
-]
 
-MSAVI_COGS = [
-    ("MSAVI AOI 1", "resources/MSAVI_1_2024-01-01.tif"),
-    ("MSAVI AOI 2", "resources/MSAVI_2_2024-01-01.tif"),
-]
+
+@st.cache_data
+def load_demo_aoi() -> gpd.GeoDataFrame:
+    """Fetch the demo AOI from R2 and cache it locally."""
+
+    logger.info("Loading demo AOI from %s", DEMO_AOI_KEY)
+    try:
+        return gpd.read_file(signed_url(DEMO_AOI_KEY))
+    except Exception:
+        logger.exception("Failed to load demo AOI")
+        raise
+
+
+@st.cache_data
+def load_demo_cogs() -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    """Return lists of NDVI and MSAVI COGs for the demo AOIs."""
+
+    ndvi_cogs = [
+        ("NDVI AOI 1", "resources/NDVI_1_2024-01-01.tif"),
+        ("NDVI AOI 2", "resources/NDVI_2_2024-01-01.tif"),
+    ]
+    msavi_cogs = [
+        ("MSAVI AOI 1", "resources/MSAVI_1_2024-01-01.tif"),
+        ("MSAVI AOI 2", "resources/MSAVI_2_2024-01-01.tif"),
+    ]
+    return ndvi_cogs, msavi_cogs
+
+
+DEMO_AOI = load_demo_aoi()
+NDVI_COGS, MSAVI_COGS = load_demo_cogs()
 
 layer_state = {"ndvi": True, "msavi": True}
 
