@@ -84,7 +84,7 @@ class EarthEngineManager:
                         json.dump(creds_data, fp)
                         temp_path = fp.name
                     sa_inline_credentials: Any = ee.ServiceAccountCredentials(
-                        creds_data.get("client_email"), temp_path
+                        creds_data.get("client_email"), temp_path  # type: ignore[arg-type]
                     )
                     ee.Initialize(sa_inline_credentials, project=project)
                     return

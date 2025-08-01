@@ -1,5 +1,6 @@
 import streamlit as st
 import geopandas as gpd
+from verdesat.geo.aoi import AOI
 from verdesat.webapp.services.r2 import signed_url
 from verdesat.webapp.components.map_widget import display_map
 from verdesat.webapp.components.kpi_cards import Metrics, bscore_gauge, display_metrics
@@ -8,6 +9,7 @@ from verdesat.webapp.components.charts import (
     ndvi_decomposition_chart,
 )
 from verdesat.webapp.services.compute import load_demo_metrics, compute_live_metrics
+from verdesat.webapp.services.exports import export_metrics_csv, export_metrics_pdf
 
 # ---- Page config -----------------------------------------------------------
 st.set_page_config(
@@ -68,13 +70,23 @@ if run_button:
     if mode == "Upload AOI" and uploaded_file is not None:
         gdf = gpd.read_file(uploaded_file)
         metrics_data = compute_live_metrics(gdf, year=year)
+        current_gdf = gdf
+        current_aoi_id = 0
     else:
         metrics_data = load_demo_metrics(aoi_id)
+        current_gdf = DEMO_AOI
+        current_aoi_id = aoi_id
     metrics = Metrics(**metrics_data)
     with col2:
         bscore_gauge(metrics.bscore)
     st.markdown("---")
     display_metrics(metrics)
+
+    aoi_obj = AOI.from_gdf(current_gdf)[0]
+    csv_url = export_metrics_csv(metrics, aoi_obj)
+    pdf_url = export_metrics_pdf(metrics, aoi_obj, project="VerdeSat Demo")
+    st.markdown(f"[⬇️ Download CSV]({csv_url})")
+    st.markdown(f"[⬇️ Download PDF]({pdf_url})")
 
 # ---- Charts tab ------------------------------------------------------------
 st.markdown("---")

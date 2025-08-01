@@ -1,0 +1,194 @@
+from __future__ import annotations
+
+"""Utilities for exporting dashboard metrics as files on R2."""
+
+from dataclasses import asdict, is_dataclass
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from typing import Any, Mapping, cast
+from uuid import uuid4
+
+import io
+
+import pandas as pd
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas
+
+from verdesat.geo.aoi import AOI
+from verdesat.visualization.visualizer import Visualizer
+
+from .r2 import upload_bytes, signed_url
+
+
+def _to_dict(metrics: Mapping[str, float] | object) -> dict[str, float]:
+    """Return a plain ``dict`` from ``metrics``."""
+
+    if is_dataclass(metrics) and not isinstance(metrics, type):
+        return {k: float(v) for k, v in asdict(cast(Any, metrics)).items()}
+    if isinstance(metrics, Mapping):
+        return {k: float(v) for k, v in metrics.items()}
+    raise TypeError("metrics must be a dataclass or mapping")
+
+
+def export_metrics_csv(metrics: Mapping[str, float] | object, aoi: AOI) -> str:
+    """Serialize ``metrics`` for ``aoi`` to CSV and return a presigned URL."""
+
+    data = _to_dict(metrics)
+    aoi_id = int(aoi.static_props.get("id", 0))
+    data["aoi_id"] = float(aoi_id)
+    df = pd.DataFrame([data])
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
+    key = f"results/aoi_{aoi_id}/metrics_{uuid4().hex}.csv"
+    upload_bytes(key, csv_bytes, content_type="text/csv")
+    return signed_url(key)
+
+
+def _aoi_map_png(aoi: AOI) -> bytes:
+    """Return a simple PNG rendering of ``aoi`` geometry."""
+
+    import geopandas as gpd  # noqa: WPS433
+    import matplotlib.pyplot as plt
+
+    gdf = gpd.GeoDataFrame([{"geometry": aoi.geometry}], crs="EPSG:4326")
+    fig, ax = plt.subplots(figsize=(6, 4))
+    gdf.plot(ax=ax, edgecolor="#159466", facecolor="none", linewidth=2)
+    ax.set_axis_off()
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png")
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def _ndvi_png(aoi_id: int) -> bytes:
+    """Generate NDVI decomposition plot for ``aoi_id`` using ``Visualizer``."""
+
+    from verdesat.webapp.components.charts import load_ndvi_decomposition
+
+    df = load_ndvi_decomposition(aoi_id)
+
+    class _Decomp:
+        def __init__(self, frame: pd.DataFrame):
+            self.frame = frame
+
+        def plot(self):  # pragma: no cover - thin wrapper around matplotlib
+            import matplotlib.pyplot as plt
+
+            fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 4))
+            axes[0].plot(self.frame["date"], self.frame["observed"])
+            axes[0].set_ylabel("Observed")
+            axes[1].plot(self.frame["date"], self.frame["trend"])
+            axes[1].set_ylabel("Trend")
+            axes[2].plot(self.frame["date"], self.frame["seasonal"])
+            axes[2].set_ylabel("Seasonal")
+            fig.tight_layout()
+            return fig
+
+    viz = Visualizer()
+    with NamedTemporaryFile(suffix=".png") as tmp:
+        viz.plot_decomposition(_Decomp(df), tmp.name)
+        return Path(tmp.name).read_bytes()
+
+
+def _msavi_png(aoi_id: int) -> bytes:
+    """Generate MSAVI annual time-series plot for ``aoi_id``."""
+
+    from verdesat.webapp.components.charts import load_msavi_timeseries
+
+    df = load_msavi_timeseries()
+    if "id" in df.columns:
+        df = df[df["id"] == aoi_id]
+    value_col = next(
+        (c for c in ("mean_msavi", "msavi") if c in df.columns), df.columns[2]
+    )
+    viz = Visualizer()
+    with NamedTemporaryFile(suffix=".png") as tmp:
+        viz.plot_time_series(
+            df, index_col=value_col, output_path=tmp.name, agg_freq="YE"
+        )
+        return Path(tmp.name).read_bytes()
+
+
+def _build_pdf(
+    metrics: Mapping[str, float],
+    aoi: AOI,
+    project: str,
+    map_png: bytes,
+    ndvi_png: bytes,
+    msavi_png: bytes,
+) -> bytes:
+    """Assemble a simple PDF document from supplied assets."""
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    width, height = letter
+    aoi_id = int(aoi.static_props.get("id", 0))
+
+    # Cover page with map and metrics
+    c.setTitle(f"{project} AOI {aoi_id} Metrics")
+    y = height - 40
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(40, y, project)
+    y -= 20
+    c.setFont("Helvetica", 12)
+    c.drawString(40, y, f"AOI {aoi_id}")
+    y -= 20
+    c.drawImage(
+        ImageReader(io.BytesIO(map_png)),
+        40,
+        y - 180,
+        width - 80,
+        180,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    y -= 200
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(40, y, "Metrics")
+    y -= 14
+    c.setFont("Helvetica", 10)
+    for key, val in sorted(metrics.items()):
+        c.drawString(50, y, f"{key}: {val:.4f}")
+        y -= 12
+
+    # Charts page
+    c.showPage()
+    c.drawImage(
+        ImageReader(io.BytesIO(ndvi_png)),
+        40,
+        height - 260,
+        width - 80,
+        240,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    c.drawImage(
+        ImageReader(io.BytesIO(msavi_png)),
+        40,
+        height - 520,
+        width - 80,
+        240,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    c.save()
+    return buf.getvalue()
+
+
+def export_metrics_pdf(
+    metrics: Mapping[str, float] | object,
+    aoi: AOI,
+    project: str = "VerdeSat Demo",
+) -> str:
+    """Render ``metrics`` and visuals for ``aoi`` as a PDF and return a URL."""
+
+    data = _to_dict(metrics)
+    map_png = _aoi_map_png(aoi)
+    aoi_id = int(aoi.static_props.get("id", 0))
+    ndvi_png = _ndvi_png(aoi_id)
+    msavi_png = _msavi_png(aoi_id)
+    pdf_bytes = _build_pdf(data, aoi, project, map_png, ndvi_png, msavi_png)
+    key = f"results/aoi_{aoi_id}/metrics_{uuid4().hex}.pdf"
+    upload_bytes(key, pdf_bytes, content_type="application/pdf")
+    return signed_url(key)
