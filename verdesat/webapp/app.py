@@ -69,16 +69,20 @@ if run_button:
     if mode == "Upload AOI" and uploaded_file is not None:
         gdf = gpd.read_file(uploaded_file)
         metrics_data = compute_live_metrics(gdf, year=year)
+        current_gdf = gdf
+        current_aoi_id = 0
     else:
         metrics_data = load_demo_metrics(aoi_id)
+        current_gdf = DEMO_AOI
+        current_aoi_id = aoi_id
     metrics = Metrics(**metrics_data)
     with col2:
         bscore_gauge(metrics.bscore)
     st.markdown("---")
     display_metrics(metrics)
 
-    csv_url = export_metrics_csv(metrics)
-    pdf_url = export_metrics_pdf(metrics)
+    csv_url = export_metrics_csv(metrics, current_aoi_id)
+    pdf_url = export_metrics_pdf(metrics, current_aoi_id, current_gdf)
     st.markdown(f"[⬇️ Download CSV]({csv_url})")
     st.markdown(f"[⬇️ Download PDF]({pdf_url})")
 
