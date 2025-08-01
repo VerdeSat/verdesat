@@ -1,6 +1,12 @@
 import streamlit as st
 import geopandas as gpd
+from typing import Any, cast
+
 from verdesat.geo.aoi import AOI
+from verdesat.services.msa import MSAService
+from verdesat.biodiv.bscore import BScoreCalculator
+from verdesat.core.storage import LocalFS
+from verdesat.webapp.services.compute import ComputeService
 from verdesat.webapp.services.r2 import signed_url
 from verdesat.webapp.components.map_widget import display_map
 from verdesat.webapp.components.kpi_cards import Metrics, bscore_gauge, display_metrics
@@ -8,9 +14,9 @@ from verdesat.webapp.components.charts import (
     msavi_bar_chart,
     ndvi_decomposition_chart,
 )
-from verdesat.webapp.services.compute import compute_live_metrics, load_demo_metrics
 from verdesat.webapp.services.exports import export_metrics_csv, export_metrics_pdf
-from typing import Any, cast
+
+compute_service = ComputeService(MSAService(), BScoreCalculator(), LocalFS())
 
 # ---- Page config -----------------------------------------------------------
 st.set_page_config(
@@ -73,14 +79,16 @@ current_aoi_id = aoi_id
 if run_button:
     if mode == "Upload AOI" and uploaded_file is not None:
         gdf = gpd.read_file(uploaded_file)
-        metrics_data, ndvi_chart_df, msavi_chart_df = compute_live_metrics(
-            gdf, start_year=start_year, end_year=end_year
+        metrics_data, ndvi_chart_df, msavi_chart_df = (
+            compute_service.compute_live_metrics(
+                gdf, start_year=start_year, end_year=end_year
+            )
         )
         current_gdf = gdf
         current_aoi_id = 0
     else:
         demo_gdf = DEMO_AOI[DEMO_AOI["id"] == aoi_id]
-        metrics_data, ndvi_chart_df, msavi_chart_df = load_demo_metrics(
+        metrics_data, ndvi_chart_df, msavi_chart_df = compute_service.load_demo_metrics(
             aoi_id, demo_gdf, start_year=start_year, end_year=end_year
         )
         current_gdf = demo_gdf

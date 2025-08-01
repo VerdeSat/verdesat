@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-"""Utility functions for computing biodiversity metrics for the web app.
+"""Services for computing biodiversity metrics for the web app.
 
-The original implementation was a thin mock that returned hard-coded or
-placeholder values (e.g. ``msa`` was set to the MSAVI mean).  This module now
-leverages the real service layer used by the CLI, providing consistent
-calculations for the Streamlit dashboard.  It exposes helpers for both the
-demo AOIs and user provided uploads.
+This module wraps the core service layer and exposes a :class:`ComputeService`
+that reuses injected dependencies.  It provides helpers for demo AOIs as well
+as user uploads.
 """
 
 from pathlib import Path
@@ -19,142 +17,194 @@ import rasterio
 
 from verdesat.analytics.stats import compute_summary_stats
 from verdesat.analytics.timeseries import TimeSeries
-from verdesat.services.bscore import compute_bscores
-from verdesat.services.msa import MSAService
 from verdesat.services.timeseries import download_timeseries
-from verdesat.webapp.services.r2 import signed_url, upload_bytes
+from verdesat.webapp.services.r2 import signed_url
 
-from verdesat.biodiv.bscore import BScoreCalculator, WeightsConfig
-from verdesat.biodiv.metrics import FragmentStats, MetricsResult
+from verdesat.biodiv.bscore import BScoreCalculator
+from verdesat.biodiv.metrics import FragmentStats, MetricEngine, MetricsResult
+from verdesat.services.msa import MSAService
+from verdesat.geo.aoi import AOI
+from verdesat.core.storage import StorageAdapter
+from verdesat.project.project import VerdeSatProject
+from verdesat.core.config import ConfigManager
 
 
 def _read_remote_raster(key: str) -> np.ndarray:
-    """Return first band of a COG stored on R2 as a float array."""
+    """Return the first band of a COG stored on R2 as a float array."""
+
     url = signed_url(key)
     with rasterio.open(url) as src:
         arr = src.read(1, masked=True).astype(float)
         return arr.filled(np.nan)
 
 
-def load_demo_metrics(
-    aoi_id: int,
-    gdf: gpd.GeoDataFrame,
-    *,
-    start_year: int,
-    end_year: int,
-) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
-    """Compute metrics and VI datasets for a demo AOI.
+class ComputeService:
+    """Orchestrate metric computations for the web application."""
 
-    Parameters
-    ----------
-    aoi_id:
-        Identifier of the AOI within ``gdf``.
-    gdf:
-        GeoDataFrame containing all demo AOIs. The geometry is required to
-        compute MSA using :class:`~verdesat.services.msa.MSAService`.
-    start_year, end_year:
-        Inclusive temporal range for vegetation indices. The end year is also
-        used for land-cover based metrics as only a single annual layer is
-        available for demo data.
-    """
+    def __init__(
+        self, msa_service: MSAService, calc: BScoreCalculator, storage: StorageAdapter
+    ) -> None:
+        self.msa_service = msa_service
+        self.calc = calc
+        self.storage = storage
 
-    landcover = _read_remote_raster(f"resources/LANDCOVER_{aoi_id}_{end_year}.tiff")
+    # ------------------------------------------------------------------
+    def load_demo_metrics(
+        self,
+        aoi_id: int,
+        gdf: gpd.GeoDataFrame,
+        *,
+        start_year: int,
+        end_year: int,
+    ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
+        """Compute metrics and vegetation indices for a demo AOI."""
 
-    intactness = float(np.isin(landcover, [1, 2, 6]).sum() / landcover.size)
+        landcover = _read_remote_raster(f"resources/LANDCOVER_{aoi_id}_{end_year}.tiff")
 
-    vals = landcover[~np.isnan(landcover)].astype(int).ravel()
-    counts = np.bincount(vals)
-    probs = counts[counts > 0] / vals.size
-    shannon = float(-np.sum(probs * np.log(probs)))
+        intactness = float(np.isin(landcover, [1, 2, 6]).sum() / landcover.size)
 
-    edges = np.count_nonzero(landcover[:, 1:] != landcover[:, :-1]) + np.count_nonzero(
-        landcover[1:, :] != landcover[:-1, :]
-    )
-    fragmentation = float(edges / landcover.size)
+        vals = landcover[~np.isnan(landcover)].astype(int).ravel()
+        counts = np.bincount(vals)
+        probs = counts[counts > 0] / vals.size
+        shannon = float(-np.sum(probs * np.log(probs)))
 
-    # ---- NDVI stats from demo decomposition/time-series -----------------
-    ndvi_decomp_url = signed_url(f"resources/decomp/{aoi_id}_decomposition.csv")
-    ndvi_decomp_df = pd.read_csv(ndvi_decomp_url, parse_dates=["date"])
-    mask = (ndvi_decomp_df["date"].dt.year >= start_year) & (
-        ndvi_decomp_df["date"].dt.year <= end_year
-    )
-    ndvi_decomp_df = ndvi_decomp_df.loc[mask]
-    ndvi_ts = ndvi_decomp_df[["date", "observed"]].rename(
-        columns={"observed": "mean_ndvi"}
-    )
-    ndvi_ts["id"] = aoi_id
-    with tempfile.TemporaryDirectory() as tmpdir:
-        ts_path = Path(tmpdir) / "ndvi.csv"
-        decomp_path = Path(tmpdir) / f"{aoi_id}_decomposition.csv"
-        ndvi_ts.to_csv(ts_path, index=False)
-        ndvi_decomp_df.to_csv(decomp_path, index=False)
-        stats_df = compute_summary_stats(
-            str(ts_path), decomp_dir=tmpdir, value_col="mean_ndvi"
-        ).to_dataframe()
-    ndvi_row = stats_df.iloc[0]
+        edges = np.count_nonzero(
+            landcover[:, 1:] != landcover[:, :-1]
+        ) + np.count_nonzero(landcover[1:, :] != landcover[:-1, :])
+        fragmentation = float(edges / landcover.size)
 
-    # ---- MSAVI stats/time-series -----------------------------------------
-    msavi_url = signed_url("resources/msavi.csv")
-    msavi_df = pd.read_csv(msavi_url, parse_dates=["date"])
-    if "id" in msavi_df.columns:
-        msavi_df = msavi_df[msavi_df["id"] == aoi_id]
-    mask = (msavi_df["date"].dt.year >= start_year) & (
-        msavi_df["date"].dt.year <= end_year
-    )
-    msavi_df = msavi_df.loc[mask]
-    with tempfile.TemporaryDirectory() as tmpdir:
-        msavi_path = Path(tmpdir) / "msavi.csv"
-        msavi_df.to_csv(msavi_path, index=False)
-        msavi_stats_df = compute_summary_stats(
-            str(msavi_path), value_col="mean_msavi"
-        ).to_dataframe()
-    msavi_row = msavi_stats_df.iloc[0]
+        ndvi_decomp_url = signed_url(f"resources/decomp/{aoi_id}_decomposition.csv")
+        ndvi_decomp_df = pd.read_csv(ndvi_decomp_url, parse_dates=["date"])
+        mask = (ndvi_decomp_df["date"].dt.year >= start_year) & (
+            ndvi_decomp_df["date"].dt.year <= end_year
+        )
+        ndvi_decomp_df = ndvi_decomp_df.loc[mask]
+        ndvi_ts = ndvi_decomp_df[["date", "observed"]].rename(
+            columns={"observed": "mean_ndvi"}
+        )
+        ndvi_ts["id"] = aoi_id
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ts_path = Path(tmpdir) / "ndvi.csv"
+            decomp_path = Path(tmpdir) / f"{aoi_id}_decomposition.csv"
+            ndvi_ts.to_csv(ts_path, index=False)
+            ndvi_decomp_df.to_csv(decomp_path, index=False)
+            stats_df = compute_summary_stats(
+                str(ts_path), decomp_dir=tmpdir, value_col="mean_ndvi"
+            ).to_dataframe()
+        ndvi_row = stats_df.iloc[0]
 
-    msa_val = float("nan")
-    try:
-        geom = gdf.loc[gdf["id"] == aoi_id].geometry.iloc[0]
-        msa_val = MSAService().mean_msa(geom)
-    except Exception:  # pragma: no cover - network or raster issues
-        pass
+        msavi_url = signed_url("resources/msavi.csv")
+        msavi_df = pd.read_csv(msavi_url, parse_dates=["date"])
+        if "id" in msavi_df.columns:
+            msavi_df = msavi_df[msavi_df["id"] == aoi_id]
+        mask = (msavi_df["date"].dt.year >= start_year) & (
+            msavi_df["date"].dt.year <= end_year
+        )
+        msavi_df = msavi_df.loc[mask]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            msavi_path = Path(tmpdir) / "msavi.csv"
+            msavi_df.to_csv(msavi_path, index=False)
+            msavi_stats_df = compute_summary_stats(
+                str(msavi_path), value_col="mean_msavi"
+            ).to_dataframe()
+        msavi_row = msavi_stats_df.iloc[0]
 
-    calc = BScoreCalculator(WeightsConfig())
-    metrics = MetricsResult(
-        intactness=intactness,
-        shannon=shannon,
-        fragmentation=FragmentStats(
-            edge_density=fragmentation,
-            normalised_density=fragmentation,
-        ),
-        msa=msa_val,
-    )
-    bscore = calc.score(metrics)
+        msa_val = float("nan")
+        try:
+            geom = gdf.loc[gdf["id"] == aoi_id].geometry.iloc[0]
+            msa_val = self.msa_service.mean_msa(geom)
+        except Exception:  # pragma: no cover - network or raster issues
+            pass
 
-    data = {
-        "intactness": intactness,
-        "shannon": shannon,
-        "fragmentation": fragmentation,
-        "ndvi_mean": float(ndvi_row["Mean NDVI"]),
-        "ndvi_std": float(ndvi_row["Std NDVI"]),
-        "ndvi_slope": float(ndvi_row["Sen's Slope (NDVI/yr)"]),
-        "ndvi_delta": float(ndvi_row["Trend ΔNDVI"]),
-        "ndvi_p_value": float(ndvi_row["Mann–Kendall p-value"]),
-        "ndvi_peak": ndvi_row["Peak Month"] if pd.notna(ndvi_row["Peak Month"]) else "",
-        "ndvi_pct_fill": float(ndvi_row["% Gapfilled"]),
-        "msavi_mean": float(msavi_row["Mean MSAVI"]),
-        "msavi_std": float(msavi_row["Std MSAVI"]),
-        "bscore": bscore,
-    }
-    return data, ndvi_decomp_df, msavi_df
+        metrics = MetricsResult(
+            intactness=intactness,
+            shannon=shannon,
+            fragmentation=FragmentStats(
+                edge_density=fragmentation, normalised_density=fragmentation
+            ),
+            msa=msa_val,
+        )
+        bscore = self.calc.score(metrics)
+
+        data = {
+            "intactness": intactness,
+            "shannon": shannon,
+            "fragmentation": fragmentation,
+            "ndvi_mean": float(ndvi_row["Mean NDVI"]),
+            "ndvi_std": float(ndvi_row["Std NDVI"]),
+            "ndvi_slope": float(ndvi_row["Sen's Slope (NDVI/yr)"]),
+            "ndvi_delta": float(ndvi_row["Trend ΔNDVI"]),
+            "ndvi_p_value": float(ndvi_row["Mann–Kendall p-value"]),
+            "ndvi_peak": (
+                ndvi_row["Peak Month"] if pd.notna(ndvi_row["Peak Month"]) else ""
+            ),
+            "ndvi_pct_fill": float(ndvi_row["% Gapfilled"]),
+            "msavi_mean": float(msavi_row["Mean MSAVI"]),
+            "msavi_std": float(msavi_row["Std MSAVI"]),
+            "bscore": bscore,
+        }
+        return data, ndvi_decomp_df, msavi_df
+
+    # ------------------------------------------------------------------
+    def compute_live_metrics(
+        self, gdf: gpd.GeoDataFrame, *, start_year: int, end_year: int
+    ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
+        """Compute metrics and vegetation indices for uploaded AOIs."""
+
+        aois = AOI.from_gdf(gdf)
+        if len(aois) > 1:
+            # Keep project around for potential future use
+            config = ConfigManager()
+            project = VerdeSatProject("Web Upload", "WebApp", aois, config)
+            aois_iter = project.aois
+        else:
+            aois_iter = aois
+
+        engine = MetricEngine(storage=self.storage)
+        records: list[dict[str, float | int]] = []
+        for aoi in aois_iter:
+            metrics = engine.run_all(aoi, end_year)
+            metrics.msa = self.msa_service.mean_msa(aoi.geometry)
+            bscore = self.calc.score(metrics)
+            records.append(
+                {
+                    "id": int(aoi.static_props.get("id", 0)),
+                    "intactness": metrics.intactness,
+                    "shannon": metrics.shannon,
+                    "fragmentation": metrics.fragmentation.normalised_density,
+                    "bscore": bscore,
+                }
+            )
+
+        df = pd.DataFrame.from_records(records)
+
+        csv_bytes = df.to_csv(index=False).encode("utf-8")
+        dest = self.storage.join("results", "live_metrics.csv")
+        self.storage.write_bytes(dest, csv_bytes)
+
+        first_gdf = gdf.iloc[[0]]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            aoi_path = Path(tmpdir) / "aoi.geojson"
+            first_gdf.to_file(aoi_path, driver="GeoJSON")
+            ndvi_stats, ndvi_decomp = _ndvi_stats(str(aoi_path), start_year, end_year)
+            msavi_stats, msavi_df = _msavi_stats(str(aoi_path), start_year, end_year)
+
+        row = df.iloc[0]
+        data: dict[str, float | str] = {
+            "intactness": float(row["intactness"]),
+            "shannon": float(row["shannon"]),
+            "fragmentation": float(row["fragmentation"]),
+            "bscore": float(row["bscore"]),
+        }
+        data.update(ndvi_stats)
+        data.update(msavi_stats)
+        return data, ndvi_decomp, msavi_df
 
 
 def _ndvi_stats(
     aoi_path: str, start_year: int, end_year: int
 ) -> tuple[dict[str, float | str], pd.DataFrame]:
-    """Return NDVI stats and decomposition for ``aoi_path``.
-
-    The time series is aggregated monthly from the
-    ``COPERNICUS/S2_SR_HARMONIZED`` collection.
-    """
+    """Return NDVI stats and decomposition for ``aoi_path``."""
 
     ts_df = download_timeseries(
         geojson=aoi_path,
@@ -228,29 +278,3 @@ def _msavi_stats(
         "msavi_std": float(row["Std MSAVI"]),
     }
     return stats, ts.df
-
-
-def compute_live_metrics(
-    gdf: gpd.GeoDataFrame, *, start_year: int, end_year: int
-) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
-    """Compute metrics and VI datasets for an uploaded AOI."""
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        aoi_path = Path(tmpdir) / "aoi.geojson"
-        gdf.to_file(aoi_path, driver="GeoJSON")
-        df: pd.DataFrame = compute_bscores(str(aoi_path), year=end_year)
-        ndvi_stats, ndvi_decomp = _ndvi_stats(str(aoi_path), start_year, end_year)
-        msavi_stats, msavi_df = _msavi_stats(str(aoi_path), start_year, end_year)
-        csv_bytes = df.to_csv(index=False).encode("utf-8")
-        upload_bytes("results/live_metrics.csv", csv_bytes, content_type="text/csv")
-
-    row = df.iloc[0]
-    data: dict[str, float | str] = {
-        "intactness": float(row["intactness"]),
-        "shannon": float(row["shannon"]),
-        "fragmentation": float(row["fragmentation"]),
-        "bscore": float(row["bscore"]),
-    }
-    data.update(ndvi_stats)
-    data.update(msavi_stats)
-    return data, ndvi_decomp, msavi_df
