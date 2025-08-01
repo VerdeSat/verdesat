@@ -1,26 +1,38 @@
 import logging
+from pathlib import Path
+from typing import Any, cast
 
 import geopandas as gpd
 import streamlit as st
-from typing import Any, cast
 
-from verdesat.geo.aoi import AOI
-from verdesat.services.msa import MSAService
 from verdesat.biodiv.bscore import BScoreCalculator
+from verdesat.core.config import ConfigManager
 from verdesat.core.logger import Logger
 from verdesat.core.storage import LocalFS
-from verdesat.webapp.services.compute import ComputeService
-from verdesat.webapp.services.r2 import signed_url
-from verdesat.webapp.components.map_widget import display_map
-from verdesat.webapp.components.kpi_cards import Metrics, bscore_gauge, display_metrics
+from verdesat.geo.aoi import AOI
+from verdesat.services.msa import MSAService
 from verdesat.webapp.components.charts import (
     msavi_bar_chart,
     ndvi_decomposition_chart,
 )
+from verdesat.webapp.components.kpi_cards import Metrics, bscore_gauge, display_metrics
+from verdesat.webapp.components.map_widget import display_map
+from verdesat.webapp.services.compute import ComputeService
 from verdesat.webapp.services.exports import export_metrics_csv, export_metrics_pdf
+from verdesat.webapp.services.r2 import signed_url
 
 
 logger = Logger.get_logger(__name__)
+
+CONFIG = ConfigManager(
+    str(Path(__file__).resolve().parents[1] / "resources" / "webapp.toml")
+)
+_demo_cfg = CONFIG.get("demo", {})
+_defaults = CONFIG.get("defaults", {})
+
+DEMO_AOI_KEY = _demo_cfg.get("aoi_key", "resources/reference.geojson")
+_demo_aois = _demo_cfg.get("aois", [])
+
 compute_service = ComputeService(MSAService(), BScoreCalculator(), LocalFS())
 
 # ---- Page config -----------------------------------------------------------
@@ -36,8 +48,26 @@ st.set_page_config(
 # ---- Sidebar controls ------------------------------------------------------
 st.sidebar.header("VerdeSat B-Score v0.1")
 mode = st.sidebar.radio("Mode", ["Demo AOI", "Upload AOI"])
-start_year, end_year = st.sidebar.slider("Years", 2017, 2024, value=(2019, 2024))
-aoi_id = st.sidebar.selectbox("Demo AOI", [1, 2], format_func=lambda x: f"AOI {x}")
+start_year, end_year = st.sidebar.slider(
+    "Years",
+    2017,
+    2024,
+    value=(
+        int(_defaults.get("start_year", 2019)),
+        int(_defaults.get("end_year", 2024)),
+    ),
+)
+_aoi_options = [a["id"] for a in _demo_aois] or [1, 2]
+
+
+def _fmt_aoi(x: int) -> str:
+    for a in _demo_aois:
+        if a["id"] == x:
+            return a.get("name", f"AOI {x}")
+    return f"AOI {x}"
+
+
+aoi_id = st.sidebar.selectbox("Demo AOI", _aoi_options, format_func=_fmt_aoi)
 uploaded_file = None
 if mode == "Upload AOI":
     uploaded_file = st.sidebar.file_uploader("GeoJSON AOI", type="geojson")
@@ -85,7 +115,6 @@ if st.sidebar.checkbox("Show log pane"):
 
 #
 # --- load demo AOI & rasters (fast; cached) -------------------
-DEMO_AOI_KEY = "resources/reference.geojson"  # adjust if key differs
 
 
 @st.cache_data
@@ -103,15 +132,8 @@ def load_demo_aoi() -> gpd.GeoDataFrame:
 @st.cache_data
 def load_demo_cogs() -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     """Return lists of NDVI and MSAVI COGs for the demo AOIs."""
-
-    ndvi_cogs = [
-        ("NDVI AOI 1", "resources/NDVI_1_2024-01-01.tif"),
-        ("NDVI AOI 2", "resources/NDVI_2_2024-01-01.tif"),
-    ]
-    msavi_cogs = [
-        ("MSAVI AOI 1", "resources/MSAVI_1_2024-01-01.tif"),
-        ("MSAVI AOI 2", "resources/MSAVI_2_2024-01-01.tif"),
-    ]
+    ndvi_cogs = [(f"NDVI {a['name']}", a["ndvi"]) for a in _demo_aois]
+    msavi_cogs = [(f"MSAVI {a['name']}", a["msavi"]) for a in _demo_aois]
     return ndvi_cogs, msavi_cogs
 
 
