@@ -21,17 +21,20 @@ from verdesat.visualization.visualizer import Visualizer
 from .r2 import upload_bytes, signed_url
 
 
-def _to_dict(metrics: Mapping[str, float] | object) -> dict[str, float]:
-    """Return a plain ``dict`` from ``metrics``."""
+def _to_dict(metrics: Mapping[str, Any] | object) -> dict[str, Any]:
+    """Return a plain ``dict`` from ``metrics`` preserving non-numeric values."""
+
+    def _convert(value: Any) -> Any:
+        return float(value) if isinstance(value, (int, float)) else value
 
     if is_dataclass(metrics) and not isinstance(metrics, type):
-        return {k: float(v) for k, v in asdict(cast(Any, metrics)).items()}
+        return {k: _convert(v) for k, v in asdict(cast(Any, metrics)).items()}
     if isinstance(metrics, Mapping):
-        return {k: float(v) for k, v in metrics.items()}
+        return {k: _convert(v) for k, v in metrics.items()}
     raise TypeError("metrics must be a dataclass or mapping")
 
 
-def export_metrics_csv(metrics: Mapping[str, float] | object, aoi: AOI) -> str:
+def export_metrics_csv(metrics: Mapping[str, Any] | object, aoi: AOI) -> str:
     """Serialize ``metrics`` for ``aoi`` to CSV and return a presigned URL."""
 
     data = _to_dict(metrics)
@@ -61,12 +64,15 @@ def _aoi_map_png(aoi: AOI) -> bytes:
     return buf.getvalue()
 
 
-def _ndvi_png(aoi_id: int) -> bytes:
-    """Generate NDVI decomposition plot for ``aoi_id`` using ``Visualizer``."""
+def _ndvi_png(aoi_id: int | None, df: pd.DataFrame | None) -> bytes:
+    """Generate NDVI decomposition plot using ``Visualizer``."""
 
-    from verdesat.webapp.components.charts import load_ndvi_decomposition
+    if df is None:
+        from verdesat.webapp.components.charts import load_ndvi_decomposition
 
-    df = load_ndvi_decomposition(aoi_id)
+        if aoi_id is None:
+            raise ValueError("aoi_id or df must be provided")
+        df = load_ndvi_decomposition(aoi_id)
 
     class _Decomp:
         def __init__(self, frame: pd.DataFrame):
@@ -91,14 +97,17 @@ def _ndvi_png(aoi_id: int) -> bytes:
         return Path(tmp.name).read_bytes()
 
 
-def _msavi_png(aoi_id: int) -> bytes:
-    """Generate MSAVI annual time-series plot for ``aoi_id``."""
+def _msavi_png(aoi_id: int | None, df: pd.DataFrame | None) -> bytes:
+    """Generate MSAVI annual time-series plot."""
 
-    from verdesat.webapp.components.charts import load_msavi_timeseries
+    if df is None:
+        from verdesat.webapp.components.charts import load_msavi_timeseries
 
-    df = load_msavi_timeseries()
-    if "id" in df.columns:
-        df = df[df["id"] == aoi_id]
+        if aoi_id is None:
+            raise ValueError("aoi_id or df must be provided")
+        df = load_msavi_timeseries()
+        if "id" in df.columns:
+            df = df[df["id"] == aoi_id]
     value_col = next(
         (c for c in ("mean_msavi", "msavi") if c in df.columns), df.columns[2]
     )
@@ -111,7 +120,7 @@ def _msavi_png(aoi_id: int) -> bytes:
 
 
 def _build_pdf(
-    metrics: Mapping[str, float],
+    metrics: Mapping[str, Any],
     aoi: AOI,
     project: str,
     map_png: bytes,
@@ -149,7 +158,10 @@ def _build_pdf(
     y -= 14
     c.setFont("Helvetica", 10)
     for key, val in sorted(metrics.items()):
-        c.drawString(50, y, f"{key}: {val:.4f}")
+        if isinstance(val, (int, float)):
+            c.drawString(50, y, f"{key}: {val:.4f}")
+        else:
+            c.drawString(50, y, f"{key}: {val}")
         y -= 12
 
     # Charts page
@@ -177,17 +189,19 @@ def _build_pdf(
 
 
 def export_metrics_pdf(
-    metrics: Mapping[str, float] | object,
+    metrics: Mapping[str, Any] | object,
     aoi: AOI,
     project: str = "VerdeSat Demo",
+    ndvi_df: pd.DataFrame | None = None,
+    msavi_df: pd.DataFrame | None = None,
 ) -> str:
     """Render ``metrics`` and visuals for ``aoi`` as a PDF and return a URL."""
 
     data = _to_dict(metrics)
     map_png = _aoi_map_png(aoi)
     aoi_id = int(aoi.static_props.get("id", 0))
-    ndvi_png = _ndvi_png(aoi_id)
-    msavi_png = _msavi_png(aoi_id)
+    ndvi_png = _ndvi_png(aoi_id, ndvi_df)
+    msavi_png = _msavi_png(aoi_id, msavi_df)
     pdf_bytes = _build_pdf(data, aoi, project, map_png, ndvi_png, msavi_png)
     key = f"results/aoi_{aoi_id}/metrics_{uuid4().hex}.pdf"
     upload_bytes(key, pdf_bytes, content_type="application/pdf")
