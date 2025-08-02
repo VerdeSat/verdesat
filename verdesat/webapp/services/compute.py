@@ -50,7 +50,7 @@ CONFIG = ConfigManager(
     str(Path(__file__).resolve().parents[2] / "resources" / "webapp.toml")
 )
 REDIS_URL = CONFIG.get("cache", {}).get("redis_url")
-CACHE_VERSION = "2"  # bump to invalidate incompatible cached results
+CACHE_VERSION = "3"  # bump to invalidate incompatible cached results
 
 
 def _read_remote_raster(key: str, geom: BaseGeometry | None = None) -> np.ndarray:
@@ -167,9 +167,8 @@ class ComputeService:
         self.storage = storage
 
     # ------------------------------------------------------------------
-    @st.cache_data(hash_funcs={gpd.GeoDataFrame: _hash_gdf})
     def load_demo_metrics(
-        _self,
+        self,
         aoi_id: int,
         gdf: gpd.GeoDataFrame,
         *,
@@ -177,8 +176,6 @@ class ComputeService:
         end_year: int,
     ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
         """Compute metrics and vegetation indices for a demo AOI."""
-
-        self = _self
         logger.info(
             "compute demo metrics for AOI %s (%s-%s)", aoi_id, start_year, end_year
         )
