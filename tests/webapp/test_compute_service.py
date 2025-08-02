@@ -93,14 +93,16 @@ def test_compute_live_metrics_single_aoi(monkeypatch):
     storage = DummyStorage()
     svc = ComputeService(msa, calc, storage)
 
-    data, ndvi_out, msavi_out = svc.compute_live_metrics(
-        gdf, start_year=2020, end_year=2021
+    metrics_df, ndvi_stats_out, ndvi_out, msavi_stats_out, msavi_out = (
+        svc.compute_live_metrics(gdf, start_year=2020, end_year=2021)
     )
 
-    assert data["bscore"] == 42.0
+    assert metrics_df.iloc[0]["bscore"] == 42.0
     assert msa.called
     assert calc.last_metrics.msa == 0.7
     assert storage.writes
+    assert "ndvi_mean" in ndvi_stats_out
+    assert "msavi_mean" in msavi_stats_out
     assert isinstance(ndvi_out, pd.DataFrame)
     assert isinstance(msavi_out, pd.DataFrame)
 

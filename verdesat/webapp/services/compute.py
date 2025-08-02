@@ -295,8 +295,23 @@ class ComputeService:
     # ------------------------------------------------------------------
     def compute_live_metrics(
         _self, gdf: gpd.GeoDataFrame, *, start_year: int, end_year: int
-    ) -> tuple[dict[str, float | str], pd.DataFrame, pd.DataFrame]:
-        """Compute metrics and vegetation indices for uploaded AOIs."""
+    ) -> tuple[
+        pd.DataFrame,
+        dict[str, float | str],
+        pd.DataFrame,
+        dict[str, float],
+        pd.DataFrame,
+    ]:
+        """Compute metrics and vegetation indices for uploaded AOIs.
+
+        Returns
+        -------
+        tuple
+            ``(metrics_df, ndvi_stats, ndvi_decomp, msavi_stats, msavi_df)`` where
+            ``metrics_df`` contains core biodiversity metrics for each AOI.
+            NDVI/MSAVI statistics and data frames are only computed for the first
+            AOI and are included for visualisation/export of a representative AOI.
+        """
 
         self = _self
         logger.info(
@@ -354,16 +369,7 @@ class ComputeService:
                     ndvi_stats, ndvi_decomp = ndvi_future.result()
                     msavi_stats, msavi_df = msavi_future.result()
 
-            row = df.iloc[0]
-            data: dict[str, float | str] = {
-                "intactness": float(row["intactness"]),
-                "shannon": float(row["shannon"]),
-                "fragmentation": float(row["fragmentation"]),
-                "bscore": float(row["bscore"]),
-            }
-            data.update(ndvi_stats)
-            data.update(msavi_stats)
-            result = (data, ndvi_decomp, msavi_df)
+            result = (df, ndvi_stats, ndvi_decomp, msavi_stats, msavi_df)
             _persist_cache(self.storage, cache_key, result)
             logger.info("computed live metrics for %s AOI(s)", len(aois))
             return result

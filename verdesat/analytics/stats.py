@@ -2,7 +2,7 @@
 
 import io
 from pathlib import Path
-from typing import IO, Mapping, Optional
+from typing import IO, Mapping, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -60,7 +60,7 @@ def compute_summary_stats(
         ddf = None
         if decomp_dir:
             if isinstance(decomp_dir, Mapping):
-                buf = decomp_dir.get(pid)
+                buf = decomp_dir.get(cast(int, pid))
                 if isinstance(buf, pd.DataFrame):
                     ddf = buf.set_index("date")
                 elif buf is not None:
@@ -101,7 +101,7 @@ def compute_summary_stats(
         label = value_col.replace("mean_", "").upper()
         stats.append(
             {
-                "Site ID": pid,
+                "Site ID": int(cast(int, pid)),
                 "Start Date": start.strftime("%Y-%m"),
                 "End Date": end.strftime("%Y-%m"),
                 "Num Periods": n,
