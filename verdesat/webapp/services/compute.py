@@ -47,6 +47,7 @@ CONFIG = ConfigManager(
     str(Path(__file__).resolve().parents[2] / "resources" / "webapp.toml")
 )
 REDIS_URL = CONFIG.get("cache", {}).get("redis_url")
+CACHE_VERSION = "2"  # bump to invalidate incompatible cached results
 
 
 def _read_remote_raster(key: str, geom: BaseGeometry | None = None) -> np.ndarray:
@@ -160,7 +161,7 @@ class ComputeService:
         logger.info(
             "compute demo metrics for AOI %s (%s-%s)", aoi_id, start_year, end_year
         )
-        cache_key = f"demo_{aoi_id}_{start_year}_{end_year}"
+        cache_key = f"demo_{CACHE_VERSION}_{aoi_id}_{start_year}_{end_year}"
         cached = _load_cache(self.storage, cache_key)
         if cached is not None:
             logger.info("demo metrics cache hit for AOI %s", aoi_id)
@@ -276,7 +277,7 @@ class ComputeService:
         logger.info(
             "compute live metrics for uploaded AOI(s) (%s-%s)", start_year, end_year
         )
-        cache_key = f"live_{_hash_gdf(gdf)}_{start_year}_{end_year}"
+        cache_key = f"live_{CACHE_VERSION}_{_hash_gdf(gdf)}_{start_year}_{end_year}"
         cached = _load_cache(self.storage, cache_key)
         if cached is not None:
             logger.info("live metrics cache hit")
