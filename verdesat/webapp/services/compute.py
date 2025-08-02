@@ -19,7 +19,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
-from rasterio import mask as rio_mask
+from rasterio.mask import mask as rio_mask
 import streamlit as st
 from shapely.geometry import mapping
 from shapely.geometry.base import BaseGeometry
