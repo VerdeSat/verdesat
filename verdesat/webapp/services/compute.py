@@ -58,14 +58,18 @@ def _read_remote_raster(key: str, geom: BaseGeometry | None = None) -> np.ndarra
     """
 
     url = signed_url(key)
-    with rasterio.open(url) as src:
-        if geom is not None:
-            arr, _ = rio_mask(src, [mapping(geom)], crop=True, nodata=np.nan)
-            data = arr[0]
-        else:
-            arr = src.read(1, masked=True).astype(float)
-            data = arr.filled(np.nan)
-        return data
+    try:
+        with rasterio.open(url) as src:
+            if geom is not None:
+                arr, _ = rio_mask(src, [mapping(geom)], crop=True, nodata=np.nan)
+                data = arr[0]
+            else:
+                arr = src.read(1, masked=True).astype(float)
+                data = arr.filled(np.nan)
+            return data
+    except rasterio.errors.RasterioIOError as exc:
+        logger.error("failed to fetch remote raster %s", key)
+        raise FileNotFoundError(f"remote raster not found: {key}") from exc
 
 
 def _df_to_bytes(df: pd.DataFrame) -> io.BytesIO:
@@ -169,9 +173,13 @@ class ComputeService:
 
         try:
             geom = gdf.loc[gdf["id"] == aoi_id].geometry.iloc[0]
-            landcover = _read_remote_raster(
-                f"resources/LANDCOVER_{aoi_id}_{end_year}.tiff", geom=geom
-            )
+            try:
+                landcover = _read_remote_raster(
+                    f"resources/LANDCOVER_{aoi_id}_{end_year}.tiff", geom=geom
+                )
+            except FileNotFoundError as exc:
+                logger.error("missing landcover raster for demo AOI %s", aoi_id)
+                raise RuntimeError(f"demo resources missing for AOI {aoi_id}") from exc
 
             intactness = float(np.isin(landcover, [1, 2, 6]).sum() / landcover.size)
 
