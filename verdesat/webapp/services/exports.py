@@ -16,6 +16,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from verdesat.geo.aoi import AOI
+from verdesat.project.project import VerdeSatProject
 from verdesat.visualization.visualizer import Visualizer
 
 from .r2 import upload_bytes, signed_url
@@ -43,6 +44,15 @@ def export_metrics_csv(metrics: Mapping[str, Any] | object, aoi: AOI) -> str:
     df = pd.DataFrame([data])
     csv_bytes = df.to_csv(index=False).encode("utf-8")
     key = f"results/aoi_{aoi_id}/metrics_{uuid4().hex}.csv"
+    upload_bytes(key, csv_bytes, content_type="text/csv")
+    return signed_url(key)
+
+
+def export_project_csv(metrics: pd.DataFrame, project: VerdeSatProject) -> str:
+    """Export aggregated ``metrics`` for ``project`` and return a URL."""
+
+    csv_bytes = metrics.to_csv(index=False).encode("utf-8")
+    key = f"results/project_{uuid4().hex}/metrics.csv"
     upload_bytes(key, csv_bytes, content_type="text/csv")
     return signed_url(key)
 

@@ -1,4 +1,6 @@
+import json
 import logging
+from dataclasses import fields
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,8 +20,14 @@ from verdesat.webapp.components.charts import (
 from verdesat.webapp.components.kpi_cards import Metrics, bscore_gauge, display_metrics
 from verdesat.webapp.components.map_widget import display_map
 from verdesat.webapp.services.compute import ComputeService
-from verdesat.webapp.services.exports import export_metrics_csv, export_metrics_pdf
+from verdesat.webapp.services.exports import (
+    export_metrics_csv,
+    export_metrics_pdf,
+    export_project_csv,
+)
+from verdesat.webapp.services.project_state import persist_project
 from verdesat.webapp.services.r2 import signed_url
+from verdesat.project.project import VerdeSatProject
 
 
 logger = Logger.get_logger(__name__)
@@ -71,6 +79,17 @@ aoi_id = st.sidebar.selectbox("Demo AOI", _aoi_options, format_func=_fmt_aoi)
 uploaded_file = None
 if mode == "Upload AOI":
     uploaded_file = st.sidebar.file_uploader("GeoJSON AOI", type="geojson")
+    if uploaded_file is not None:
+        geojson = json.load(uploaded_file)
+        aois = AOI.from_geojson(geojson)
+        st.session_state["project"] = VerdeSatProject(
+            "Web Upload", "Guest", aois, CONFIG
+        )
+        st.session_state["uploaded_gdf"] = gpd.GeoDataFrame(
+            [{**a.static_props, "geometry": a.geometry} for a in aois],
+            crs="EPSG:4326",
+        )
+        uploaded_file.seek(0)
 run_button = st.sidebar.button("Run 🚀")
 
 # ---- Main canvas placeholders ---------------------------------------------
@@ -142,25 +161,59 @@ NDVI_COGS, MSAVI_COGS = load_demo_cogs()
 
 layer_state = {"ndvi": True, "msavi": True}
 
+if mode == "Upload AOI" and "uploaded_gdf" in st.session_state:
+    map_gdf = st.session_state["uploaded_gdf"]
+    ndvi_layers: list[tuple[str, str]] = []
+    msavi_layers: list[tuple[str, str]] = []
+else:
+    map_gdf = DEMO_AOI
+    ndvi_layers, msavi_layers = NDVI_COGS, MSAVI_COGS
+
 with col1:
-    layer_state = display_map(DEMO_AOI, NDVI_COGS, MSAVI_COGS, layer_state)
+    layer_state = display_map(map_gdf, ndvi_layers, msavi_layers, layer_state)
 ndvi_chart_df = None
 msavi_chart_df = None
 current_aoi_id = aoi_id
 
 if run_button:
     try:
-        if mode == "Upload AOI" and uploaded_file is not None:
-            logger.info("Loading uploaded AOI")
-            gdf = gpd.read_file(uploaded_file)
+        if mode == "Upload AOI" and "project" in st.session_state:
             logger.info("Computing live metrics")
-            metrics_data, ndvi_chart_df, msavi_chart_df = (
+            gdf = st.session_state["uploaded_gdf"]
+            project = st.session_state["project"]
+            metrics_df, ndvi_stats, ndvi_chart_df, msavi_stats, msavi_chart_df = (
                 compute_service.compute_live_metrics(
                     gdf, start_year=start_year, end_year=end_year
                 )
             )
+            first_row = metrics_df.iloc[0].to_dict()
+            first_row.update(ndvi_stats)
+            first_row.update(msavi_stats)
+            metric_fields = {f.name for f in fields(Metrics)}
+            metric_data = {k: first_row[k] for k in metric_fields if k in first_row}
+            metrics = Metrics(**cast(dict[str, Any], metric_data))
+            with col2:
+                bscore_gauge(metrics.bscore)
+            st.markdown("---")
+            display_metrics(metrics)
+            st.dataframe(metrics_df)
+            logger.info("Exporting metrics")
+            project_url = export_project_csv(metrics_df, project)
+            st.markdown(f"[⬇️ Download Project CSV]({project_url})")
+            first_aoi = project.aois[0]
+            csv_url = export_metrics_csv(metric_data, first_aoi)
+            pdf_url = export_metrics_pdf(
+                metrics,
+                first_aoi,
+                project=project.name,
+                ndvi_df=ndvi_chart_df,
+                msavi_df=msavi_chart_df,
+            )
+            st.markdown(f"[⬇️ Download AOI CSV]({csv_url})")
+            st.markdown(f"[⬇️ Download AOI PDF]({pdf_url})")
+            persist_project(project, LocalFS())
             current_gdf = gdf
-            current_aoi_id = 0
+            current_aoi_id = int(first_aoi.static_props.get("id", 0))
         else:
             logger.info("Loading demo AOI %s", aoi_id)
             demo_gdf = DEMO_AOI[DEMO_AOI["id"] == aoi_id]
@@ -172,24 +225,23 @@ if run_button:
             )
             current_gdf = demo_gdf
             current_aoi_id = aoi_id
-        metrics = Metrics(**cast(dict[str, Any], metrics_data))
-        with col2:
-            bscore_gauge(metrics.bscore)
-        st.markdown("---")
-        display_metrics(metrics)
-
-        aoi_obj = AOI.from_gdf(current_gdf)[0]
-        logger.info("Exporting metrics")
-        csv_url = export_metrics_csv(metrics, aoi_obj)
-        pdf_url = export_metrics_pdf(
-            metrics,
-            aoi_obj,
-            project="VerdeSat Demo",
-            ndvi_df=ndvi_chart_df,
-            msavi_df=msavi_chart_df,
-        )
-        st.markdown(f"[⬇️ Download CSV]({csv_url})")
-        st.markdown(f"[⬇️ Download PDF]({pdf_url})")
+            metrics = Metrics(**cast(dict[str, Any], metrics_data))
+            with col2:
+                bscore_gauge(metrics.bscore)
+            st.markdown("---")
+            display_metrics(metrics)
+            aoi_obj = AOI.from_gdf(current_gdf)[0]
+            logger.info("Exporting metrics")
+            csv_url = export_metrics_csv(metrics, aoi_obj)
+            pdf_url = export_metrics_pdf(
+                metrics,
+                aoi_obj,
+                project="VerdeSat Demo",
+                ndvi_df=ndvi_chart_df,
+                msavi_df=msavi_chart_df,
+            )
+            st.markdown(f"[⬇️ Download CSV]({csv_url})")
+            st.markdown(f"[⬇️ Download PDF]({pdf_url})")
     except Exception:
         logger.exception("Processing failed")
         st.error("Processing failed; see log pane for details.")
