@@ -61,8 +61,9 @@ def _read_remote_raster(key: str, geom: BaseGeometry | None = None) -> np.ndarra
     try:
         with rasterio.open(url) as src:
             if geom is not None:
-                arr, _ = rio_mask(src, [mapping(geom)], crop=True, nodata=np.nan)
-                data = arr[0]
+                arr, _ = rio_mask(src, [mapping(geom)], crop=True, filled=False)
+                data = arr[0].astype(float)
+                data[arr.mask[0]] = np.nan
             else:
                 arr = src.read(1, masked=True).astype(float)
                 data = arr.filled(np.nan)
