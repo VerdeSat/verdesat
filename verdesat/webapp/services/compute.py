@@ -12,12 +12,20 @@ import tempfile
 import os
 import pickle
 import hashlib
+import io
+import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
+from rasterio.mask import mask as rio_mask
 import streamlit as st
+from shapely.geometry import mapping
+from shapely.geometry.base import BaseGeometry
 
 try:
     import redis  # type: ignore
@@ -42,15 +50,39 @@ CONFIG = ConfigManager(
     str(Path(__file__).resolve().parents[2] / "resources" / "webapp.toml")
 )
 REDIS_URL = CONFIG.get("cache", {}).get("redis_url")
+CACHE_VERSION = "2"  # bump to invalidate incompatible cached results
 
 
-def _read_remote_raster(key: str) -> np.ndarray:
-    """Return the first band of a COG stored on R2 as a float array."""
+def _read_remote_raster(key: str, geom: BaseGeometry | None = None) -> np.ndarray:
+    """Return the first band of a COG stored on R2 as a float array.
+
+    If ``geom`` is provided, only the window covering the geometry is read,
+    reducing I/O and memory usage.
+    """
 
     url = signed_url(key)
-    with rasterio.open(url) as src:
-        arr = src.read(1, masked=True).astype(float)
-        return arr.filled(np.nan)
+    try:
+        with rasterio.open(url) as src:
+            if geom is not None:
+                arr, _ = rio_mask(src, [mapping(geom)], crop=True, filled=False)
+                data = arr[0].astype(float)
+                data[arr.mask[0]] = np.nan
+            else:
+                arr = src.read(1, masked=True).astype(float)
+                data = arr.filled(np.nan)
+            return data
+    except rasterio.errors.RasterioIOError as exc:
+        logger.error("failed to fetch remote raster %s", key)
+        raise FileNotFoundError(f"remote raster not found: {key}") from exc
+
+
+def _df_to_bytes(df: pd.DataFrame) -> io.BytesIO:
+    """Return ``df`` as a CSV encoded :class:`io.BytesIO`."""
+
+    buf = io.BytesIO()
+    df.to_csv(buf, index=False)
+    buf.seek(0)
+    return buf
 
 
 def _hash_gdf(gdf: gpd.GeoDataFrame) -> str:
@@ -66,6 +98,19 @@ def _cache_path(storage: StorageAdapter, key: str) -> str:
 
 
 logger = Logger.get_logger(__name__)
+
+
+@contextmanager
+def _suppress_timeseries_logging() -> Iterator[None]:
+    """Temporarily silence timeseries logs to avoid Streamlit context errors."""
+
+    ts_logger = logging.getLogger("verdesat.services.timeseries")
+    previous = ts_logger.level
+    ts_logger.setLevel(logging.ERROR)
+    try:
+        yield
+    finally:
+        ts_logger.setLevel(previous)
 
 
 def _persist_cache(storage: StorageAdapter, key: str, value: object) -> None:
@@ -137,16 +182,21 @@ class ComputeService:
         logger.info(
             "compute demo metrics for AOI %s (%s-%s)", aoi_id, start_year, end_year
         )
-        cache_key = f"demo_{aoi_id}_{start_year}_{end_year}"
+        cache_key = f"demo_{CACHE_VERSION}_{aoi_id}_{start_year}_{end_year}"
         cached = _load_cache(self.storage, cache_key)
         if cached is not None:
             logger.info("demo metrics cache hit for AOI %s", aoi_id)
             return cached  # type: ignore[return-value]
 
         try:
-            landcover = _read_remote_raster(
-                f"resources/LANDCOVER_{aoi_id}_{end_year}.tiff"
-            )
+            geom = gdf.loc[gdf["id"] == aoi_id].geometry.iloc[0]
+            try:
+                landcover = _read_remote_raster(
+                    f"resources/LANDCOVER_{aoi_id}_{end_year}.tiff", geom=geom
+                )
+            except FileNotFoundError as exc:
+                logger.error("missing landcover raster for demo AOI %s", aoi_id)
+                raise RuntimeError(f"demo resources missing for AOI {aoi_id}") from exc
 
             intactness = float(np.isin(landcover, [1, 2, 6]).sum() / landcover.size)
 
@@ -170,15 +220,8 @@ class ComputeService:
                 columns={"observed": "mean_ndvi"}
             )
             ndvi_ts["id"] = aoi_id
-            with tempfile.TemporaryDirectory() as tmpdir:
-                ts_path = Path(tmpdir) / "ndvi.csv"
-                decomp_path = Path(tmpdir) / f"{aoi_id}_decomposition.csv"
-                ndvi_ts.to_csv(ts_path, index=False)
-                ndvi_decomp_df.to_csv(decomp_path, index=False)
-                stats_df = compute_summary_stats(
-                    str(ts_path), decomp_dir=tmpdir, value_col="mean_ndvi"
-                ).to_dataframe()
-            ndvi_row = stats_df.iloc[0]
+            ndvi_ts_bytes = _df_to_bytes(ndvi_ts)
+            ndvi_decomp_bytes = _df_to_bytes(ndvi_decomp_df)
 
             msavi_url = signed_url("resources/msavi.csv")
             msavi_df = pd.read_csv(msavi_url, parse_dates=["date"])
@@ -188,17 +231,28 @@ class ComputeService:
                 msavi_df["date"].dt.year <= end_year
             )
             msavi_df = msavi_df.loc[mask]
-            with tempfile.TemporaryDirectory() as tmpdir:
-                msavi_path = Path(tmpdir) / "msavi.csv"
-                msavi_df.to_csv(msavi_path, index=False)
-                msavi_stats_df = compute_summary_stats(
-                    str(msavi_path), value_col="mean_msavi"
-                ).to_dataframe()
+            msavi_bytes = _df_to_bytes(msavi_df)
+
+            with ThreadPoolExecutor() as ex:
+                ndvi_future = ex.submit(
+                    compute_summary_stats,
+                    ndvi_ts_bytes,
+                    decomp_dir={aoi_id: ndvi_decomp_bytes},
+                    value_col="mean_ndvi",
+                )
+                msavi_future = ex.submit(
+                    compute_summary_stats,
+                    msavi_bytes,
+                    value_col="mean_msavi",
+                )
+                stats_df = ndvi_future.result().to_dataframe()
+                msavi_stats_df = msavi_future.result().to_dataframe()
+
+            ndvi_row = stats_df.iloc[0]
             msavi_row = msavi_stats_df.iloc[0]
 
             msa_val = float("nan")
             try:
-                geom = gdf.loc[gdf["id"] == aoi_id].geometry.iloc[0]
                 msa_val = self.msa_service.mean_msa(geom)
             except Exception:  # pragma: no cover - network or raster issues
                 msa_val = float("nan")
@@ -248,7 +302,7 @@ class ComputeService:
         logger.info(
             "compute live metrics for uploaded AOI(s) (%s-%s)", start_year, end_year
         )
-        cache_key = f"live_{_hash_gdf(gdf)}_{start_year}_{end_year}"
+        cache_key = f"live_{CACHE_VERSION}_{_hash_gdf(gdf)}_{start_year}_{end_year}"
         cached = _load_cache(self.storage, cache_key)
         if cached is not None:
             logger.info("live metrics cache hit")
@@ -290,12 +344,15 @@ class ComputeService:
             with tempfile.TemporaryDirectory() as tmpdir:
                 aoi_path = Path(tmpdir) / "aoi.geojson"
                 first_gdf.to_file(aoi_path, driver="GeoJSON")
-                ndvi_stats, ndvi_decomp = _ndvi_stats(
-                    str(aoi_path), start_year, end_year
-                )
-                msavi_stats, msavi_df = _msavi_stats(
-                    str(aoi_path), start_year, end_year
-                )
+                with ThreadPoolExecutor() as ex:
+                    ndvi_future = ex.submit(
+                        _ndvi_stats, str(aoi_path), start_year, end_year
+                    )
+                    msavi_future = ex.submit(
+                        _msavi_stats, str(aoi_path), start_year, end_year
+                    )
+                    ndvi_stats, ndvi_decomp = ndvi_future.result()
+                    msavi_stats, msavi_df = msavi_future.result()
 
             row = df.iloc[0]
             data: dict[str, float | str] = {
@@ -320,16 +377,16 @@ def _ndvi_stats(
     aoi_path: str, start_year: int, end_year: int
 ) -> tuple[dict[str, float | str], pd.DataFrame]:
     """Return NDVI stats and decomposition for ``aoi_path``."""
-
-    ts_df = download_timeseries(
-        geojson=aoi_path,
-        collection="COPERNICUS/S2_SR_HARMONIZED",
-        start=f"{start_year}-01-01",
-        end=f"{end_year}-12-31",
-        index="ndvi",
-        chunk_freq="ME",
-        agg="ME",
-    )
+    with _suppress_timeseries_logging():
+        ts_df = download_timeseries(
+            geojson=aoi_path,
+            collection="COPERNICUS/S2_SR_HARMONIZED",
+            start=f"{start_year}-01-01",
+            end=f"{end_year}-12-31",
+            index="ndvi",
+            chunk_freq="ME",
+            agg="ME",
+        )
     ts = TimeSeries.from_dataframe(ts_df, index="ndvi").fill_gaps()
     decomp = ts.decompose(period=12)
     pid = ts.df["id"].iloc[0]
@@ -345,14 +402,11 @@ def _ndvi_stats(
             "resid": res.resid.values,
         }
     )
-    with tempfile.TemporaryDirectory() as tmpdir:
-        ts_path = Path(tmpdir) / "ndvi.csv"
-        decomp_path = Path(tmpdir) / f"{pid}_decomposition.csv"
-        ts.df.to_csv(ts_path, index=False)
-        decomp_df.to_csv(decomp_path, index=False)
-        stats_df = compute_summary_stats(
-            str(ts_path), decomp_dir=tmpdir, value_col="mean_ndvi"
-        ).to_dataframe()
+    ts_bytes = _df_to_bytes(ts.df)
+    decomp_bytes = _df_to_bytes(decomp_df)
+    stats_df = compute_summary_stats(
+        ts_bytes, decomp_dir={pid: decomp_bytes}, value_col="mean_ndvi"
+    ).to_dataframe()
     row = stats_df.iloc[0]
     stats = {
         "ndvi_mean": float(row["Mean NDVI"]),
@@ -371,23 +425,19 @@ def _msavi_stats(
     aoi_path: str, start_year: int, end_year: int
 ) -> tuple[dict[str, float], pd.DataFrame]:
     """Return MSAVI stats and monthly time series for ``aoi_path``."""
-
-    ts_df = download_timeseries(
-        geojson=aoi_path,
-        collection="COPERNICUS/S2_SR_HARMONIZED",
-        start=f"{start_year}-01-01",
-        end=f"{end_year}-12-31",
-        index="msavi",
-        chunk_freq="ME",
-        agg="ME",
-    )
+    with _suppress_timeseries_logging():
+        ts_df = download_timeseries(
+            geojson=aoi_path,
+            collection="COPERNICUS/S2_SR_HARMONIZED",
+            start=f"{start_year}-01-01",
+            end=f"{end_year}-12-31",
+            index="msavi",
+            chunk_freq="ME",
+            agg="ME",
+        )
     ts = TimeSeries.from_dataframe(ts_df, index="msavi").fill_gaps()
-    with tempfile.TemporaryDirectory() as tmpdir:
-        ts_path = Path(tmpdir) / "msavi.csv"
-        ts.df.to_csv(ts_path, index=False)
-        stats_df = compute_summary_stats(
-            str(ts_path), value_col="mean_msavi"
-        ).to_dataframe()
+    ts_bytes = _df_to_bytes(ts.df)
+    stats_df = compute_summary_stats(ts_bytes, value_col="mean_msavi").to_dataframe()
     row = stats_df.iloc[0]
     stats = {
         "msavi_mean": float(row["Mean MSAVI"]),
