@@ -1,7 +1,8 @@
+import json
 import logging
+from dataclasses import fields
 from pathlib import Path
 from typing import Any, cast
-import json
 
 import geopandas as gpd
 import streamlit as st
@@ -188,7 +189,9 @@ if run_button:
             first_row = metrics_df.iloc[0].to_dict()
             first_row.update(ndvi_stats)
             first_row.update(msavi_stats)
-            metrics = Metrics(**cast(dict[str, Any], first_row))
+            metric_fields = {f.name for f in fields(Metrics)}
+            metric_data = {k: first_row[k] for k in metric_fields if k in first_row}
+            metrics = Metrics(**cast(dict[str, Any], metric_data))
             with col2:
                 bscore_gauge(metrics.bscore)
             st.markdown("---")
@@ -198,7 +201,7 @@ if run_button:
             project_url = export_project_csv(metrics_df, project)
             st.markdown(f"[⬇️ Download Project CSV]({project_url})")
             first_aoi = project.aois[0]
-            csv_url = export_metrics_csv(first_row, first_aoi)
+            csv_url = export_metrics_csv(metric_data, first_aoi)
             pdf_url = export_metrics_pdf(
                 metrics,
                 first_aoi,

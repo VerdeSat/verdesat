@@ -3,7 +3,9 @@ from __future__ import annotations
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon
+from dataclasses import fields
 
+from verdesat.webapp.components.kpi_cards import Metrics
 from verdesat.webapp.services.compute import ComputeService
 from verdesat.biodiv.bscore import BScoreCalculator
 from verdesat.services.msa import MSAService
@@ -68,7 +70,15 @@ def test_compute_live_metrics_single_aoi(monkeypatch):
         "verdesat.webapp.services.compute.MetricEngine.run_all",
         lambda self, aoi, year: metrics_stub,
     )
-    ndvi_stats = {"ndvi_mean": 1.0}
+    ndvi_stats = {
+        "ndvi_mean": 1.0,
+        "ndvi_std": 0.1,
+        "ndvi_slope": 0.01,
+        "ndvi_delta": 0.02,
+        "ndvi_p_value": 0.5,
+        "ndvi_peak": "2020-06",
+        "ndvi_pct_fill": 95.0,
+    }
     ndvi_df = pd.DataFrame(
         {
             "date": [pd.Timestamp("2020-01-01")],
@@ -77,7 +87,7 @@ def test_compute_live_metrics_single_aoi(monkeypatch):
             "seasonal": [0.1],
         }
     )
-    msavi_stats = {"msavi_mean": 2.0}
+    msavi_stats = {"msavi_mean": 2.0, "msavi_std": 0.2}
     msavi_df = pd.DataFrame({"date": [pd.Timestamp("2020-01-01")], "msavi": [0.2]})
     monkeypatch.setattr(
         "verdesat.webapp.services.compute._ndvi_stats",
@@ -97,7 +107,14 @@ def test_compute_live_metrics_single_aoi(monkeypatch):
         svc.compute_live_metrics(gdf, start_year=2020, end_year=2021)
     )
 
-    assert metrics_df.iloc[0]["bscore"] == 42.0
+    row = metrics_df.iloc[0].to_dict()
+    row.update(ndvi_stats_out)
+    row.update(msavi_stats_out)
+    field_names = {f.name for f in fields(Metrics)}
+    data = {k: row[k] for k in field_names}
+    metrics = Metrics(**data)
+
+    assert metrics.bscore == 42.0
     assert msa.called
     assert calc.last_metrics.msa == 0.7
     assert storage.writes
