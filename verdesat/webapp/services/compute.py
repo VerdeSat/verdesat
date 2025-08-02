@@ -13,6 +13,9 @@ import os
 import pickle
 import hashlib
 import io
+import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 
 import geopandas as gpd
@@ -95,6 +98,19 @@ def _cache_path(storage: StorageAdapter, key: str) -> str:
 
 
 logger = Logger.get_logger(__name__)
+
+
+@contextmanager
+def _suppress_timeseries_logging() -> Iterator[None]:
+    """Temporarily silence timeseries logs to avoid Streamlit context errors."""
+
+    ts_logger = logging.getLogger("verdesat.services.timeseries")
+    previous = ts_logger.level
+    ts_logger.setLevel(logging.ERROR)
+    try:
+        yield
+    finally:
+        ts_logger.setLevel(previous)
 
 
 def _persist_cache(storage: StorageAdapter, key: str, value: object) -> None:
@@ -361,16 +377,16 @@ def _ndvi_stats(
     aoi_path: str, start_year: int, end_year: int
 ) -> tuple[dict[str, float | str], pd.DataFrame]:
     """Return NDVI stats and decomposition for ``aoi_path``."""
-
-    ts_df = download_timeseries(
-        geojson=aoi_path,
-        collection="COPERNICUS/S2_SR_HARMONIZED",
-        start=f"{start_year}-01-01",
-        end=f"{end_year}-12-31",
-        index="ndvi",
-        chunk_freq="ME",
-        agg="ME",
-    )
+    with _suppress_timeseries_logging():
+        ts_df = download_timeseries(
+            geojson=aoi_path,
+            collection="COPERNICUS/S2_SR_HARMONIZED",
+            start=f"{start_year}-01-01",
+            end=f"{end_year}-12-31",
+            index="ndvi",
+            chunk_freq="ME",
+            agg="ME",
+        )
     ts = TimeSeries.from_dataframe(ts_df, index="ndvi").fill_gaps()
     decomp = ts.decompose(period=12)
     pid = ts.df["id"].iloc[0]
@@ -409,16 +425,16 @@ def _msavi_stats(
     aoi_path: str, start_year: int, end_year: int
 ) -> tuple[dict[str, float], pd.DataFrame]:
     """Return MSAVI stats and monthly time series for ``aoi_path``."""
-
-    ts_df = download_timeseries(
-        geojson=aoi_path,
-        collection="COPERNICUS/S2_SR_HARMONIZED",
-        start=f"{start_year}-01-01",
-        end=f"{end_year}-12-31",
-        index="msavi",
-        chunk_freq="ME",
-        agg="ME",
-    )
+    with _suppress_timeseries_logging():
+        ts_df = download_timeseries(
+            geojson=aoi_path,
+            collection="COPERNICUS/S2_SR_HARMONIZED",
+            start=f"{start_year}-01-01",
+            end=f"{end_year}-12-31",
+            index="msavi",
+            chunk_freq="ME",
+            agg="ME",
+        )
     ts = TimeSeries.from_dataframe(ts_df, index="msavi").fill_gaps()
     ts_bytes = _df_to_bytes(ts.df)
     stats_df = compute_summary_stats(ts_bytes, value_col="mean_msavi").to_dataframe()
