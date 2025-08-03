@@ -109,6 +109,15 @@ st.set_page_config(page_title="VerdeSat B-Score", page_icon="🌳", layout="wide
 
 # ---- Sidebar ---------------------------------------------------------------
 st.sidebar.header("VerdeSat B-Score v0.1")
+
+# --- Compute trigger --------------------------------------------------
+if "run_requested" not in st.session_state:
+    st.session_state["run_requested"] = False
+if st.sidebar.button("Run analysis"):
+    st.session_state["run_requested"] = True
+
+
+# --- Years Slider --------------------------------------------------
 start_year, end_year = st.sidebar.slider(
     "Years",
     2019,
@@ -122,12 +131,27 @@ start_year, end_year = st.sidebar.slider(
 uploaded_file = st.sidebar.file_uploader("GeoJSON Project", type="geojson")
 if st.sidebar.button("Load demo project"):
     st.session_state["project"] = load_demo_project()
+    st.session_state["run_requested"] = False
+    # Drop any saved map view from a previous project
+    st.session_state.pop("map_center", None)
+    st.session_state.pop("map_zoom", None)
 
 if uploaded_file is not None:
-    geojson = json.load(uploaded_file)
-    st.session_state["project"] = Project.from_geojson(
-        "Uploaded Project", "Guest", geojson, CONFIG, storage=storage
-    )
+    # Create / refresh the project only when the user selects
+    # *a different* file. On normal reruns `uploaded_file` is the
+    # same  object and we must *not* wipe the run_requested flag.
+    if st.session_state.get("uploaded_filename") != uploaded_file.name:
+        geojson = json.load(uploaded_file)
+        st.session_state["project"] = Project.from_geojson(
+            "Uploaded Project", "Guest", geojson, CONFIG, storage=storage
+        )
+        st.session_state["uploaded_filename"] = uploaded_file.name
+        st.session_state["run_requested"] = False
+        st.session_state.pop("map_center", None)
+        st.session_state.pop("map_zoom", None)
+
+if _demo_cfg and st.session_state.get("project") and not uploaded_file:
+    st.session_state["run_requested"] = True
 
 project: Project | None = st.session_state.get("project")
 
@@ -137,7 +161,7 @@ col1, col2 = st.columns([3, 1])
 
 if project is None:
     st.info("Upload a GeoJSON file or load the demo project to begin.")
-else:
+elif st.session_state.get("run_requested"):
     (
         metrics_df,
         ndvi_df,
@@ -151,17 +175,29 @@ else:
     project.attach_rasters(ndvi_paths, msavi_paths)
     project.attach_metrics(metrics_by_id)
 
+    # Clear the flag so slider tweaks alone don’t recompute
+    st.session_state["run_requested"] = False
+
+    # Cache results in session_state so they persist on subsequent reruns
     gdf = gpd.GeoDataFrame(
         [{**a.static_props, "geometry": a.geometry} for a in project.aois],
         crs="EPSG:4326",
     )
+    first_row = metrics_df.iloc[0].to_dict()
+    metric_fields = {f.name for f in fields(Metrics)}
+    metric_data = {k: first_row[k] for k in metric_fields if k in first_row}
+    metrics = Metrics(**cast(dict[str, Any], metric_data))
+    st.session_state["results"] = {
+        "gdf": gdf,
+        "metrics_df": metrics_df,
+        "ndvi_df": ndvi_df,
+        "msavi_df": msavi_df,
+        "metrics": metrics,
+    }
+
     with col1:
         display_map(gdf, project.rasters)
     with col2:
-        first_row = metrics_df.iloc[0].to_dict()
-        metric_fields = {f.name for f in fields(Metrics)}
-        metric_data = {k: first_row[k] for k in metric_fields if k in first_row}
-        metrics = Metrics(**cast(dict[str, Any], metric_data))
         bscore_gauge(metrics.bscore)
 
     st.markdown("---")
@@ -184,6 +220,43 @@ else:
         )
     with tab_msavi:
         msavi_bar_chart_all(msavi_df, start_year=start_year, end_year=end_year)
+elif "results" in st.session_state:
+    res = st.session_state["results"]
+    gdf = res["gdf"]
+    metrics_df = res["metrics_df"]
+    ndvi_df = res["ndvi_df"]
+    msavi_df = res["msavi_df"]
+    metrics = res["metrics"]
+
+    with col1:
+        display_map(gdf, project.rasters)
+    with col2:
+        bscore_gauge(metrics.bscore)
+
+    st.markdown("---")
+    display_metrics(metrics)
+    st.dataframe(metrics_df)
+
+    st.markdown("---")
+    tab_obs, tab_trend, tab_season, tab_msavi = st.tabs(
+        ["NDVI Observed", "NDVI Trend", "NDVI Seasonal", "MSAVI YE"]
+    )
+    with tab_obs:
+        ndvi_component_chart(
+            ndvi_df, "observed", start_year=start_year, end_year=end_year
+        )
+    with tab_trend:
+        ndvi_component_chart(
+            ndvi_df, "trend", start_year=start_year, end_year=end_year
+        )
+    with tab_season:
+        ndvi_component_chart(
+            ndvi_df, "seasonal", start_year=start_year, end_year=end_year
+        )
+    with tab_msavi:
+        msavi_bar_chart_all(msavi_df, start_year=start_year, end_year=end_year)
+else:
+    st.info("Adjust parameters, then press **Run analysis**.")
 
 # ---- Dev log pane ---------------------------------------------------------
 log_handler: logging.Handler | None = None

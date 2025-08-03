@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Dict
 import logging
+from pathlib import Path
 
 from verdesat.geo.aoi import AOI
 from verdesat.core.storage import StorageAdapter
@@ -60,7 +61,28 @@ class EEChipServiceAdapter:
                 mask_clouds=True,
             )
             service.run([aoi], cfg)
+            # Diagnostic: list all files in the chips dir that match this AOI
             aoi_id = str(aoi.static_props.get("id"))
-            filename = f"{chip_type.upper()}_{aoi_id}_{end}.tif"
-            result[chip_type] = storage.join(out_dir, filename)
+            pattern = f"{chip_type.upper()}_{aoi_id}_*.tif"
+            candidates = sorted(Path(out_dir).glob(pattern))
+
+            if candidates:
+                # Pick the file with the latest date in its name
+                chosen = candidates[-1]          # filenames sort chronologically
+                result[chip_type] = str(chosen)
+                self.logger.debug(
+                    "ChipService → selected %s for %s (%s)",
+                    chosen,
+                    chip_type.upper(),
+                    aoi_id,
+                )
+            else:
+                # Fallback to the expected YYYY-12-31 filename (may not exist)
+                fallback = storage.join(out_dir, f"{chip_type.upper()}_{aoi_id}_{end}.tif")
+                result[chip_type] = fallback
+                self.logger.warning(
+                    "ChipService → no raster found with pattern %s, falling back to %s",
+                    pattern,
+                    fallback,
+                )
         return result

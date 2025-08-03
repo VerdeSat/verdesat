@@ -67,7 +67,8 @@ def ndvi_decomposition_chart(
             ]
         )
     fig.update_layout(margin=dict(l=0, r=0, t=10, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    key = f"ndvi_decomp_{hash(aoi_id) if aoi_id is not None else id(data)}"
+    st.plotly_chart(fig, use_container_width=True, key=key)
 
 
 def msavi_bar_chart(
@@ -110,7 +111,8 @@ def msavi_bar_chart(
         yaxis_title="MSAVI",
         margin=dict(l=0, r=0, t=10, b=0),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    key = f"msavi_single_{hash(tuple(df['id'].unique()))}"
+    st.plotly_chart(fig, use_container_width=True, key=key)
 
 
 def ndvi_component_chart(
@@ -132,7 +134,8 @@ def ndvi_component_chart(
         fig.add_trace(go.Scatter(x=grp["date"], y=grp[component], name=str(aoi_id)))
 
     fig.update_layout(margin=dict(l=0, r=0, t=10, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    key = f"ndvi_{component}_{hash(tuple(sorted(df['id'].unique())))}"
+    st.plotly_chart(fig, use_container_width=True, key=key)
 
 
 def msavi_bar_chart_all(
@@ -165,4 +168,5 @@ def msavi_bar_chart_all(
         yaxis_title="MSAVI",
         margin=dict(l=0, r=0, t=10, b=0),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    key = f"msavi_all_{hash(tuple(sorted(df['id'].unique())))}"
+    st.plotly_chart(fig, use_container_width=True, key=key)

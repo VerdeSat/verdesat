@@ -387,7 +387,7 @@ def _ndvi_stats(
             start=f"{start_year}-01-01",
             end=f"{end_year}-12-31",
             index="ndvi",
-            chunk_freq="ME",
+            chunk_freq="YE",
             agg="ME",
         )
     ts = TimeSeries.from_dataframe(ts_df, index="ndvi").fill_gaps()
@@ -435,7 +435,7 @@ def _msavi_stats(
             start=f"{start_year}-01-01",
             end=f"{end_year}-12-31",
             index="msavi",
-            chunk_freq="ME",
+            chunk_freq="YE",
             agg="ME",
         )
     ts = TimeSeries.from_dataframe(ts_df, index="msavi").fill_gaps()
