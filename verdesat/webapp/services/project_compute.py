@@ -7,8 +7,9 @@ import hashlib
 import json
 import logging
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Dict, Tuple, Protocol
+from typing import Dict, Tuple, Protocol, cast
 
 import geopandas as gpd
 import pandas as pd
@@ -102,7 +103,27 @@ class ProjectComputeService:
         cached = _load_cache(_self.storage, cache_key)
         if cached is not None:
             _self.logger.info("project metrics cache hit")
-            return cached  # type: ignore[return-value]
+            (
+                metrics_df,
+                ndvi_df,
+                msavi_df,
+                cached_ndvi_paths,
+                cached_msavi_paths,
+                cached_metrics_by_id,
+            ) = cast(
+                tuple[
+                    pd.DataFrame,
+                    pd.DataFrame,
+                    pd.DataFrame,
+                    Dict[str, str],
+                    Dict[str, str],
+                    Dict[str, dict[str, float | str]],
+                ],
+                cached,
+            )
+            project.attach_rasters(cached_ndvi_paths, cached_msavi_paths)
+            project.attach_metrics(cached_metrics_by_id)
+            return metrics_df, ndvi_df, msavi_df
 
         id_col = _self.config.get("id_col", "id")
         ndvi_paths: Dict[str, str] = {}
@@ -117,13 +138,19 @@ class ProjectComputeService:
         for aoi in project.aois:
             aoi_id = str(aoi.static_props.get(id_col))
 
-            chip_paths = _self.chip_service.download_chips(
-                aoi, year=2024, storage=_self.storage
-            )
-            ndvi_paths[aoi_id] = chip_paths.get("ndvi", "")
-            msavi_paths[aoi_id] = chip_paths.get("msavi", "")
+            existing = project.rasters.get(aoi_id, {})
+            ndvi_path = existing.get("ndvi")
+            msavi_path = existing.get("msavi")
+            if not ndvi_path or not msavi_path:
+                chip_paths = _self.chip_service.download_chips(
+                    aoi, year=end.year, storage=_self.storage
+                )
+                ndvi_path = ndvi_path or chip_paths.get("ndvi", "")
+                msavi_path = msavi_path or chip_paths.get("msavi", "")
+            ndvi_paths[aoi_id] = ndvi_path or ""
+            msavi_paths[aoi_id] = msavi_path or ""
 
-            metrics = engine.run_all(aoi, 2024)
+            metrics = engine.run_all(aoi, end.year)
             metrics.msa = _self.msa_service.mean_msa(aoi.geometry)
             bscore = _self.bscore_calc.score(metrics)
 
@@ -133,10 +160,16 @@ class ProjectComputeService:
                 )
                 aoi_path = Path(tmpdir) / "aoi.geojson"
                 gdf.to_file(aoi_path, driver="GeoJSON")
-                ndvi_stats, ndvi_df = _ndvi_stats(str(aoi_path), start.year, end.year)
-                msavi_stats, msavi_df = _msavi_stats(
-                    str(aoi_path), start.year, end.year
-                )
+
+                with ThreadPoolExecutor() as ex:
+                    ndvi_future = ex.submit(
+                        _ndvi_stats, str(aoi_path), start.year, end.year
+                    )
+                    msavi_future = ex.submit(
+                        _msavi_stats, str(aoi_path), start.year, end.year
+                    )
+                    ndvi_stats, ndvi_df_single = ndvi_future.result()
+                    msavi_stats, msavi_df_single = msavi_future.result()
 
             record: dict[str, float | str] = {
                 "id": aoi_id,
@@ -151,21 +184,28 @@ class ProjectComputeService:
             metrics_records.append(record)
             metrics_by_id[aoi_id] = record
 
-            ndvi_df = ndvi_df.copy()
-            ndvi_df["id"] = aoi_id
-            ndvi_frames.append(ndvi_df)
+            ndvi_df_single = ndvi_df_single.copy()
+            ndvi_df_single["id"] = aoi_id
+            ndvi_frames.append(ndvi_df_single)
 
-            msavi_df = msavi_df.copy()
-            msavi_df["id"] = aoi_id
-            msavi_frames.append(msavi_df)
-
-        project.attach_rasters(ndvi_paths, msavi_paths)
-        project.attach_metrics(metrics_by_id)
+            msavi_df_single = msavi_df_single.copy()
+            msavi_df_single["id"] = aoi_id
+            msavi_frames.append(msavi_df_single)
 
         metrics_df = pd.DataFrame.from_records(metrics_records)
         ndvi_df = pd.concat(ndvi_frames, ignore_index=True)
         msavi_df = pd.concat(msavi_frames, ignore_index=True)
 
-        result = (metrics_df, ndvi_df, msavi_df)
-        _persist_cache(_self.storage, cache_key, result)
-        return result
+        project.attach_rasters(ndvi_paths, msavi_paths)
+        project.attach_metrics(metrics_by_id)
+
+        cache_value = (
+            metrics_df,
+            ndvi_df,
+            msavi_df,
+            ndvi_paths,
+            msavi_paths,
+            metrics_by_id,
+        )
+        _persist_cache(_self.storage, cache_key, cache_value)
+        return metrics_df, ndvi_df, msavi_df

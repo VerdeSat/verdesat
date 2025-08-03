@@ -46,13 +46,26 @@ project_compute = ProjectComputeService(
 
 @st.cache_data
 def load_demo_project() -> Project:
-    """Load demo project from bundled GeoJSON."""
+    """Load demo project from bundled GeoJSON and attach demo rasters."""
 
     gdf = gpd.read_file(signed_url(DEMO_AOI_KEY))
     geojson = json.loads(gdf.to_json())
-    return Project.from_geojson(
+    project = Project.from_geojson(
         "Demo Project", "VerdeSat", geojson, CONFIG, storage=storage
     )
+    ndvi_paths: dict[str, str] = {}
+    msavi_paths: dict[str, str] = {}
+    for aoi_cfg in _demo_cfg.get("aois", []):
+        aoi_id = str(aoi_cfg.get("id"))
+        ndvi = aoi_cfg.get("ndvi")
+        msavi = aoi_cfg.get("msavi")
+        if ndvi:
+            ndvi_paths[aoi_id] = ndvi
+        if msavi:
+            msavi_paths[aoi_id] = msavi
+    if ndvi_paths or msavi_paths:
+        project.attach_rasters(ndvi_paths, msavi_paths)
+    return project
 
 
 @st.cache_data(hash_funcs={Project: project_compute._hash_project})

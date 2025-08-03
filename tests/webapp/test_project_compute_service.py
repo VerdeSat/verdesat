@@ -82,6 +82,7 @@ def test_compute_invokes_chip_service_and_aggregates(monkeypatch):
 
     def fake_persist(storage, key, value):
         persisted["key"] = key
+        persisted["value"] = value
 
     monkeypatch.setattr(project_compute, "_persist_cache", fake_persist)
 
@@ -96,6 +97,8 @@ def test_compute_invokes_chip_service_and_aggregates(monkeypatch):
     assert metrics_df.shape[0] == 2
     assert not ndvi_df.empty and not msavi_df.empty
     assert persisted["key"].startswith("project_")
+    cached_val = persisted["value"]
+    assert isinstance(cached_val, tuple) and len(cached_val) == 6
 
 
 def test_compute_uses_cache(monkeypatch):
@@ -113,10 +116,14 @@ def test_compute_uses_cache(monkeypatch):
         pd.DataFrame({"id": ["1"]}),
         pd.DataFrame(),
         pd.DataFrame(),
+        {"1": "ndvi_1.tif"},
+        {"1": "msavi_1.tif"},
+        {"1": {"id": "1"}},
     )
     project_compute.ProjectComputeService.compute.clear()
     monkeypatch.setattr(project_compute, "_load_cache", lambda storage, key: cached)
 
     result = svc.compute(project, date(2024, 1, 1), date(2024, 12, 31))
-    assert result is cached
+    assert result == cached[:3]
+    assert project.rasters["1"]["ndvi"] == "ndvi_1.tif"
     assert not chip_service.calls
