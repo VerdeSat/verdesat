@@ -111,7 +111,7 @@ st.set_page_config(page_title="VerdeSat B-Score", page_icon="🌳", layout="wide
 st.sidebar.header("VerdeSat B-Score v0.1")
 start_year, end_year = st.sidebar.slider(
     "Years",
-    2017,
+    2019,
     2024,
     value=(
         int(_defaults.get("start_year", 2019)),
