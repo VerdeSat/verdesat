@@ -189,7 +189,7 @@ class ComputeService:
             geom = gdf.loc[gdf["id"] == aoi_id].geometry.iloc[0]
             try:
                 landcover = _read_remote_raster(
-                    f"resources/LANDCOVER_{aoi_id}_{end_year}.tiff", geom=geom
+                    f"resources/LANDCOVER_{aoi_id}_{end_year}.", geom=geom
                 )
             except FileNotFoundError as exc:
                 logger.error("missing landcover raster for demo AOI %s", aoi_id)

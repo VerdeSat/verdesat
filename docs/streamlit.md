@@ -137,14 +137,14 @@ aoi_key = "resources/reference.geojson"
 [[demo.aois]]
 id = 1
 name = "AOI 1"
-ndvi = "resources/NDVI_1_2024-01-01.tiff"
-msavi = "resources/MSAVI_1_2024-01-01.tiff"
+ndvi = "resources/NDVI_1_2024-01-01.tif"
+msavi = "resources/MSAVI_1_2024-01-01.tif"
 
 [[demo.aois]]
 id = 2
 name = "AOI 2"
-ndvi = "resources/NDVI_2_2024-01-01.tiff"
-msavi = "resources/MSAVI_2_2024-01-01.tiff"
+ndvi = "resources/NDVI_2_2024-01-01.tif"
+msavi = "resources/MSAVI_2_2024-01-01.tif"
 
 [defaults]
 start_year = 2019

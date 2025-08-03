@@ -55,12 +55,12 @@ class EEChipServiceAdapter:
                 percentile_low=None,
                 percentile_high=None,
                 palette=("white", "green"),
-                fmt="tiff",
+                fmt="tif",
                 out_dir=out_dir,
                 mask_clouds=True,
             )
             service.run([aoi], cfg)
             aoi_id = str(aoi.static_props.get("id"))
-            filename = f"{chip_type.upper()}_{aoi_id}_{end}.tiff"
+            filename = f"{chip_type.upper()}_{aoi_id}_{end}.tif"
             result[chip_type] = storage.join(out_dir, filename)
         return result

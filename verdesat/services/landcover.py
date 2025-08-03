@@ -130,7 +130,7 @@ class LandcoverService(BaseService):
         pid = aoi.static_props.get("id") or aoi.static_props.get(
             "system:index", "unknown"
         )
-        filename = f"LANDCOVER_{pid}_{year}.tiff"
+        filename = f"LANDCOVER_{pid}_{year}.tif"
         output = self.storage.join(out_dir, filename)
 
         resp = requests.get(url, timeout=60)

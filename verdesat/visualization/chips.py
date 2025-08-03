@@ -156,7 +156,7 @@ class ChipExporter:
                 ext = "png"
             else:
                 url = clipped.getDownloadURL(viz_params)
-                ext = "tiff"
+                ext = "tif"
         except EEException as ee_err:
             self.logger.error(
                 "Failed to get URL for %s on %s: %s", pid, date_str, ee_err
