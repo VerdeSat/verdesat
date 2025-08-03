@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import geopandas as gpd
+import pandas as pd
 import streamlit as st
 
 from verdesat.biodiv.bscore import BScoreCalculator
@@ -69,11 +70,37 @@ def load_demo_project() -> Project:
 
 
 @st.cache_data(hash_funcs={Project: project_compute._hash_project})
-def compute_project(project: Project, start_year: int, end_year: int):
-    """Compute metrics and vegetation indices for *project*."""
+def compute_project(project: Project, start_year: int, end_year: int) -> tuple[
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    dict[str, str],
+    dict[str, str],
+    dict[str, dict[str, float | str]],
+]:
+    """Compute metrics and vegetation indices for *project*.
 
-    return project_compute.compute(
+    The returned tuple includes per-AOI raster paths and metrics so callers can
+    reattach them to freshly initialised :class:`Project` instances on cache
+    hits where the function body is not executed.
+    """
+
+    metrics_df, ndvi_df, msavi_df = project_compute.compute(
         project, date(start_year, 1, 1), date(end_year, 12, 31)
+    )
+    ndvi_paths = {
+        aoi_id: layers.get("ndvi", "") for aoi_id, layers in project.rasters.items()
+    }
+    msavi_paths = {
+        aoi_id: layers.get("msavi", "") for aoi_id, layers in project.rasters.items()
+    }
+    return (
+        metrics_df,
+        ndvi_df,
+        msavi_df,
+        ndvi_paths,
+        msavi_paths,
+        project.metrics.copy(),
     )
 
 
@@ -111,7 +138,18 @@ col1, col2 = st.columns([3, 1])
 if project is None:
     st.info("Upload a GeoJSON file or load the demo project to begin.")
 else:
-    metrics_df, ndvi_df, msavi_df = compute_project(project, start_year, end_year)
+    (
+        metrics_df,
+        ndvi_df,
+        msavi_df,
+        ndvi_paths,
+        msavi_paths,
+        metrics_by_id,
+    ) = compute_project(project, start_year, end_year)
+
+    # Reattach artefacts when results are served from cache.
+    project.attach_rasters(ndvi_paths, msavi_paths)
+    project.attach_metrics(metrics_by_id)
 
     gdf = gpd.GeoDataFrame(
         [{**a.static_props, "geometry": a.geometry} for a in project.aois],

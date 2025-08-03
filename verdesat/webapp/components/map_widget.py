@@ -45,7 +45,12 @@ def _local_overlay(path: str) -> ImageOverlay:
         ]
 
     arr = np.clip(data.filled(0), 0, 1)
-    img = Image.fromarray((arr * 255).astype("uint8"))
+    green = (arr * 255).astype("uint8")
+    rgb = np.zeros((*green.shape, 3), dtype="uint8")
+    rgb[..., 0] = 255 - green  # red fades with signal
+    rgb[..., 1] = 255
+    rgb[..., 2] = 255 - green  # blue fades with signal
+    img = Image.fromarray(rgb, mode="RGB")
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
