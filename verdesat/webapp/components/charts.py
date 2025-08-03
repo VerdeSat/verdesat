@@ -111,3 +111,58 @@ def msavi_bar_chart(
         margin=dict(l=0, r=0, t=10, b=0),
     )
     st.plotly_chart(fig, use_container_width=True)
+
+
+def ndvi_component_chart(
+    data: pd.DataFrame,
+    component: str,
+    *,
+    start_year: int | None = None,
+    end_year: int | None = None,
+) -> None:
+    """Plot a single NDVI ``component`` for all AOIs."""
+
+    df = data.copy()
+    if start_year is not None and end_year is not None:
+        mask = (df["date"].dt.year >= start_year) & (df["date"].dt.year <= end_year)
+        df = df.loc[mask]
+
+    fig = go.Figure()
+    for aoi_id, grp in df.groupby("id"):
+        fig.add_trace(go.Scatter(x=grp["date"], y=grp[component], name=str(aoi_id)))
+
+    fig.update_layout(margin=dict(l=0, r=0, t=10, b=0))
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def msavi_bar_chart_all(
+    data: pd.DataFrame,
+    *,
+    start_year: int | None = None,
+    end_year: int | None = None,
+) -> None:
+    """Render annual mean MSAVI for all AOIs as grouped bars."""
+
+    df = data.copy()
+    if start_year is not None and end_year is not None:
+        mask = (df["date"].dt.year >= start_year) & (df["date"].dt.year <= end_year)
+        df = df.loc[mask]
+
+    value_col = next((c for c in ("mean_msavi", "msavi") if c in df.columns), None)
+    if value_col is None:
+        value_col = df.columns[1]
+
+    df["year"] = df["date"].dt.year
+    agg = df.groupby(["year", "id"])[value_col].mean().reset_index()
+
+    fig = go.Figure()
+    for aoi_id, grp in agg.groupby("id"):
+        fig.add_trace(go.Bar(x=grp["year"], y=grp[value_col], name=str(aoi_id)))
+
+    fig.update_layout(
+        barmode="group",
+        xaxis_title="Year",
+        yaxis_title="MSAVI",
+        margin=dict(l=0, r=0, t=10, b=0),
+    )
+    st.plotly_chart(fig, use_container_width=True)
