@@ -62,10 +62,7 @@ def _local_overlay(path: str) -> ImageOverlay:
     b = 255 - g
 
     # Alpha channel – fully transparent where masked
-    # ``data.mask`` may be a scalar ``False`` when the raster has no nodata.
-    # ``np.ma.getmaskarray`` normalises this to an array with the same shape as
-    # ``data`` so the channels stack correctly.
-    alpha = (~np.ma.getmaskarray(data)).astype("uint8") * 255
+    alpha = (~data.mask).astype("uint8") * 255
 
     rgba = np.stack([r, g, b, alpha], axis=-1).astype("uint8")
     img = Image.fromarray(rgba, mode="RGBA")
@@ -86,23 +83,6 @@ def _local_overlay(path: str) -> ImageOverlay:
 def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
     """Render Folium map with AOI boundaries and VI layers."""
 
-    # Update the stored map view with the latest values from the widget.  When a
-    # user pans or zooms the map, ``streamlit-folium`` triggers a rerun but the
-    # previous centre/zoom would otherwise be used to reinitialise the map,
-    # causing it to "bounce" back.  Reading the component state here ensures the
-    # next render uses the new view.
-    if not st.session_state.get("_skip_next_map_state"):
-        widget_state = st.session_state.get("main_map")
-        if isinstance(widget_state, dict):
-            centre_state = widget_state.get("center")
-            if isinstance(centre_state, dict):
-                st.session_state["map_center"] = {
-                    "lat": centre_state["lat"],
-                    "lng": centre_state["lng"],
-                }
-            if "zoom" in widget_state:
-                st.session_state["map_zoom"] = int(widget_state["zoom"])
-
     # Preserve view between Streamlit reruns
     centre_dict = st.session_state.get("map_center")
     zoom = st.session_state.get("map_zoom", 13)
@@ -110,13 +90,10 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
     if isinstance(centre_dict, dict):
         centre = [centre_dict["lat"], centre_dict["lng"]]
     elif isinstance(centre_dict, list) and len(centre_dict) == 2:
-        # legacy list format – make sure order is [lat, lon]
         lat, lon = centre_dict
-        if abs(lat) > 90:  # looks like it’s swapped
-            lat, lon = lon, lat
         centre = [lat, lon]
-        # upgrade to dict for future runs
-        st.session_state["map_center"] = {"lat": lat, "lng": lon}
+        # Persist the centre immediately so the next rerun has a valid view
+        st.session_state["map_center"] = {"lat": centre[0], "lng": centre[1]}
     else:
         centre = None  # first run
 
@@ -178,7 +155,7 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
     msavi_group.add_to(m)
     folium.LayerControl(position="topright", collapsed=False).add_to(m)
 
-    state = st_folium(m, width="100%", height=500, key="main_map")
+    state = st_folium(m, width="100%", height=500)
     if st.session_state.pop("_skip_next_map_state", False):
         logger.debug("Skipping first map state save after fit_bounds()")
     else:
