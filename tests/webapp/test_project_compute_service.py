@@ -127,3 +127,29 @@ def test_compute_uses_cache(monkeypatch):
     assert result == cached[:3]
     assert project.rasters["1"]["ndvi"] == "ndvi_1.tif"
     assert not chip_service.calls
+
+
+def test_compute_handles_legacy_cache(monkeypatch):
+    project = make_project()
+    chip_service = DummyChipService()
+    svc = ProjectComputeService(
+        DummyMSA(),
+        DummyBScore(),
+        project.storage,  # type: ignore[arg-type]
+        chip_service,  # type: ignore[arg-type]
+        project.config,
+    )
+
+    legacy_cached = (
+        pd.DataFrame({"id": ["1"]}),
+        pd.DataFrame(),
+        pd.DataFrame(),
+    )
+    project_compute.ProjectComputeService.compute.clear()
+    monkeypatch.setattr(
+        project_compute, "_load_cache", lambda storage, key: legacy_cached
+    )
+
+    result = svc.compute(project, date(2024, 1, 1), date(2024, 12, 31))
+    assert result == legacy_cached
+    assert not chip_service.calls

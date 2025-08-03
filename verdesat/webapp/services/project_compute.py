@@ -103,24 +103,32 @@ class ProjectComputeService:
         cached = _load_cache(_self.storage, cache_key)
         if cached is not None:
             _self.logger.info("project metrics cache hit")
-            (
-                metrics_df,
-                ndvi_df,
-                msavi_df,
-                cached_ndvi_paths,
-                cached_msavi_paths,
-                cached_metrics_by_id,
-            ) = cast(
-                tuple[
-                    pd.DataFrame,
-                    pd.DataFrame,
-                    pd.DataFrame,
-                    Dict[str, str],
-                    Dict[str, str],
-                    Dict[str, dict[str, float | str]],
-                ],
-                cached,
-            )
+            try:
+                (
+                    metrics_df,
+                    ndvi_df,
+                    msavi_df,
+                    cached_ndvi_paths,
+                    cached_msavi_paths,
+                    cached_metrics_by_id,
+                ) = cast(
+                    tuple[
+                        pd.DataFrame,
+                        pd.DataFrame,
+                        pd.DataFrame,
+                        Dict[str, str],
+                        Dict[str, str],
+                        Dict[str, dict[str, float | str]],
+                    ],
+                    cached,
+                )
+            except ValueError:
+                metrics_df, ndvi_df, msavi_df = cast(
+                    tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame], cached
+                )
+                cached_ndvi_paths = {}
+                cached_msavi_paths = {}
+                cached_metrics_by_id = {}
             project.attach_rasters(cached_ndvi_paths, cached_msavi_paths)
             project.attach_metrics(cached_metrics_by_id)
             return metrics_df, ndvi_df, msavi_df
