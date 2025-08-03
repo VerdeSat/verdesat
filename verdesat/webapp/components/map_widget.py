@@ -1,12 +1,19 @@
-from typing import Mapping
-import folium
-from folium import FeatureGroup
-from folium.raster_layers import TileLayer
-from streamlit_folium import st_folium
-from verdesat.webapp.services.r2 import signed_url
+"""Utilities for rendering project maps in the dashboard."""
 
-DEMO_CENTER = (16.79162, -92.53845)
-# adjust to AOI centroid
+from typing import Mapping
+from pathlib import Path
+import base64
+import io
+
+import folium
+import numpy as np
+import rasterio
+from PIL import Image
+from folium import FeatureGroup
+from folium.raster_layers import ImageOverlay, TileLayer
+from streamlit_folium import st_folium
+
+from verdesat.webapp.services.r2 import signed_url
 
 
 def _cog_to_tile_url(cog_key: str) -> str:
@@ -27,10 +34,38 @@ def _cog_to_tile_url(cog_key: str) -> str:
     )
 
 
+def _local_overlay(path: str) -> ImageOverlay:
+    """Return a semi-transparent overlay for a local raster ``path``."""
+
+    with rasterio.open(path) as src:
+        data = src.read(1, masked=True)
+        bounds = [
+            [src.bounds.bottom, src.bounds.left],
+            [src.bounds.top, src.bounds.right],
+        ]
+
+    arr = np.clip(data.filled(0), 0, 1)
+    img = Image.fromarray((arr * 255).astype("uint8"))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+    return ImageOverlay(
+        image=f"data:image/png;base64,{b64}",
+        bounds=bounds,
+        opacity=0.7,
+        interactive=False,
+        cross_origin=False,
+    )
+
+
 def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
     """Render Folium map with AOI boundaries and VI layers."""
 
-    m = folium.Map(location=DEMO_CENTER, zoom_start=15, tiles="CartoDB positron")
+    centroid = aoi_gdf.unary_union.centroid
+    m = folium.Map(
+        location=[centroid.y, centroid.x], zoom_start=15, tiles="CartoDB positron"
+    )
 
     folium.GeoJson(
         aoi_gdf,
@@ -44,20 +79,26 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
     for layers in rasters.values():
         ndvi_key = layers.get("ndvi")
         if ndvi_key:
-            TileLayer(
-                tiles=_cog_to_tile_url(ndvi_key),
-                overlay=True,
-                attr="Sentinel-2",
-                control=False,
-            ).add_to(ndvi_group)
+            if Path(ndvi_key).exists():
+                _local_overlay(ndvi_key).add_to(ndvi_group)
+            else:
+                TileLayer(
+                    tiles=_cog_to_tile_url(ndvi_key),
+                    overlay=True,
+                    attr="Sentinel-2",
+                    control=False,
+                ).add_to(ndvi_group)
         msavi_key = layers.get("msavi")
         if msavi_key:
-            TileLayer(
-                tiles=_cog_to_tile_url(msavi_key),
-                overlay=True,
-                attr="Sentinel-2",
-                control=False,
-            ).add_to(msavi_group)
+            if Path(msavi_key).exists():
+                _local_overlay(msavi_key).add_to(msavi_group)
+            else:
+                TileLayer(
+                    tiles=_cog_to_tile_url(msavi_key),
+                    overlay=True,
+                    attr="Sentinel-2",
+                    control=False,
+                ).add_to(msavi_group)
 
     ndvi_group.add_to(m)
     msavi_group.add_to(m)

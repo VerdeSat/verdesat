@@ -113,12 +113,12 @@ def test_compute_uses_cache(monkeypatch):
     )
 
     cached = (
-        pd.DataFrame({"id": ["1"]}),
+        pd.DataFrame({"id": ["1"], "ndvi_mean": [1.0], "msavi_mean": [2.0]}),
         pd.DataFrame(),
         pd.DataFrame(),
         {"1": "ndvi_1.tif"},
         {"1": "msavi_1.tif"},
-        {"1": {"id": "1"}},
+        {"1": {"id": "1", "ndvi_mean": 1.0, "msavi_mean": 2.0}},
     )
     project_compute.ProjectComputeService.compute.clear()
     monkeypatch.setattr(project_compute, "_load_cache", lambda storage, key: cached)
@@ -129,7 +129,8 @@ def test_compute_uses_cache(monkeypatch):
     assert not chip_service.calls
 
 
-def test_compute_handles_legacy_cache(monkeypatch):
+def test_compute_recomputes_legacy_cache(monkeypatch):
+    """Older cache tuples trigger recomputation so VI stats are present."""
     project = make_project()
     chip_service = DummyChipService()
     svc = ProjectComputeService(
@@ -150,6 +151,25 @@ def test_compute_handles_legacy_cache(monkeypatch):
         project_compute, "_load_cache", lambda storage, key: legacy_cached
     )
 
-    result = svc.compute(project, date(2024, 1, 1), date(2024, 12, 31))
-    assert result == legacy_cached
-    assert not chip_service.calls
+    metrics = MetricsResult(0.1, 0.2, FragmentStats(0.3, 0.4), msa=0.0)
+
+    def fake_run_all(self, aoi, year):
+        return metrics
+
+    monkeypatch.setattr(project_compute.MetricEngine, "run_all", fake_run_all)
+
+    def fake_ndvi(path, s, e):  # pragma: no cover - simple
+        return {"ndvi_mean": 1.0}, pd.DataFrame(
+            {"date": [s], "observed": [0.1], "trend": [0.1], "seasonal": [0.1]}
+        )
+
+    def fake_msavi(path, s, e):  # pragma: no cover - simple
+        return {"msavi_mean": 2.0}, pd.DataFrame({"date": [s], "mean_msavi": [0.2]})
+
+    monkeypatch.setattr(project_compute, "_ndvi_stats", fake_ndvi)
+    monkeypatch.setattr(project_compute, "_msavi_stats", fake_msavi)
+
+    metrics_df, *_ = svc.compute(project, date(2024, 1, 1), date(2024, 12, 31))
+    # Recompute should call chip service and include VI stats
+    assert chip_service.calls
+    assert {"ndvi_mean", "msavi_mean"} <= set(metrics_df.columns)

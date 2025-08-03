@@ -123,15 +123,14 @@ class ProjectComputeService:
                     cached,
                 )
             except ValueError:
-                metrics_df, ndvi_df, msavi_df = cast(
-                    tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame], cached
-                )
-                cached_ndvi_paths = {}
-                cached_msavi_paths = {}
-                cached_metrics_by_id = {}
-            project.attach_rasters(cached_ndvi_paths, cached_msavi_paths)
-            project.attach_metrics(cached_metrics_by_id)
-            return metrics_df, ndvi_df, msavi_df
+                _self.logger.warning("legacy cache format detected; recomputing")
+            else:
+                required = {"ndvi_mean", "msavi_mean"}
+                if required.issubset(metrics_df.columns):
+                    project.attach_rasters(cached_ndvi_paths, cached_msavi_paths)
+                    project.attach_metrics(cached_metrics_by_id)
+                    return metrics_df, ndvi_df, msavi_df
+                _self.logger.warning("cache missing VI stats; recomputing")
 
         id_col = _self.config.get("id_col", "id")
         ndvi_paths: Dict[str, str] = {}
