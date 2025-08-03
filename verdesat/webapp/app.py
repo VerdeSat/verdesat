@@ -135,6 +135,7 @@ if st.sidebar.button("Load demo project"):
     # Drop any saved map view from a previous project
     st.session_state.pop("map_center", None)
     st.session_state.pop("map_zoom", None)
+    st.session_state.pop("main_map", None)
 
 if uploaded_file is not None:
     # Create / refresh the project only when the user selects
@@ -149,6 +150,7 @@ if uploaded_file is not None:
         st.session_state["run_requested"] = False
         st.session_state.pop("map_center", None)
         st.session_state.pop("map_zoom", None)
+        st.session_state.pop("main_map", None)
 
 if _demo_cfg and st.session_state.get("project") and not uploaded_file:
     st.session_state["run_requested"] = True
@@ -246,9 +248,7 @@ elif "results" in st.session_state:
             ndvi_df, "observed", start_year=start_year, end_year=end_year
         )
     with tab_trend:
-        ndvi_component_chart(
-            ndvi_df, "trend", start_year=start_year, end_year=end_year
-        )
+        ndvi_component_chart(ndvi_df, "trend", start_year=start_year, end_year=end_year)
     with tab_season:
         ndvi_component_chart(
             ndvi_df, "seasonal", start_year=start_year, end_year=end_year
