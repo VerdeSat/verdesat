@@ -117,23 +117,26 @@ def _load_cache(storage: StorageAdapter, key: str) -> object | None:
 
 
 def _stats_row_to_dict(row: pd.Series, index: str) -> dict[str, float | str]:
-    """Return flat mapping of metrics for vegetation *index*."""
+    """Return the required statistics for a vegetation *index*."""
 
     label = index.upper()
-    return {
+    stats: dict[str, float | str] = {
         f"{index}_mean": float(row[f"Mean {label}"]),
-        f"{index}_median": float(row[f"Median {label}"]),
-        f"{index}_min": float(row[f"Min {label}"]),
-        f"{index}_max": float(row[f"Max {label}"]),
         f"{index}_std": float(row[f"Std {label}"]),
-        f"{index}_slope": float(row[f"Sen's Slope ({label}/yr)"]),
-        f"{index}_delta": float(row[f"Trend Δ{label}"]),
-        f"{index}_p_value": float(row["Mann–Kendall p-value"]),
-        f"{index}_amp": float(row["Seasonal Amplitude"]),
-        f"{index}_resid_rms": float(row["Residual RMS"]),
-        f"{index}_peak": row["Peak Month"] if pd.notna(row["Peak Month"]) else "",
-        f"{index}_pct_fill": float(row["% Gapfilled"]),
     }
+    if index == "ndvi":
+        stats.update(
+            {
+                f"{index}_slope": float(row[f"Sen's Slope ({label}/yr)"]),
+                f"{index}_delta": float(row[f"Trend Δ{label}"]),
+                f"{index}_p_value": float(row["Mann–Kendall p-value"]),
+                f"{index}_peak": (
+                    row["Peak Month"] if pd.notna(row["Peak Month"]) else ""
+                ),
+                f"{index}_pct_fill": float(row["% Gapfilled"]),
+            }
+        )
+    return stats
 
 
 @st.cache_data
@@ -149,7 +152,7 @@ def _ndvi_stats(
             start=f"{start_year}-01-01",
             end=f"{end_year}-12-31",
             index="ndvi",
-            chunk_freq="YE",
+            chunk_freq="ME",
             agg="ME",
         )
     ts = TimeSeries.from_dataframe(ts_df, index="ndvi").fill_gaps()
@@ -190,7 +193,7 @@ def _msavi_stats(
             start=f"{start_year}-01-01",
             end=f"{end_year}-12-31",
             index="msavi",
-            chunk_freq="YE",
+            chunk_freq="ME",
             agg="ME",
         )
     ts = TimeSeries.from_dataframe(ts_df, index="msavi").fill_gaps()
@@ -298,7 +301,17 @@ class ProjectComputeService:
             except ValueError:
                 _self.logger.warning("legacy cache format detected; recomputing")
             else:
-                required = {"ndvi_mean", "msavi_mean"}
+                required = {
+                    "ndvi_mean",
+                    "ndvi_std",
+                    "ndvi_slope",
+                    "ndvi_delta",
+                    "ndvi_p_value",
+                    "ndvi_peak",
+                    "ndvi_pct_fill",
+                    "msavi_mean",
+                    "msavi_std",
+                }
                 if required.issubset(metrics_df.columns):
                     project.attach_rasters(cached_ndvi_paths, cached_msavi_paths)
                     project.attach_metrics(cached_metrics_by_id)
