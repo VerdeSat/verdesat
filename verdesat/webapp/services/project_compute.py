@@ -173,7 +173,10 @@ def _ndvi_stats(
     ts_bytes = _df_to_bytes(ts.df)
     decomp_bytes = _df_to_bytes(decomp_df)
     stats_df = compute_summary_stats(
-        ts_bytes, decomp_dir={pid: decomp_bytes}, value_col="mean_ndvi"
+        ts_bytes,
+        decomp_dir={int(pid): decomp_bytes},
+        value_col="mean_ndvi",
+        period=12,
     ).to_dataframe()
     row = stats_df.iloc[0]
     stats = _stats_row_to_dict(row, "ndvi")

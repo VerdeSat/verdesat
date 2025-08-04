@@ -252,7 +252,7 @@ def test_compute_recomputes_legacy_cache(monkeypatch):
 
 def test_ndvi_stats_returns_required_metrics(monkeypatch):
     df = pd.DataFrame(
-        {"id": [1], "date": [pd.Timestamp("2020-01-01")], "mean_ndvi": [0.2]}
+        {"id": ["1"], "date": [pd.Timestamp("2020-01-01")], "mean_ndvi": [0.2]}
     )
     monkeypatch.setattr(project_compute, "download_timeseries", lambda *a, **k: df)
 
@@ -288,11 +288,12 @@ def test_ndvi_stats_returns_required_metrics(monkeypatch):
             "% Gapfilled": [0.0],
         }
     )
-    monkeypatch.setattr(
-        project_compute,
-        "compute_summary_stats",
-        lambda *a, **k: SimpleNamespace(to_dataframe=lambda: stats_df),
-    )
+
+    def fake_compute(timeseries_csv, decomp_dir, value_col, period):
+        assert list(decomp_dir.keys()) == [1]
+        return SimpleNamespace(to_dataframe=lambda: stats_df)
+
+    monkeypatch.setattr(project_compute, "compute_summary_stats", fake_compute)
 
     stats, df_out = project_compute._ndvi_stats("dummy.geojson", 2020, 2020)
     assert set(stats.keys()) == {
