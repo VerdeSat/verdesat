@@ -68,7 +68,7 @@ class EEChipServiceAdapter:
 
             if candidates:
                 # Pick the file with the latest date in its name
-                chosen = candidates[-1]          # filenames sort chronologically
+                chosen = candidates[-1]  # filenames sort chronologically
                 result[chip_type] = str(chosen)
                 self.logger.debug(
                     "ChipService → selected %s for %s (%s)",
@@ -78,7 +78,9 @@ class EEChipServiceAdapter:
                 )
             else:
                 # Fallback to the expected YYYY-12-31 filename (may not exist)
-                fallback = storage.join(out_dir, f"{chip_type.upper()}_{aoi_id}_{end}.tif")
+                fallback = storage.join(
+                    out_dir, f"{chip_type.upper()}_{aoi_id}_{end}.tif"
+                )
                 result[chip_type] = fallback
                 self.logger.warning(
                     "ChipService → no raster found with pattern %s, falling back to %s",

@@ -5,6 +5,7 @@ from pathlib import Path
 import base64
 import io
 import json
+import hashlib
 
 import folium
 import numpy as np
@@ -17,9 +18,25 @@ import streamlit as st
 
 from verdesat.webapp.services.r2 import signed_url
 
-# Helper imports
-import logging
-logger = logging.getLogger(__name__)
+
+def _resolve_cog_path(key: str) -> Path | None:
+    """Return a filesystem path for *key* if it exists.
+
+    Raster paths in configuration may be relative to the project repository
+    rather than the current working directory. This helper tries the given
+    path directly and falls back to resolving it relative to the package
+    root. ``None`` is returned when the key does not correspond to a local
+    file, allowing callers to treat it as a remote object.
+    """
+
+    path = Path(key)
+    if path.exists():
+        return path
+
+    repo_path = Path(__file__).resolve().parents[2] / key
+    if repo_path.exists():
+        return repo_path
+    return None
 
 
 def _cog_to_tile_url(cog_key: str) -> str:
@@ -40,7 +57,7 @@ def _cog_to_tile_url(cog_key: str) -> str:
     )
 
 
-def _local_overlay(path: str) -> ImageOverlay:
+def _local_overlay(path: str, *, name: str | None = None) -> ImageOverlay:
     """Return a semi‑transparent overlay for a local COG.
 
     Pixels where the raster has NoData (masked) are fully transparent.
@@ -61,7 +78,8 @@ def _local_overlay(path: str) -> ImageOverlay:
     b = 255 - g
 
     # Alpha channel – fully transparent where masked
-    alpha = (~data.mask).astype("uint8") * 255
+    mask_arr = np.ma.getmaskarray(data)
+    alpha = (~mask_arr).astype("uint8") * 255
 
     rgba = np.stack([r, g, b, alpha], axis=-1).astype("uint8")
     img = Image.fromarray(rgba, mode="RGBA")
@@ -76,64 +94,57 @@ def _local_overlay(path: str) -> ImageOverlay:
         opacity=1,
         interactive=False,
         cross_origin=False,
+        name=name,
     )
 
 
 def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
-    """Render Folium map with AOI boundaries and VI layers."""
+    """Render Folium map with AOI boundaries and VI layers.
 
-    # Preserve view between Streamlit reruns
-    centre_dict = st.session_state.get("map_center")
-    zoom = st.session_state.get("map_zoom", 13)
+    The map is rebuilt on every Streamlit rerun, but the user's pan/zoom state
+    is preserved in ``st.session_state`` so interactions persist. When the AOI
+    geometry or rasters change, stored state is cleared and the map recentres on
+    the AOI.
+    """
 
-    if isinstance(centre_dict, dict):
-        centre = [centre_dict["lat"], centre_dict["lng"]]
-    elif isinstance(centre_dict, list) and len(centre_dict) == 2:
-        # legacy list format – make sure order is [lat, lon]
-        lat, lon = centre_dict
-        if abs(lat) > 90:     # looks like it’s swapped
-            lat, lon = lon, lat
-        centre = [lat, lon]
-        # upgrade to dict for future runs
-        st.session_state["map_center"] = {"lat": lat, "lng": lon}
-    else:
-        centre = None  # first run
+    layers_key = hashlib.sha256(
+        (aoi_gdf.to_json() + json.dumps(rasters, sort_keys=True)).encode("utf-8")
+    ).hexdigest()
 
-    if centre is None:
-        # First time for this session – centre on full extent
-        bounds = aoi_gdf.total_bounds  # [minx, miny, maxx, maxy]
-        centre = [(bounds[1] + bounds[3]) / 2, (bounds[0] + bounds[2]) / 2]
-        zoom = 15  # will be overridden by fit_bounds below
-        st.session_state["map_first_init"] = True
-    else:
-        st.session_state["map_first_init"] = False
+    if st.session_state.get("map_layers_key") != layers_key:
+        st.session_state["map_layers_key"] = layers_key
+        st.session_state.pop("map_center", None)
+        st.session_state.pop("map_zoom", None)
 
-    m = folium.Map(location=centre, zoom_start=zoom, tiles="CartoDB positron")
+    bounds = aoi_gdf.total_bounds  # minx, miny, maxx, maxy
+    bounds_latlon = [[bounds[1], bounds[0]], [bounds[3], bounds[2]]]
+    centre = st.session_state.get("map_center") or [
+        (bounds_latlon[0][0] + bounds_latlon[1][0]) / 2,
+        (bounds_latlon[0][1] + bounds_latlon[1][1]) / 2,
+    ]
 
+    m = folium.Map(location=centre, tiles="CartoDB positron")
     folium.GeoJson(
-        json.loads(aoi_gdf.to_json()),
+        aoi_gdf,
         name="AOI Boundaries",
-        style_function=lambda *_: {"color": "#159466", "weight": 2, "fill": False},
+        style_function=lambda *_: {
+            "color": "#159466",
+            "weight": 2,
+            "fill": False,
+        },
     ).add_to(m)
 
-    # Fit to full bounds only on the very first render after a new project
-    first_init = st.session_state.pop("map_first_init", False)
-    if first_init:
-        bounds_arr = aoi_gdf.total_bounds.reshape(2, 2)
-        m.fit_bounds(bounds_arr.tolist())
-        # Persist the centre immediately so the next rerun has a valid view
-        st.session_state["map_center"] = {"lat": centre[0], "lng": centre[1]}
-        # Skip saving centre/zoom on the same run; wait for the next user action.
-        st.session_state["_skip_next_map_state"] = True
-
-    ndvi_group = FeatureGroup(name="NDVI 2024")
-    msavi_group = FeatureGroup(name="MSAVI 2024")
+    ndvi_group = FeatureGroup(name="Last annual NDVI", show=True)
+    msavi_group = FeatureGroup(name="Last annual MSAVI", show=True)
+    ndvi_added = False
+    msavi_added = False
 
     for layers in rasters.values():
         ndvi_key = layers.get("ndvi")
         if ndvi_key:
-            if Path(ndvi_key).exists():
-                _local_overlay(ndvi_key).add_to(ndvi_group)
+            ndvi_path = _resolve_cog_path(ndvi_key)
+            if ndvi_path:
+                _local_overlay(str(ndvi_path)).add_to(ndvi_group)
             else:
                 TileLayer(
                     tiles=_cog_to_tile_url(ndvi_key),
@@ -141,10 +152,13 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
                     attr="Sentinel-2",
                     control=False,
                 ).add_to(ndvi_group)
+            ndvi_added = True
+
         msavi_key = layers.get("msavi")
         if msavi_key:
-            if Path(msavi_key).exists():
-                _local_overlay(msavi_key).add_to(msavi_group)
+            msavi_path = _resolve_cog_path(msavi_key)
+            if msavi_path:
+                _local_overlay(str(msavi_path)).add_to(msavi_group)
             else:
                 TileLayer(
                     tiles=_cog_to_tile_url(msavi_key),
@@ -152,20 +166,15 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
                     attr="Sentinel-2",
                     control=False,
                 ).add_to(msavi_group)
+            msavi_added = True
 
-    ndvi_group.add_to(m)
-    msavi_group.add_to(m)
+    if ndvi_added:
+        ndvi_group.add_to(m)
+    if msavi_added:
+        msavi_group.add_to(m)
+
     folium.LayerControl(position="topright", collapsed=False).add_to(m)
+    if "map_center" not in st.session_state:
+        m.fit_bounds(bounds_latlon)
 
-    state = st_folium(m, width="100%", height=500, key="main_map")
-    if st.session_state.pop("_skip_next_map_state", False):
-        logger.debug("Skipping first map state save after fit_bounds()")
-    else:
-        # Persist centre & zoom so the next rerun opens at the same view
-        if state and state.get("center"):
-            st.session_state["map_center"] = {
-                "lat": state["center"]["lat"],
-                "lng": state["center"]["lng"],
-            }
-        if state and "zoom" in state:
-            st.session_state["map_zoom"] = int(state["zoom"])
+    state = st_folium(m, width="100%", height=500, key=f"main_map_{layers_key}")

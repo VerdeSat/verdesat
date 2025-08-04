@@ -132,9 +132,10 @@ uploaded_file = st.sidebar.file_uploader("GeoJSON Project", type="geojson")
 if st.sidebar.button("Load demo project"):
     st.session_state["project"] = load_demo_project()
     st.session_state["run_requested"] = False
-    # Drop any saved map view from a previous project
-    st.session_state.pop("map_center", None)
-    st.session_state.pop("map_zoom", None)
+    # Drop any cached map from a previous project
+    st.session_state.pop("main_map", None)
+    st.session_state.pop("map_obj", None)
+    st.session_state.pop("map_layers_key", None)
 
 if uploaded_file is not None:
     # Create / refresh the project only when the user selects
@@ -147,8 +148,9 @@ if uploaded_file is not None:
         )
         st.session_state["uploaded_filename"] = uploaded_file.name
         st.session_state["run_requested"] = False
-        st.session_state.pop("map_center", None)
-        st.session_state.pop("map_zoom", None)
+        st.session_state.pop("main_map", None)
+        st.session_state.pop("map_obj", None)
+        st.session_state.pop("map_layers_key", None)
 
 if _demo_cfg and st.session_state.get("project") and not uploaded_file:
     st.session_state["run_requested"] = True
@@ -246,9 +248,7 @@ elif "results" in st.session_state:
             ndvi_df, "observed", start_year=start_year, end_year=end_year
         )
     with tab_trend:
-        ndvi_component_chart(
-            ndvi_df, "trend", start_year=start_year, end_year=end_year
-        )
+        ndvi_component_chart(ndvi_df, "trend", start_year=start_year, end_year=end_year)
     with tab_season:
         ndvi_component_chart(
             ndvi_df, "seasonal", start_year=start_year, end_year=end_year
