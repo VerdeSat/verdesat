@@ -59,8 +59,64 @@ def export_project_csv(metrics: pd.DataFrame, project: Project) -> str:
     return signed_url(key)
 
 
-def export_project_pdf(metrics: pd.DataFrame, project: Project) -> str:
-    """Render ``metrics`` for ``project`` as a PDF table and return a URL."""
+def _project_map_png(project: Project) -> bytes:
+    """Return a PNG rendering of all AOIs in ``project``."""
+
+    import geopandas as gpd  # noqa: WPS433
+    import matplotlib.pyplot as plt
+
+    gdf = gpd.GeoDataFrame(
+        [{"geometry": aoi.geometry} for aoi in project.aois], crs="EPSG:4326"
+    )
+    fig, ax = plt.subplots(figsize=(6, 4))
+    gdf.plot(ax=ax, edgecolor="#159466", facecolor="none", linewidth=1)
+    ax.set_axis_off()
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png")
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def _project_ndvi_df(project: Project) -> pd.DataFrame:
+    """Aggregate NDVI decomposition across all project AOIs."""
+
+    from verdesat.webapp.components.charts import load_ndvi_decomposition
+
+    dfs: list[pd.DataFrame] = []
+    for aoi in project.aois:
+        aoi_id = int(aoi.static_props.get("id", 0))
+        dfs.append(load_ndvi_decomposition(aoi_id))
+    if not dfs:
+        raise ValueError("project has no AOIs")
+    merged = pd.concat(dfs)
+    cols = [c for c in ("observed", "trend", "seasonal") if c in merged.columns]
+    return merged.groupby("date")[cols].mean().reset_index()
+
+
+def _project_msavi_df(project: Project) -> pd.DataFrame:
+    """Aggregate MSAVI time series across all project AOIs."""
+
+    from verdesat.webapp.components.charts import load_msavi_timeseries
+
+    df = load_msavi_timeseries()
+    ids = {int(a.static_props.get("id", 0)) for a in project.aois}
+    if "id" in df.columns and ids:
+        df = df[df["id"].isin(ids)]
+    value_col = next(
+        (c for c in ("mean_msavi", "msavi") if c in df.columns), df.columns[1]
+    )
+    return df.groupby("date")[value_col].mean().reset_index()
+
+
+def _build_project_pdf(
+    metrics: pd.DataFrame,
+    project: Project,
+    map_png: bytes,
+    ndvi_png: bytes,
+    msavi_png: bytes,
+) -> bytes:
+    """Assemble a PDF with project metrics, map and charts."""
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=letter)
@@ -72,7 +128,17 @@ def export_project_pdf(metrics: pd.DataFrame, project: Project) -> str:
     c.drawString(40, y, title)
     y -= 30
 
-    # Prepare table data
+    c.drawImage(
+        ImageReader(io.BytesIO(map_png)),
+        40,
+        y - 180,
+        width - 80,
+        180,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    y -= 200
+
     table_data: list[list[str]] = [list(metrics.columns)]
     for row in metrics.itertuples(index=False):
         formatted = [f"{v:.4f}" if isinstance(v, (int, float)) else str(v) for v in row]
@@ -89,11 +155,41 @@ def export_project_pdf(metrics: pd.DataFrame, project: Project) -> str:
             ]
         )
     )
-
     table_width, table_height = table.wrap(width - 80, height)
     table.drawOn(c, 40, max(40, y - table_height))
+
+    c.showPage()
+    c.drawImage(
+        ImageReader(io.BytesIO(ndvi_png)),
+        40,
+        height - 260,
+        width - 80,
+        240,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    c.drawImage(
+        ImageReader(io.BytesIO(msavi_png)),
+        40,
+        height - 520,
+        width - 80,
+        240,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
     c.save()
-    pdf_bytes = buf.getvalue()
+    return buf.getvalue()
+
+
+def export_project_pdf(metrics: pd.DataFrame, project: Project) -> str:
+    """Render project metrics, map and charts as a PDF and return a URL."""
+
+    map_png = _project_map_png(project)
+    ndvi_df = _project_ndvi_df(project)
+    msavi_df = _project_msavi_df(project)
+    ndvi_png = _ndvi_png(None, ndvi_df)
+    msavi_png = _msavi_png(None, msavi_df)
+    pdf_bytes = _build_project_pdf(metrics, project, map_png, ndvi_png, msavi_png)
     key = f"results/project_{uuid4().hex}/metrics.pdf"
     upload_bytes(key, pdf_bytes, content_type="application/pdf")
     return signed_url(key)
@@ -160,9 +256,12 @@ def _msavi_png(aoi_id: int | None, df: pd.DataFrame | None) -> bytes:
         df = load_msavi_timeseries()
         if "id" in df.columns:
             df = df[df["id"] == aoi_id]
-    value_col = next(
-        (c for c in ("mean_msavi", "msavi") if c in df.columns), df.columns[2]
-    )
+    value_col = next((c for c in ("mean_msavi", "msavi") if c in df.columns), None)
+    if value_col is None:
+        value_col = df.columns[2] if df.shape[1] > 2 else df.columns[-1]
+    if "id" not in df.columns:
+        df = df.copy()
+        df["id"] = 0
     viz = Visualizer()
     with NamedTemporaryFile(suffix=".png") as tmp:
         viz.plot_time_series(
