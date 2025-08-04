@@ -60,11 +60,11 @@ def test_export_project_pdf(monkeypatch):
     assert uploaded["args"][2] == "application/pdf"
     assert uploaded["args"][1].startswith(b"%PDF")
 
-    proj_msavi = exports._project_msavi_df(project, 2020, 2020)
+    proj_msavi = exports._project_index_yearly_df(project, "msavi", 2020, 2020)
     assert set(proj_msavi["id"]) == {1, 2}
     assert proj_msavi["date"].dt.year.nunique() == 1
     assert proj_msavi["date"].dt.year.unique()[0] == 2020
-    proj_ndvi = exports._project_ndvi_df(project, 2020, 2020)
+    proj_ndvi = exports._project_index_trend_df(project, "ndvi", 2020, 2020)
     assert set(proj_ndvi["id"]) == {1, 2}
     assert proj_ndvi["date"].dt.year.nunique() == 1
     assert proj_ndvi["date"].dt.year.unique()[0] == 2020

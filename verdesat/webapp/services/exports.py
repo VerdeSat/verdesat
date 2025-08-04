@@ -17,6 +17,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Table, TableStyle
 
+from verdesat.core.config import ConfigManager
 from verdesat.geo.aoi import AOI
 from verdesat.project.project import Project
 
@@ -77,12 +78,18 @@ def _project_map_png(project: Project) -> bytes:
     return buf.getvalue()
 
 
-def _project_ndvi_df(
-    project: Project, start_year: int | None = None, end_year: int | None = None
+def _project_index_trend_df(
+    project: Project,
+    index_name: str,
+    start_year: int | None = None,
+    end_year: int | None = None,
 ) -> pd.DataFrame:
-    """Collect NDVI trend curves for all project AOIs."""
+    """Collect monthly trend curves for ``index_name`` across project AOIs."""
 
     from verdesat.webapp.components.charts import load_ndvi_decomposition
+
+    if index_name.lower() != "ndvi":
+        raise ValueError("only ndvi trend is supported")
 
     dfs: list[pd.DataFrame] = []
     for aoi in project.aois:
@@ -101,12 +108,18 @@ def _project_ndvi_df(
     return result
 
 
-def _project_msavi_df(
-    project: Project, start_year: int | None = None, end_year: int | None = None
+def _project_index_yearly_df(
+    project: Project,
+    index_name: str,
+    start_year: int | None = None,
+    end_year: int | None = None,
 ) -> pd.DataFrame:
-    """Return MSAVI time series for all AOIs in ``project``."""
+    """Return annual time series for ``index_name`` across ``project`` AOIs."""
 
     from verdesat.webapp.components.charts import load_msavi_timeseries
+
+    if index_name.lower() != "msavi":
+        raise ValueError("only msavi timeseries are supported")
 
     df = load_msavi_timeseries()
     ids = {int(a.static_props.get("id", 0)) for a in project.aois}
@@ -118,21 +131,21 @@ def _project_msavi_df(
     return df
 
 
-def _ndvi_trend_png(df: pd.DataFrame) -> bytes:
-    """Plot NDVI trend lines for all AOIs."""
+def _monthly_trend_png(df: pd.DataFrame, index_name: str) -> bytes:
+    """Plot monthly trend lines for all AOIs."""
 
     import matplotlib.pyplot as plt  # noqa: WPS433
 
     plt.style.use("seaborn-v0_8")
     df = df.copy()
-    df["year"] = df["date"].dt.year
-    agg = df.groupby(["year", "id"])["trend"].mean().reset_index()
+    df["month"] = df["date"].dt.to_period("M").dt.to_timestamp()
+    agg = df.groupby(["month", "id"])["trend"].mean().reset_index()
 
     fig, ax = plt.subplots(figsize=(6, 4))
     for aoi_id, grp in agg.groupby("id"):
-        ax.plot(grp["year"], grp["trend"], marker="o", label=str(aoi_id))
-    ax.set_xlabel("Year")
-    ax.set_ylabel("NDVI Trend")
+        ax.plot(grp["month"], grp["trend"], marker="o", label=str(aoi_id))
+    ax.set_xlabel("Date")
+    ax.set_ylabel(f"{index_name.upper()} Trend")
     ax.legend(title="AOI")
     ax.grid(True, linestyle="--", alpha=0.5)
     fig.tight_layout()
@@ -146,8 +159,8 @@ def _build_project_pdf(
     metrics: pd.DataFrame,
     project: Project,
     map_png: bytes,
-    ndvi_png: bytes,
-    msavi_png: bytes,
+    monthly_png: bytes,
+    yearly_png: bytes,
 ) -> bytes:
     """Assemble a PDF with project metrics, map and charts."""
 
@@ -193,7 +206,7 @@ def _build_project_pdf(
 
     c.showPage()
     c.drawImage(
-        ImageReader(io.BytesIO(ndvi_png)),
+        ImageReader(io.BytesIO(monthly_png)),
         40,
         height - 260,
         width - 80,
@@ -202,7 +215,7 @@ def _build_project_pdf(
         mask="auto",
     )
     c.drawImage(
-        ImageReader(io.BytesIO(msavi_png)),
+        ImageReader(io.BytesIO(yearly_png)),
         40,
         height - 520,
         width - 80,
@@ -222,12 +235,15 @@ def export_project_pdf(
 ) -> str:
     """Render project metrics, map and charts as a PDF and return a URL."""
 
+    cfg = project.config
+    monthly_index = cfg.get("monthly_index", ConfigManager.DEFAULT_MONTHLY_INDEX)
+    annual_index = cfg.get("annual_index", ConfigManager.DEFAULT_ANNUAL_INDEX)
     map_png = _project_map_png(project)
-    ndvi_df = _project_ndvi_df(project, start_year, end_year)
-    msavi_df = _project_msavi_df(project, start_year, end_year)
-    ndvi_png = _ndvi_trend_png(ndvi_df)
-    msavi_png = _msavi_png(None, msavi_df, start_year, end_year)
-    pdf_bytes = _build_project_pdf(metrics, project, map_png, ndvi_png, msavi_png)
+    monthly_df = _project_index_trend_df(project, monthly_index, start_year, end_year)
+    annual_df = _project_index_yearly_df(project, annual_index, start_year, end_year)
+    monthly_png = _monthly_trend_png(monthly_df, monthly_index)
+    annual_png = _annual_index_png(None, annual_df, annual_index, start_year, end_year)
+    pdf_bytes = _build_project_pdf(metrics, project, map_png, monthly_png, annual_png)
     key = f"results/project_{uuid4().hex}/metrics.pdf"
     upload_bytes(key, pdf_bytes, content_type="application/pdf")
     return signed_url(key)
@@ -285,19 +301,22 @@ def _ndvi_png(aoi_id: int | None, df: pd.DataFrame | None) -> bytes:
         return Path(tmp.name).read_bytes()
 
 
-def _msavi_png(
+def _annual_index_png(
     aoi_id: int | None,
     df: pd.DataFrame | None,
+    index_name: str,
     start_year: int | None = None,
     end_year: int | None = None,
 ) -> bytes:
-    """Generate MSAVI annual time-series plot."""
+    """Generate annual time-series plot for ``index_name``."""
 
     if df is None:
         from verdesat.webapp.components.charts import load_msavi_timeseries
 
         if aoi_id is None:
             raise ValueError("aoi_id or df must be provided")
+        if index_name.lower() != "msavi":
+            raise ValueError("only msavi timeseries are supported")
         df = load_msavi_timeseries()
         if "id" in df.columns:
             df = df[df["id"] == aoi_id]
@@ -317,12 +336,13 @@ def _msavi_png(
     df = df.copy()
     df["year"] = df["date"].dt.year
     agg = df.groupby(["year", "id"])[value_col].mean().reset_index()
+    agg["year"] = pd.to_datetime(agg["year"].astype(str) + "-01-01")
 
     fig, ax = plt.subplots(figsize=(6, 4))
     for pid, grp in agg.groupby("id"):
         ax.plot(grp["year"], grp[value_col], marker="o", label=str(pid))
     ax.set_xlabel("Year")
-    ax.set_ylabel("MSAVI")
+    ax.set_ylabel(index_name.upper())
     ax.legend(title="AOI")
     ax.grid(True, linestyle="--", alpha=0.5)
     fig.tight_layout()
@@ -414,7 +434,7 @@ def export_metrics_pdf(
     map_png = _aoi_map_png(aoi)
     aoi_id = int(aoi.static_props.get("id", 0))
     ndvi_png = _ndvi_png(aoi_id, ndvi_df)
-    msavi_png = _msavi_png(aoi_id, msavi_df)
+    msavi_png = _annual_index_png(aoi_id, msavi_df, ConfigManager.DEFAULT_ANNUAL_INDEX)
     pdf_bytes = _build_pdf(data, aoi, project, map_png, ndvi_png, msavi_png)
     key = f"results/aoi_{aoi_id}/metrics_{uuid4().hex}.pdf"
     upload_bytes(key, pdf_bytes, content_type="application/pdf")

@@ -58,12 +58,16 @@ class ConfigManager:
     DEFAULT_INDEX: str = "ndvi"
     VALUE_COL_TEMPLATE: str = "mean_{index}"
     DEFAULT_REPORT_TITLE: str = "VerdeSat Report"
+    DEFAULT_MONTHLY_INDEX: str = "ndvi"
+    DEFAULT_ANNUAL_INDEX: str = "msavi"
 
     def __init__(self, config_path=None):
         self.config = {
             "default_index": self.DEFAULT_INDEX,
             "value_col_template": self.VALUE_COL_TEMPLATE,
             "report_title": self.DEFAULT_REPORT_TITLE,
+            "monthly_index": self.DEFAULT_MONTHLY_INDEX,
+            "annual_index": self.DEFAULT_ANNUAL_INDEX,
         }
         self.supported_input_formats = list(self.SUPPORTED_INPUT_FORMATS)
         self.preset_palettes = {k: list(v) for k, v in self.PRESET_PALETTES.items()}
