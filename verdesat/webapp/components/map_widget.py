@@ -11,7 +11,6 @@ import folium
 import numpy as np
 import rasterio
 from PIL import Image
-from folium import FeatureGroup
 from folium.raster_layers import ImageOverlay, TileLayer
 from streamlit_folium import st_folium
 import streamlit as st
@@ -37,7 +36,7 @@ def _cog_to_tile_url(cog_key: str) -> str:
     )
 
 
-def _local_overlay(path: str) -> ImageOverlay:
+def _local_overlay(path: str, *, name: str | None = None) -> ImageOverlay:
     """Return a semi‑transparent overlay for a local COG.
 
     Pixels where the raster has NoData (masked) are fully transparent.
@@ -74,6 +73,7 @@ def _local_overlay(path: str) -> ImageOverlay:
         opacity=1,
         interactive=False,
         cross_origin=False,
+        name=name,
     )
 
 
@@ -107,36 +107,39 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
             style_function=lambda *_: {"color": "#159466", "weight": 2, "fill": False},
         ).add_to(m)
 
-        ndvi_group = FeatureGroup(name="NDVI 2024")
-        msavi_group = FeatureGroup(name="MSAVI 2024")
+        ndvi_layer_added = False
+        msavi_layer_added = False
 
         for layers in rasters.values():
             ndvi_key = layers.get("ndvi")
             if ndvi_key:
+                name = "NDVI 2024"
                 if Path(ndvi_key).exists():
-                    _local_overlay(ndvi_key).add_to(ndvi_group)
+                    _local_overlay(ndvi_key, name=name).add_to(m)
                 else:
                     TileLayer(
                         tiles=_cog_to_tile_url(ndvi_key),
                         overlay=True,
                         attr="Sentinel-2",
-                        control=False,
-                    ).add_to(ndvi_group)
+                        name=name,
+                    ).add_to(m)
+                ndvi_layer_added = True
             msavi_key = layers.get("msavi")
             if msavi_key:
+                name = "MSAVI 2024"
                 if Path(msavi_key).exists():
-                    _local_overlay(msavi_key).add_to(msavi_group)
+                    _local_overlay(msavi_key, name=name).add_to(m)
                 else:
                     TileLayer(
                         tiles=_cog_to_tile_url(msavi_key),
                         overlay=True,
                         attr="Sentinel-2",
-                        control=False,
-                    ).add_to(msavi_group)
+                        name=name,
+                    ).add_to(m)
+                msavi_layer_added = True
 
-        ndvi_group.add_to(m)
-        msavi_group.add_to(m)
-        folium.LayerControl(position="topright", collapsed=False).add_to(m)
+        if ndvi_layer_added or msavi_layer_added:
+            folium.LayerControl(position="topright", collapsed=False).add_to(m)
 
         m.fit_bounds(bounds_arr.tolist())
 
