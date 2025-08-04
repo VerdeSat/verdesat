@@ -132,9 +132,7 @@ uploaded_file = st.sidebar.file_uploader("GeoJSON Project", type="geojson")
 if st.sidebar.button("Load demo project"):
     st.session_state["project"] = load_demo_project()
     st.session_state["run_requested"] = False
-    # Drop any saved map view from a previous project
-    st.session_state.pop("map_center", None)
-    st.session_state.pop("map_zoom", None)
+    # Drop any cached map from a previous project
     st.session_state.pop("main_map", None)
 
 if uploaded_file is not None:
@@ -148,8 +146,6 @@ if uploaded_file is not None:
         )
         st.session_state["uploaded_filename"] = uploaded_file.name
         st.session_state["run_requested"] = False
-        st.session_state.pop("map_center", None)
-        st.session_state.pop("map_zoom", None)
         st.session_state.pop("main_map", None)
 
 if _demo_cfg and st.session_state.get("project") and not uploaded_file:
