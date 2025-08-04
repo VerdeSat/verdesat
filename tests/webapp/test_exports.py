@@ -8,9 +8,10 @@ from verdesat.webapp.services import exports
 
 
 def test_export_project_pdf(monkeypatch):
-    metrics = pd.DataFrame({"id": [1], "bscore": [0.5]})
-    aoi = AOI(Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]), {"id": 1})
-    project = Project("Demo", "VerdeSat", [aoi], ConfigManager())
+    metrics = pd.DataFrame({"bscore": [0.5]})
+    aoi1 = AOI(Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]), {"id": 1})
+    aoi2 = AOI(Polygon([(1, 0), (2, 0), (2, 1), (1, 1)]), {"id": 2})
+    project = Project("Demo", "VerdeSat", [aoi1, aoi2], ConfigManager())
 
     uploaded: dict[str, tuple[str, bytes, str]] = {}
 
@@ -20,25 +21,31 @@ def test_export_project_pdf(monkeypatch):
     def fake_signed_url(key: str) -> str:
         return f"https://example.com/{key}"
 
-    ndvi_df = pd.DataFrame(
+    ndvi_df1 = pd.DataFrame(
         {
             "date": pd.date_range("2020-01-01", periods=3),
-            "observed": [0.1, 0.2, 0.3],
             "trend": [0.1, 0.2, 0.3],
-            "seasonal": [0.0, 0.0, 0.0],
+        }
+    )
+    ndvi_df2 = pd.DataFrame(
+        {
+            "date": pd.date_range("2020-01-01", periods=3),
+            "trend": [0.2, 0.3, 0.4],
         }
     )
     msavi_df = pd.DataFrame(
         {
-            "date": pd.date_range("2020-01-01", periods=3),
-            "mean_msavi": [0.1, 0.2, 0.3],
-            "id": [1, 1, 1],
+            "date": list(pd.date_range("2020-01-01", periods=3)) * 2,
+            "mean_msavi": [0.1, 0.2, 0.3, 0.2, 0.3, 0.4],
+            "id": [1, 1, 1, 2, 2, 2],
         }
     )
 
+    def fake_ndvi(aoi_id: int) -> pd.DataFrame:
+        return ndvi_df1 if aoi_id == 1 else ndvi_df2
+
     monkeypatch.setattr(
-        "verdesat.webapp.components.charts.load_ndvi_decomposition",
-        lambda aoi_id: ndvi_df,
+        "verdesat.webapp.components.charts.load_ndvi_decomposition", fake_ndvi
     )
     monkeypatch.setattr(
         "verdesat.webapp.components.charts.load_msavi_timeseries", lambda: msavi_df
@@ -51,3 +58,8 @@ def test_export_project_pdf(monkeypatch):
     assert url == f"https://example.com/{uploaded['args'][0]}"
     assert uploaded["args"][2] == "application/pdf"
     assert uploaded["args"][1].startswith(b"%PDF")
+
+    proj_msavi = exports._project_msavi_df(project)
+    assert set(proj_msavi["id"]) == {1, 2}
+    proj_ndvi = exports._project_ndvi_df(project)
+    assert set(proj_ndvi["id"]) == {1, 2}

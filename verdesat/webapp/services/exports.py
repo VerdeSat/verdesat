@@ -79,23 +79,23 @@ def _project_map_png(project: Project) -> bytes:
 
 
 def _project_ndvi_df(project: Project) -> pd.DataFrame:
-    """Aggregate NDVI decomposition across all project AOIs."""
+    """Collect NDVI trend curves for all project AOIs."""
 
     from verdesat.webapp.components.charts import load_ndvi_decomposition
 
     dfs: list[pd.DataFrame] = []
     for aoi in project.aois:
         aoi_id = int(aoi.static_props.get("id", 0))
-        dfs.append(load_ndvi_decomposition(aoi_id))
+        df = load_ndvi_decomposition(aoi_id)[["date", "trend"]].copy()
+        df["id"] = aoi_id
+        dfs.append(df)
     if not dfs:
         raise ValueError("project has no AOIs")
-    merged = pd.concat(dfs)
-    cols = [c for c in ("observed", "trend", "seasonal") if c in merged.columns]
-    return merged.groupby("date")[cols].mean().reset_index()
+    return pd.concat(dfs, ignore_index=True)
 
 
 def _project_msavi_df(project: Project) -> pd.DataFrame:
-    """Aggregate MSAVI time series across all project AOIs."""
+    """Return MSAVI time series for all AOIs in ``project``."""
 
     from verdesat.webapp.components.charts import load_msavi_timeseries
 
@@ -103,10 +103,16 @@ def _project_msavi_df(project: Project) -> pd.DataFrame:
     ids = {int(a.static_props.get("id", 0)) for a in project.aois}
     if "id" in df.columns and ids:
         df = df[df["id"].isin(ids)]
-    value_col = next(
-        (c for c in ("mean_msavi", "msavi") if c in df.columns), df.columns[1]
-    )
-    return df.groupby("date")[value_col].mean().reset_index()
+    return df
+
+
+def _ndvi_trend_png(df: pd.DataFrame) -> bytes:
+    """Plot NDVI trend lines for all AOIs."""
+
+    viz = Visualizer()
+    with NamedTemporaryFile(suffix=".png") as tmp:
+        viz.plot_time_series(df, index_col="trend", output_path=tmp.name, agg_freq="D")
+        return Path(tmp.name).read_bytes()
 
 
 def _build_project_pdf(
@@ -187,7 +193,7 @@ def export_project_pdf(metrics: pd.DataFrame, project: Project) -> str:
     map_png = _project_map_png(project)
     ndvi_df = _project_ndvi_df(project)
     msavi_df = _project_msavi_df(project)
-    ndvi_png = _ndvi_png(None, ndvi_df)
+    ndvi_png = _ndvi_trend_png(ndvi_df)
     msavi_png = _msavi_png(None, msavi_df)
     pdf_bytes = _build_project_pdf(metrics, project, map_png, ndvi_png, msavi_png)
     key = f"results/project_{uuid4().hex}/metrics.pdf"
