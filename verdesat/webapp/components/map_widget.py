@@ -116,10 +116,11 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         st.session_state.pop("map_center", None)
         st.session_state.pop("map_zoom", None)
 
-    bounds_arr = aoi_gdf.total_bounds.reshape(2, 2)
+    bounds = aoi_gdf.total_bounds  # minx, miny, maxx, maxy
+    bounds_latlon = [[bounds[1], bounds[0]], [bounds[3], bounds[2]]]
     centre = st.session_state.get("map_center") or [
-        (bounds_arr[0][1] + bounds_arr[1][1]) / 2,
-        (bounds_arr[0][0] + bounds_arr[1][0]) / 2,
+        (bounds_latlon[0][0] + bounds_latlon[1][0]) / 2,
+        (bounds_latlon[0][1] + bounds_latlon[1][1]) / 2,
     ]
     zoom = st.session_state.get("map_zoom", 13)
 
@@ -175,13 +176,12 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
 
     folium.LayerControl(position="topright", collapsed=False).add_to(m)
     if "map_center" not in st.session_state:
-        m.fit_bounds(bounds_arr.tolist())
+        m.fit_bounds(bounds_latlon)
 
     state = st_folium(m, width="100%", height=500, key=f"main_map_{layers_key}")
     if state and state.get("center"):
-        st.session_state["map_center"] = [
-            state["center"]["lat"],
-            state["center"]["lng"],
-        ]
-        if "zoom" in state:
+        new_center = [state["center"]["lat"], state["center"]["lng"]]
+        if new_center != st.session_state.get("map_center"):
+            st.session_state["map_center"] = new_center
+        if "zoom" in state and state["zoom"] != st.session_state.get("map_zoom"):
             st.session_state["map_zoom"] = state["zoom"]
