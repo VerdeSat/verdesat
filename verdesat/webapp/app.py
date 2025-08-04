@@ -28,6 +28,7 @@ from verdesat.webapp.components.map_widget import display_map
 from verdesat.webapp.services.chip_service import EEChipServiceAdapter
 from verdesat.webapp.services.project_compute import ProjectComputeService
 from verdesat.webapp.services.r2 import signed_url
+from verdesat.webapp.services.exports import export_project_pdf
 
 logger = Logger.get_logger(__name__)
 
@@ -102,6 +103,16 @@ def compute_project(project: Project, start_year: int, end_year: int) -> tuple[
         msavi_paths,
         project.metrics.copy(),
     )
+
+
+def report_controls(metrics_df: pd.DataFrame, project: Project) -> None:
+    """Display controls for generating a project-wide PDF report."""
+
+    if st.button("Generate PDF report"):
+        st.session_state["report_url"] = export_project_pdf(metrics_df, project)
+    url = st.session_state.get("report_url")
+    if url:
+        st.markdown(f"[Download PDF report]({url})")
 
 
 # ---- Page config -----------------------------------------------------------
@@ -205,6 +216,7 @@ elif st.session_state.get("run_requested"):
     st.markdown("---")
     display_metrics(metrics)
     st.dataframe(metrics_df)
+    report_controls(metrics_df, project)
 
     st.markdown("---")
     tab_obs, tab_trend, tab_season, tab_msavi = st.tabs(
@@ -238,6 +250,7 @@ elif "results" in st.session_state:
     st.markdown("---")
     display_metrics(metrics)
     st.dataframe(metrics_df)
+    report_controls(metrics_df, project)
 
     st.markdown("---")
     tab_obs, tab_trend, tab_season, tab_msavi = st.tabs(

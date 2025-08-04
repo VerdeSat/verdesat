@@ -11,12 +11,14 @@ from uuid import uuid4
 import io
 
 import pandas as pd
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
+from reportlab.platypus import Table, TableStyle
 
 from verdesat.geo.aoi import AOI
-from verdesat.project.project import VerdeSatProject
+from verdesat.project.project import Project
 from verdesat.visualization.visualizer import Visualizer
 
 from .r2 import upload_bytes, signed_url
@@ -48,12 +50,52 @@ def export_metrics_csv(metrics: Mapping[str, Any] | object, aoi: AOI) -> str:
     return signed_url(key)
 
 
-def export_project_csv(metrics: pd.DataFrame, project: VerdeSatProject) -> str:
+def export_project_csv(metrics: pd.DataFrame, project: Project) -> str:
     """Export aggregated ``metrics`` for ``project`` and return a URL."""
 
     csv_bytes = metrics.to_csv(index=False).encode("utf-8")
     key = f"results/project_{uuid4().hex}/metrics.csv"
     upload_bytes(key, csv_bytes, content_type="text/csv")
+    return signed_url(key)
+
+
+def export_project_pdf(metrics: pd.DataFrame, project: Project) -> str:
+    """Render ``metrics`` for ``project`` as a PDF table and return a URL."""
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    width, height = letter
+    title = getattr(project, "name", "VerdeSat Project")
+    c.setTitle(f"{title} Metrics")
+    y = height - 40
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(40, y, title)
+    y -= 30
+
+    # Prepare table data
+    table_data: list[list[str]] = [list(metrics.columns)]
+    for row in metrics.itertuples(index=False):
+        formatted = [f"{v:.4f}" if isinstance(v, (int, float)) else str(v) for v in row]
+        table_data.append(formatted)
+
+    table = Table(table_data, repeatRows=1)
+    table.setStyle(
+        TableStyle(
+            [
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+
+    table_width, table_height = table.wrap(width - 80, height)
+    table.drawOn(c, 40, max(40, y - table_height))
+    c.save()
+    pdf_bytes = buf.getvalue()
+    key = f"results/project_{uuid4().hex}/metrics.pdf"
+    upload_bytes(key, pdf_bytes, content_type="application/pdf")
     return signed_url(key)
 
 
