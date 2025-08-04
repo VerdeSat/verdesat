@@ -98,38 +98,37 @@ def _local_overlay(path: str, *, name: str | None = None) -> ImageOverlay:
 
 
 def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
-    """Render Folium map with AOI boundaries and VI layers.
-
-    The map is initialised once per AOI/raster combination and then reused on
-    subsequent reruns so user panning and zooming do not trigger a full map
-    reload. A new map is constructed only when the underlying layers change.
-    """
-
     layers_key = hashlib.sha256(
         (aoi_gdf.to_json() + json.dumps(rasters, sort_keys=True)).encode("utf-8")
     ).hexdigest()
 
+    if not rasters:
+        st.session_state.pop("map_layers_key", None)
+        st.session_state.pop("map_obj", None)
+
+    cached_key = st.session_state.get("map_layers_key")
     cached_map = st.session_state.get("map_obj")
 
-    if st.session_state.get("map_layers_key") != layers_key or not isinstance(
-        cached_map, folium.Map
-    ):
+    # REVERT to WORKING BEHAVIOR:
+    if cached_key != layers_key or not isinstance(cached_map, folium.Map):
         bounds_arr = aoi_gdf.total_bounds.reshape(2, 2)
         centre = [
             (bounds_arr[0][1] + bounds_arr[1][1]) / 2,
             (bounds_arr[0][0] + bounds_arr[1][0]) / 2,
         ]
         m = folium.Map(location=centre, zoom_start=13, tiles="CartoDB positron")
-
         folium.GeoJson(
             json.loads(aoi_gdf.to_json()),
             name="AOI Boundaries",
-            style_function=lambda *_: {"color": "#159466", "weight": 2, "fill": False},
+            style_function=lambda *_: {
+                "color": "#159466",
+                "weight": 2,
+                "fill": False,
+            },
         ).add_to(m)
-
+        aois_layer_added = True
         ndvi_layer_added = False
         msavi_layer_added = False
-
         for layers in rasters.values():
             ndvi_key = layers.get("ndvi")
             if ndvi_key:
@@ -159,17 +158,17 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
                         name=name,
                     ).add_to(m)
                 msavi_layer_added = True
-
-        if ndvi_layer_added or msavi_layer_added:
+        if aois_layer_added or ndvi_layer_added or msavi_layer_added:
             folium.LayerControl(position="topright", collapsed=False).add_to(m)
-
         m.fit_bounds(bounds_arr.tolist())
-
         st.session_state["map_obj"] = m
         st.session_state["map_layers_key"] = layers_key
 
     state = st_folium(
-        st.session_state["map_obj"], width="100%", height=500, key="main_map"
+        st.session_state["map_obj"],
+        width="100%",
+        height=500,
+        key=f"main_map_{layers_key}",
     )
     if state and state.get("center"):
         m = st.session_state["map_obj"]
