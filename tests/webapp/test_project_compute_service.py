@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import date
 from types import SimpleNamespace
 
+import numpy as np
 import pandas as pd
+import pytest
 from shapely.geometry import Polygon
 
 from verdesat.project.project import Project
@@ -173,3 +175,24 @@ def test_compute_recomputes_legacy_cache(monkeypatch):
     # Recompute should call chip service and include VI stats
     assert chip_service.calls
     assert {"ndvi_mean", "msavi_mean"} <= set(metrics_df.columns)
+
+
+def test_msavi_stats_returns_full_metrics(monkeypatch):
+    df = pd.DataFrame(
+        {
+            "id": [1] * 12,
+            "date": pd.date_range("2020-01-01", periods=12, freq="M"),
+            "mean_msavi": np.linspace(0.0, 1.0, 12),
+        }
+    )
+    monkeypatch.setattr(
+        project_compute,
+        "download_timeseries",
+        lambda *a, **k: df,
+    )
+
+    stats, _ = project_compute._msavi_stats("dummy.geojson", 2020, 2020)
+    assert stats["msavi_min"] == pytest.approx(df["mean_msavi"].min())
+    assert stats["msavi_max"] == pytest.approx(df["mean_msavi"].max())
+    assert stats["msavi_median"] == pytest.approx(df["mean_msavi"].median())
+    assert "msavi_std" in stats
