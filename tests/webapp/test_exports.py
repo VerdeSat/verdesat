@@ -23,19 +23,20 @@ def test_export_project_pdf(monkeypatch):
 
     ndvi_df1 = pd.DataFrame(
         {
-            "date": pd.date_range("2020-01-01", periods=3),
+            "date": pd.to_datetime(["2019-06-01", "2020-06-01", "2021-06-01"]),
             "trend": [0.1, 0.2, 0.3],
         }
     )
     ndvi_df2 = pd.DataFrame(
         {
-            "date": pd.date_range("2020-01-01", periods=3),
+            "date": pd.to_datetime(["2019-06-01", "2020-06-01", "2021-06-01"]),
             "trend": [0.2, 0.3, 0.4],
         }
     )
     msavi_df = pd.DataFrame(
         {
-            "date": list(pd.date_range("2020-01-01", periods=3)) * 2,
+            "date": list(pd.to_datetime(["2019-06-01", "2020-06-01", "2021-06-01"]))
+            * 2,
             "mean_msavi": [0.1, 0.2, 0.3, 0.2, 0.3, 0.4],
             "id": [1, 1, 1, 2, 2, 2],
         }
@@ -53,13 +54,17 @@ def test_export_project_pdf(monkeypatch):
     monkeypatch.setattr(exports, "upload_bytes", fake_upload)
     monkeypatch.setattr(exports, "signed_url", fake_signed_url)
 
-    url = exports.export_project_pdf(metrics, project)
+    url = exports.export_project_pdf(metrics, project, start_year=2020, end_year=2020)
 
     assert url == f"https://example.com/{uploaded['args'][0]}"
     assert uploaded["args"][2] == "application/pdf"
     assert uploaded["args"][1].startswith(b"%PDF")
 
-    proj_msavi = exports._project_msavi_df(project)
+    proj_msavi = exports._project_msavi_df(project, 2020, 2020)
     assert set(proj_msavi["id"]) == {1, 2}
-    proj_ndvi = exports._project_ndvi_df(project)
+    assert proj_msavi["date"].dt.year.nunique() == 1
+    assert proj_msavi["date"].dt.year.unique()[0] == 2020
+    proj_ndvi = exports._project_ndvi_df(project, 2020, 2020)
     assert set(proj_ndvi["id"]) == {1, 2}
+    assert proj_ndvi["date"].dt.year.nunique() == 1
+    assert proj_ndvi["date"].dt.year.unique()[0] == 2020

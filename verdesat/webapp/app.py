@@ -105,11 +105,15 @@ def compute_project(project: Project, start_year: int, end_year: int) -> tuple[
     )
 
 
-def report_controls(metrics_df: pd.DataFrame, project: Project) -> None:
+def report_controls(
+    metrics_df: pd.DataFrame, project: Project, start_year: int, end_year: int
+) -> None:
     """Display controls for generating a project-wide PDF report."""
 
     if st.button("Generate PDF report"):
-        st.session_state["report_url"] = export_project_pdf(metrics_df, project)
+        st.session_state["report_url"] = export_project_pdf(
+            metrics_df, project, start_year, end_year
+        )
     url = st.session_state.get("report_url")
     if url:
         st.markdown(f"[Download PDF report]({url})")
@@ -216,7 +220,7 @@ elif st.session_state.get("run_requested"):
     st.markdown("---")
     display_metrics(metrics)
     st.dataframe(metrics_df)
-    report_controls(metrics_df, project)
+    report_controls(metrics_df, project, start_year, end_year)
 
     st.markdown("---")
     tab_obs, tab_trend, tab_season, tab_msavi = st.tabs(
@@ -250,7 +254,7 @@ elif "results" in st.session_state:
     st.markdown("---")
     display_metrics(metrics)
     st.dataframe(metrics_df)
-    report_controls(metrics_df, project)
+    report_controls(metrics_df, project, start_year, end_year)
 
     st.markdown("---")
     tab_obs, tab_trend, tab_season, tab_msavi = st.tabs(

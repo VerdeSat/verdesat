@@ -19,7 +19,6 @@ from reportlab.platypus import Table, TableStyle
 
 from verdesat.geo.aoi import AOI
 from verdesat.project.project import Project
-from verdesat.visualization.visualizer import Visualizer
 
 from .r2 import upload_bytes, signed_url
 
@@ -78,7 +77,9 @@ def _project_map_png(project: Project) -> bytes:
     return buf.getvalue()
 
 
-def _project_ndvi_df(project: Project) -> pd.DataFrame:
+def _project_ndvi_df(
+    project: Project, start_year: int | None = None, end_year: int | None = None
+) -> pd.DataFrame:
     """Collect NDVI trend curves for all project AOIs."""
 
     from verdesat.webapp.components.charts import load_ndvi_decomposition
@@ -91,10 +92,18 @@ def _project_ndvi_df(project: Project) -> pd.DataFrame:
         dfs.append(df)
     if not dfs:
         raise ValueError("project has no AOIs")
-    return pd.concat(dfs, ignore_index=True)
+    result = pd.concat(dfs, ignore_index=True)
+    if start_year is not None and end_year is not None:
+        mask = (result["date"].dt.year >= start_year) & (
+            result["date"].dt.year <= end_year
+        )
+        result = result.loc[mask]
+    return result
 
 
-def _project_msavi_df(project: Project) -> pd.DataFrame:
+def _project_msavi_df(
+    project: Project, start_year: int | None = None, end_year: int | None = None
+) -> pd.DataFrame:
     """Return MSAVI time series for all AOIs in ``project``."""
 
     from verdesat.webapp.components.charts import load_msavi_timeseries
@@ -103,16 +112,34 @@ def _project_msavi_df(project: Project) -> pd.DataFrame:
     ids = {int(a.static_props.get("id", 0)) for a in project.aois}
     if "id" in df.columns and ids:
         df = df[df["id"].isin(ids)]
+    if start_year is not None and end_year is not None:
+        mask = (df["date"].dt.year >= start_year) & (df["date"].dt.year <= end_year)
+        df = df.loc[mask]
     return df
 
 
 def _ndvi_trend_png(df: pd.DataFrame) -> bytes:
     """Plot NDVI trend lines for all AOIs."""
 
-    viz = Visualizer()
-    with NamedTemporaryFile(suffix=".png") as tmp:
-        viz.plot_time_series(df, index_col="trend", output_path=tmp.name, agg_freq="D")
-        return Path(tmp.name).read_bytes()
+    import matplotlib.pyplot as plt  # noqa: WPS433
+
+    plt.style.use("seaborn-v0_8")
+    df = df.copy()
+    df["year"] = df["date"].dt.year
+    agg = df.groupby(["year", "id"])["trend"].mean().reset_index()
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for aoi_id, grp in agg.groupby("id"):
+        ax.plot(grp["year"], grp["trend"], marker="o", label=str(aoi_id))
+    ax.set_xlabel("Year")
+    ax.set_ylabel("NDVI Trend")
+    ax.legend(title="AOI")
+    ax.grid(True, linestyle="--", alpha=0.5)
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150)
+    plt.close(fig)
+    return buf.getvalue()
 
 
 def _build_project_pdf(
@@ -187,14 +214,19 @@ def _build_project_pdf(
     return buf.getvalue()
 
 
-def export_project_pdf(metrics: pd.DataFrame, project: Project) -> str:
+def export_project_pdf(
+    metrics: pd.DataFrame,
+    project: Project,
+    start_year: int | None = None,
+    end_year: int | None = None,
+) -> str:
     """Render project metrics, map and charts as a PDF and return a URL."""
 
     map_png = _project_map_png(project)
-    ndvi_df = _project_ndvi_df(project)
-    msavi_df = _project_msavi_df(project)
+    ndvi_df = _project_ndvi_df(project, start_year, end_year)
+    msavi_df = _project_msavi_df(project, start_year, end_year)
     ndvi_png = _ndvi_trend_png(ndvi_df)
-    msavi_png = _msavi_png(None, msavi_df)
+    msavi_png = _msavi_png(None, msavi_df, start_year, end_year)
     pdf_bytes = _build_project_pdf(metrics, project, map_png, ndvi_png, msavi_png)
     key = f"results/project_{uuid4().hex}/metrics.pdf"
     upload_bytes(key, pdf_bytes, content_type="application/pdf")
@@ -245,13 +277,20 @@ def _ndvi_png(aoi_id: int | None, df: pd.DataFrame | None) -> bytes:
             fig.tight_layout()
             return fig
 
+    from verdesat.visualization.visualizer import Visualizer
+
     viz = Visualizer()
     with NamedTemporaryFile(suffix=".png") as tmp:
         viz.plot_decomposition(_Decomp(df), tmp.name)
         return Path(tmp.name).read_bytes()
 
 
-def _msavi_png(aoi_id: int | None, df: pd.DataFrame | None) -> bytes:
+def _msavi_png(
+    aoi_id: int | None,
+    df: pd.DataFrame | None,
+    start_year: int | None = None,
+    end_year: int | None = None,
+) -> bytes:
     """Generate MSAVI annual time-series plot."""
 
     if df is None:
@@ -262,18 +301,35 @@ def _msavi_png(aoi_id: int | None, df: pd.DataFrame | None) -> bytes:
         df = load_msavi_timeseries()
         if "id" in df.columns:
             df = df[df["id"] == aoi_id]
+    if start_year is not None and end_year is not None:
+        mask = (df["date"].dt.year >= start_year) & (df["date"].dt.year <= end_year)
+        df = df.loc[mask]
     value_col = next((c for c in ("mean_msavi", "msavi") if c in df.columns), None)
     if value_col is None:
         value_col = df.columns[2] if df.shape[1] > 2 else df.columns[-1]
     if "id" not in df.columns:
         df = df.copy()
         df["id"] = 0
-    viz = Visualizer()
-    with NamedTemporaryFile(suffix=".png") as tmp:
-        viz.plot_time_series(
-            df, index_col=value_col, output_path=tmp.name, agg_freq="YE"
-        )
-        return Path(tmp.name).read_bytes()
+
+    import matplotlib.pyplot as plt  # noqa: WPS433
+
+    plt.style.use("seaborn-v0_8")
+    df = df.copy()
+    df["year"] = df["date"].dt.year
+    agg = df.groupby(["year", "id"])[value_col].mean().reset_index()
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for pid, grp in agg.groupby("id"):
+        ax.plot(grp["year"], grp[value_col], marker="o", label=str(pid))
+    ax.set_xlabel("Year")
+    ax.set_ylabel("MSAVI")
+    ax.legend(title="AOI")
+    ax.grid(True, linestyle="--", alpha=0.5)
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150)
+    plt.close(fig)
+    return buf.getvalue()
 
 
 def _build_pdf(
