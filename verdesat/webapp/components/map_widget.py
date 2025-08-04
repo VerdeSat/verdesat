@@ -18,6 +18,26 @@ import streamlit as st
 from verdesat.webapp.services.r2 import signed_url
 
 
+def _resolve_cog_path(key: str) -> Path | None:
+    """Return a filesystem path for *key* if it exists.
+
+    Raster paths in configuration may be relative to the project repository
+    rather than the current working directory. This helper tries the given
+    path directly and falls back to resolving it relative to the package
+    root. ``None`` is returned when the key does not correspond to a local
+    file, allowing callers to treat it as a remote object.
+    """
+
+    path = Path(key)
+    if path.exists():
+        return path
+
+    repo_path = Path(__file__).resolve().parents[2] / key
+    if repo_path.exists():
+        return repo_path
+    return None
+
+
 def _cog_to_tile_url(cog_key: str) -> str:
     """
     Build a Titiler tile URL for a *private* COG in R2 using a presigned URL.
@@ -114,8 +134,9 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
             ndvi_key = layers.get("ndvi")
             if ndvi_key:
                 name = "NDVI 2024"
-                if Path(ndvi_key).exists():
-                    _local_overlay(ndvi_key, name=name).add_to(m)
+                ndvi_path = _resolve_cog_path(ndvi_key)
+                if ndvi_path:
+                    _local_overlay(str(ndvi_path), name=name).add_to(m)
                 else:
                     TileLayer(
                         tiles=_cog_to_tile_url(ndvi_key),
@@ -127,8 +148,9 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
             msavi_key = layers.get("msavi")
             if msavi_key:
                 name = "MSAVI 2024"
-                if Path(msavi_key).exists():
-                    _local_overlay(msavi_key, name=name).add_to(m)
+                msavi_path = _resolve_cog_path(msavi_key)
+                if msavi_path:
+                    _local_overlay(str(msavi_path), name=name).add_to(m)
                 else:
                     TileLayer(
                         tiles=_cog_to_tile_url(msavi_key),
