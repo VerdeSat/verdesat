@@ -134,6 +134,8 @@ if st.sidebar.button("Load demo project"):
     st.session_state["run_requested"] = False
     # Drop any cached map from a previous project
     st.session_state.pop("main_map", None)
+    st.session_state.pop("map_obj", None)
+    st.session_state.pop("map_layers_key", None)
 
 if uploaded_file is not None:
     # Create / refresh the project only when the user selects
@@ -147,6 +149,8 @@ if uploaded_file is not None:
         st.session_state["uploaded_filename"] = uploaded_file.name
         st.session_state["run_requested"] = False
         st.session_state.pop("main_map", None)
+        st.session_state.pop("map_obj", None)
+        st.session_state.pop("map_layers_key", None)
 
 if _demo_cfg and st.session_state.get("project") and not uploaded_file:
     st.session_state["run_requested"] = True

@@ -95,7 +95,11 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         cached_map, folium.Map
     ):
         bounds_arr = aoi_gdf.total_bounds.reshape(2, 2)
-        m = folium.Map(tiles="CartoDB positron")
+        centre = [
+            (bounds_arr[0][1] + bounds_arr[1][1]) / 2,
+            (bounds_arr[0][0] + bounds_arr[1][0]) / 2,
+        ]
+        m = folium.Map(location=centre, zoom_start=13, tiles="CartoDB positron")
 
         folium.GeoJson(
             json.loads(aoi_gdf.to_json()),
@@ -139,4 +143,11 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         st.session_state["map_obj"] = m
         st.session_state["map_layers_key"] = layers_key
 
-    st_folium(st.session_state["map_obj"], width="100%", height=500, key="main_map")
+    state = st_folium(
+        st.session_state["map_obj"], width="100%", height=500, key="main_map"
+    )
+    if state and state.get("center"):
+        m = st.session_state["map_obj"]
+        m.location = [state["center"]["lat"], state["center"]["lng"]]
+        if "zoom" in state:
+            m.options["zoom"] = state["zoom"]
