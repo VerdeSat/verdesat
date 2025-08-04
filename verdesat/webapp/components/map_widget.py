@@ -122,11 +122,10 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         (bounds_latlon[0][0] + bounds_latlon[1][0]) / 2,
         (bounds_latlon[0][1] + bounds_latlon[1][1]) / 2,
     ]
-    zoom = st.session_state.get("map_zoom", 13)
 
-    m = folium.Map(location=centre, zoom_start=zoom, tiles="CartoDB positron")
+    m = folium.Map(location=centre, tiles="CartoDB positron")
     folium.GeoJson(
-        json.loads(aoi_gdf.to_json()),
+        aoi_gdf,
         name="AOI Boundaries",
         style_function=lambda *_: {
             "color": "#159466",
@@ -135,8 +134,8 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         },
     ).add_to(m)
 
-    ndvi_group = FeatureGroup(name="NDVI 2024", show=True)
-    msavi_group = FeatureGroup(name="MSAVI 2024", show=True)
+    ndvi_group = FeatureGroup(name="Last annual NDVI", show=True)
+    msavi_group = FeatureGroup(name="Last annual MSAVI", show=True)
     ndvi_added = False
     msavi_added = False
 
@@ -179,9 +178,3 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         m.fit_bounds(bounds_latlon)
 
     state = st_folium(m, width="100%", height=500, key=f"main_map_{layers_key}")
-    if state and state.get("center"):
-        new_center = [state["center"]["lat"], state["center"]["lng"]]
-        if new_center != st.session_state.get("map_center"):
-            st.session_state["map_center"] = new_center
-        if "zoom" in state and state["zoom"] != st.session_state.get("map_zoom"):
-            st.session_state["map_zoom"] = state["zoom"]
