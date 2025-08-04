@@ -156,6 +156,34 @@ def _load_cache(storage: StorageAdapter, key: str) -> object | None:
     return None
 
 
+def _stats_row_to_dict(row: pd.Series, index: str) -> dict[str, float | str]:
+    """Return a flat dictionary of metrics for a vegetation index.
+
+    Parameters
+    ----------
+    row:
+        Row from :func:`compute_summary_stats` output.
+    index:
+        Name of the vegetation index, e.g. ``"ndvi"``.
+    """
+
+    label = index.upper()
+    return {
+        f"{index}_mean": float(row[f"Mean {label}"]),
+        f"{index}_median": float(row[f"Median {label}"]),
+        f"{index}_min": float(row[f"Min {label}"]),
+        f"{index}_max": float(row[f"Max {label}"]),
+        f"{index}_std": float(row[f"Std {label}"]),
+        f"{index}_slope": float(row[f"Sen's Slope ({label}/yr)"]),
+        f"{index}_delta": float(row[f"Trend Δ{label}"]),
+        f"{index}_p_value": float(row["Mann–Kendall p-value"]),
+        f"{index}_amp": float(row["Seasonal Amplitude"]),
+        f"{index}_resid_rms": float(row["Residual RMS"]),
+        f"{index}_peak": row["Peak Month"] if pd.notna(row["Peak Month"]) else "",
+        f"{index}_pct_fill": float(row["% Gapfilled"]),
+    }
+
+
 class ComputeService:
     """Orchestrate metric computations for the web application."""
 
@@ -264,23 +292,18 @@ class ComputeService:
             )
             bscore = self.calc.score(metrics)
 
-            data = {
+            ndvi_stats = _stats_row_to_dict(ndvi_row, "ndvi")
+            msavi_stats = _stats_row_to_dict(msavi_row, "msavi")
+
+            data: dict[str, float | str] = {
                 "intactness": intactness,
                 "shannon": shannon,
                 "fragmentation": fragmentation,
-                "ndvi_mean": float(ndvi_row["Mean NDVI"]),
-                "ndvi_std": float(ndvi_row["Std NDVI"]),
-                "ndvi_slope": float(ndvi_row["Sen's Slope (NDVI/yr)"]),
-                "ndvi_delta": float(ndvi_row["Trend ΔNDVI"]),
-                "ndvi_p_value": float(ndvi_row["Mann–Kendall p-value"]),
-                "ndvi_peak": (
-                    ndvi_row["Peak Month"] if pd.notna(ndvi_row["Peak Month"]) else ""
-                ),
-                "ndvi_pct_fill": float(ndvi_row["% Gapfilled"]),
-                "msavi_mean": float(msavi_row["Mean MSAVI"]),
-                "msavi_std": float(msavi_row["Std MSAVI"]),
                 "bscore": bscore,
+                **ndvi_stats,
+                **msavi_stats,
             }
+
             result = (data, ndvi_decomp_df, msavi_df)
             _persist_cache(self.storage, cache_key, result)
             logger.info("computed demo metrics for AOI %s", aoi_id)
@@ -411,22 +434,14 @@ def _ndvi_stats(
         ts_bytes, decomp_dir={pid: decomp_bytes}, value_col="mean_ndvi"
     ).to_dataframe()
     row = stats_df.iloc[0]
-    stats = {
-        "ndvi_mean": float(row["Mean NDVI"]),
-        "ndvi_std": float(row["Std NDVI"]),
-        "ndvi_slope": float(row["Sen's Slope (NDVI/yr)"]),
-        "ndvi_delta": float(row["Trend ΔNDVI"]),
-        "ndvi_p_value": float(row["Mann–Kendall p-value"]),
-        "ndvi_peak": row["Peak Month"] if pd.notna(row["Peak Month"]) else "",
-        "ndvi_pct_fill": float(row["% Gapfilled"]),
-    }
+    stats = _stats_row_to_dict(row, "ndvi")
     return stats, decomp_df[["date", "observed", "trend", "seasonal"]]
 
 
 @st.cache_data
 def _msavi_stats(
     aoi_path: str, start_year: int, end_year: int
-) -> tuple[dict[str, float], pd.DataFrame]:
+) -> tuple[dict[str, float | str], pd.DataFrame]:
     """Return MSAVI stats and monthly time series for ``aoi_path``."""
     with _suppress_timeseries_logging():
         ts_df = download_timeseries(
@@ -442,8 +457,5 @@ def _msavi_stats(
     ts_bytes = _df_to_bytes(ts.df)
     stats_df = compute_summary_stats(ts_bytes, value_col="mean_msavi").to_dataframe()
     row = stats_df.iloc[0]
-    stats = {
-        "msavi_mean": float(row["Mean MSAVI"]),
-        "msavi_std": float(row["Std MSAVI"]),
-    }
+    stats = _stats_row_to_dict(row, "msavi")
     return stats, ts.df

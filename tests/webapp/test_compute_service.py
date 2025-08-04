@@ -5,8 +5,12 @@ import geopandas as gpd
 from shapely.geometry import Polygon
 from dataclasses import fields
 
+import numpy as np
+import pytest
+
 from verdesat.webapp.components.kpi_cards import Metrics
 from verdesat.webapp.services.compute import ComputeService
+import verdesat.webapp.services.compute as compute_module
 from verdesat.biodiv.bscore import BScoreCalculator
 from verdesat.services.msa import MSAService
 from verdesat.core.storage import StorageAdapter
@@ -171,3 +175,24 @@ def test_compute_live_metrics_multi_aoi_project(monkeypatch):
     svc.compute_live_metrics(gdf, start_year=2020, end_year=2021)
 
     assert len(created["aois"]) == 2
+
+
+def test_msavi_stats_returns_full_metrics(monkeypatch):
+    df = pd.DataFrame(
+        {
+            "id": [1] * 12,
+            "date": pd.date_range("2020-01-01", periods=12, freq="M"),
+            "mean_msavi": np.linspace(0.0, 1.0, 12),
+        }
+    )
+    monkeypatch.setattr(
+        compute_module,
+        "download_timeseries",
+        lambda *a, **k: df,
+    )
+
+    stats, _ = compute_module._msavi_stats("dummy.geojson", 2020, 2020)
+    assert stats["msavi_min"] == pytest.approx(df["mean_msavi"].min())
+    assert stats["msavi_max"] == pytest.approx(df["mean_msavi"].max())
+    assert stats["msavi_median"] == pytest.approx(df["mean_msavi"].median())
+    assert "msavi_std" in stats
