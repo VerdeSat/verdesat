@@ -70,6 +70,9 @@ def test_compute_invokes_chip_service_and_aggregates(monkeypatch):
         return (
             {
                 "ndvi_mean": 1.0,
+                "ndvi_median": 1.0,
+                "ndvi_min": 1.0,
+                "ndvi_max": 1.0,
                 "ndvi_std": 0.1,
                 "ndvi_slope": 0.0,
                 "ndvi_delta": 0.0,
@@ -89,7 +92,13 @@ def test_compute_invokes_chip_service_and_aggregates(monkeypatch):
 
     def fake_msavi(path, s, e):
         return (
-            {"msavi_mean": 2.0, "msavi_std": 0.2},
+            {
+                "msavi_mean": 2.0,
+                "msavi_median": 2.0,
+                "msavi_min": 2.0,
+                "msavi_max": 2.0,
+                "msavi_std": 0.2,
+            },
             pd.DataFrame({"date": [s], "mean_msavi": [0.2]}),
         )
 
@@ -136,6 +145,9 @@ def test_compute_uses_cache(monkeypatch):
             {
                 "id": ["1"],
                 "ndvi_mean": [1.0],
+                "ndvi_median": [1.0],
+                "ndvi_min": [1.0],
+                "ndvi_max": [1.0],
                 "ndvi_std": [0.1],
                 "ndvi_slope": [0.0],
                 "ndvi_delta": [0.0],
@@ -143,6 +155,9 @@ def test_compute_uses_cache(monkeypatch):
                 "ndvi_peak": ["Jan"],
                 "ndvi_pct_fill": [0.0],
                 "msavi_mean": [2.0],
+                "msavi_median": [2.0],
+                "msavi_min": [2.0],
+                "msavi_max": [2.0],
                 "msavi_std": [0.2],
             }
         ),
@@ -154,6 +169,9 @@ def test_compute_uses_cache(monkeypatch):
             "1": {
                 "id": "1",
                 "ndvi_mean": 1.0,
+                "ndvi_median": 1.0,
+                "ndvi_min": 1.0,
+                "ndvi_max": 1.0,
                 "ndvi_std": 0.1,
                 "ndvi_slope": 0.0,
                 "ndvi_delta": 0.0,
@@ -161,6 +179,9 @@ def test_compute_uses_cache(monkeypatch):
                 "ndvi_peak": "Jan",
                 "ndvi_pct_fill": 0.0,
                 "msavi_mean": 2.0,
+                "msavi_median": 2.0,
+                "msavi_min": 2.0,
+                "msavi_max": 2.0,
                 "msavi_std": 0.2,
             }
         },
@@ -207,6 +228,9 @@ def test_compute_recomputes_legacy_cache(monkeypatch):
         return (
             {
                 "ndvi_mean": 1.0,
+                "ndvi_median": 1.0,
+                "ndvi_min": 1.0,
+                "ndvi_max": 1.0,
                 "ndvi_std": 0.1,
                 "ndvi_slope": 0.0,
                 "ndvi_delta": 0.0,
@@ -226,7 +250,13 @@ def test_compute_recomputes_legacy_cache(monkeypatch):
 
     def fake_msavi(path, s, e):  # pragma: no cover - simple
         return (
-            {"msavi_mean": 2.0, "msavi_std": 0.2},
+            {
+                "msavi_mean": 2.0,
+                "msavi_median": 2.0,
+                "msavi_min": 2.0,
+                "msavi_max": 2.0,
+                "msavi_std": 0.2,
+            },
             pd.DataFrame({"date": [s], "mean_msavi": [0.2]}),
         )
 
@@ -238,6 +268,9 @@ def test_compute_recomputes_legacy_cache(monkeypatch):
     assert chip_service.calls
     required = {
         "ndvi_mean",
+        "ndvi_median",
+        "ndvi_min",
+        "ndvi_max",
         "ndvi_std",
         "ndvi_slope",
         "ndvi_delta",
@@ -245,6 +278,9 @@ def test_compute_recomputes_legacy_cache(monkeypatch):
         "ndvi_peak",
         "ndvi_pct_fill",
         "msavi_mean",
+        "msavi_median",
+        "msavi_min",
+        "msavi_max",
         "msavi_std",
     }
     assert required <= set(metrics_df.columns)
@@ -280,6 +316,9 @@ def test_ndvi_stats_returns_required_metrics(monkeypatch):
     stats_df = pd.DataFrame(
         {
             "Mean NDVI": [0.2],
+            "Median NDVI": [0.2],
+            "Min NDVI": [0.2],
+            "Max NDVI": [0.2],
             "Std NDVI": [0.1],
             "Sen's Slope (NDVI/yr)": [0.0],
             "Trend ΔNDVI": [0.0],
@@ -298,6 +337,9 @@ def test_ndvi_stats_returns_required_metrics(monkeypatch):
     stats, df_out = project_compute._ndvi_stats("dummy.geojson", 2020, 2020)
     assert set(stats.keys()) == {
         "ndvi_mean",
+        "ndvi_median",
+        "ndvi_min",
+        "ndvi_max",
         "ndvi_std",
         "ndvi_slope",
         "ndvi_delta",
@@ -327,7 +369,15 @@ def test_msavi_stats_returns_required_metrics(monkeypatch):
 
     monkeypatch.setattr(project_compute, "TimeSeries", DummyTS)
 
-    stats_df = pd.DataFrame({"Mean MSAVI": [0.3], "Std MSAVI": [0.1]})
+    stats_df = pd.DataFrame(
+        {
+            "Mean MSAVI": [0.3],
+            "Median MSAVI": [0.3],
+            "Min MSAVI": [0.3],
+            "Max MSAVI": [0.3],
+            "Std MSAVI": [0.1],
+        }
+    )
     monkeypatch.setattr(
         project_compute,
         "compute_summary_stats",
@@ -335,5 +385,70 @@ def test_msavi_stats_returns_required_metrics(monkeypatch):
     )
 
     stats, ts_df = project_compute._msavi_stats("dummy.geojson", 2020, 2020)
-    assert stats == {"msavi_mean": 0.3, "msavi_std": 0.1}
+    assert stats == {
+        "msavi_mean": 0.3,
+        "msavi_median": 0.3,
+        "msavi_min": 0.3,
+        "msavi_max": 0.3,
+        "msavi_std": 0.1,
+    }
     assert ts_df.equals(df)
+
+
+def test_ndvi_stats_handles_missing_decomposition(monkeypatch):
+    df = pd.DataFrame(
+        {"id": [1], "date": [pd.Timestamp("2020-01-01")], "mean_ndvi": [0.1]}
+    )
+    monkeypatch.setattr(project_compute, "download_timeseries", lambda *a, **k: df)
+
+    class DummyTS:
+        def __init__(self, df: pd.DataFrame):
+            self.df = df
+
+        @classmethod
+        def from_dataframe(cls, df: pd.DataFrame, index: str):
+            return cls(df)
+
+        def fill_gaps(self):
+            return self
+
+        def decompose(self, period: int):
+            return {}
+
+    monkeypatch.setattr(project_compute, "TimeSeries", DummyTS)
+
+    stats_df = pd.DataFrame(
+        {
+            "Mean NDVI": [0.1],
+            "Median NDVI": [0.1],
+            "Min NDVI": [0.1],
+            "Max NDVI": [0.1],
+            "Std NDVI": [0.0],
+            "Sen's Slope (NDVI/yr)": [float("nan")],
+            "Trend ΔNDVI": [float("nan")],
+            "Mann–Kendall p-value": [float("nan")],
+            "Peak Month": [pd.NA],
+            "% Gapfilled": [0.0],
+        }
+    )
+
+    monkeypatch.setattr(
+        project_compute,
+        "compute_summary_stats",
+        lambda *a, **k: SimpleNamespace(to_dataframe=lambda: stats_df),
+    )
+
+    stats, df_out = project_compute._ndvi_stats("dummy.geojson", 2020, 2020)
+    assert {
+        "ndvi_mean",
+        "ndvi_median",
+        "ndvi_min",
+        "ndvi_max",
+        "ndvi_std",
+        "ndvi_slope",
+        "ndvi_delta",
+        "ndvi_p_value",
+        "ndvi_peak",
+        "ndvi_pct_fill",
+    } == set(stats.keys())
+    assert list(df_out.columns) == ["date", "observed", "trend", "seasonal"]

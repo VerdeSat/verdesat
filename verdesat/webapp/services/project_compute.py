@@ -14,7 +14,7 @@ import tempfile
 import io
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Dict, Tuple, Protocol, cast
+from typing import Any, Dict, Tuple, Protocol, cast
 
 import geopandas as gpd
 import pandas as pd
@@ -122,6 +122,9 @@ def _stats_row_to_dict(row: pd.Series, index: str) -> dict[str, float | str]:
     label = index.upper()
     stats: dict[str, float | str] = {
         f"{index}_mean": float(row[f"Mean {label}"]),
+        f"{index}_median": float(row[f"Median {label}"]),
+        f"{index}_min": float(row[f"Min {label}"]),
+        f"{index}_max": float(row[f"Max {label}"]),
         f"{index}_std": float(row[f"Std {label}"]),
     }
     if index == "ndvi":
@@ -157,24 +160,38 @@ def _ndvi_stats(
         )
     ts = TimeSeries.from_dataframe(ts_df, index="ndvi").fill_gaps()
     decomp = ts.decompose(period=12)
-    pid = ts.df["id"].iloc[0]
-    res = decomp.get(pid)
-    if res is None:  # pragma: no cover - requires non-empty series
-        raise ValueError("decomposition failed")
-    decomp_df = pd.DataFrame(
-        {
-            "date": res.observed.index,
-            "observed": res.observed.values,
-            "trend": res.trend.values,
-            "seasonal": res.seasonal.values,
-            "resid": res.resid.values,
-        }
-    )
+    pid_raw = ts.df["id"].iloc[0]
+    pid = int(pid_raw)
+    res = decomp.get(str(pid_raw))
+    if res is None:
+        res = cast(dict[Any, Any], decomp).get(pid)
+    if res is not None:
+        decomp_df = pd.DataFrame(
+            {
+                "date": res.observed.index,
+                "observed": res.observed.values,
+                "trend": res.trend.values,
+                "seasonal": res.seasonal.values,
+                "resid": res.resid.values,
+            }
+        )
+        decomp_bytes = _df_to_bytes(decomp_df)
+        decomp_dir: dict[int, io.BytesIO] | None = {pid: decomp_bytes}
+    else:
+        decomp_df = pd.DataFrame(
+            {
+                "date": ts.df["date"],
+                "observed": ts.df["mean_ndvi"],
+                "trend": float("nan"),
+                "seasonal": float("nan"),
+            }
+        )
+        decomp_dir = None
+
     ts_bytes = _df_to_bytes(ts.df)
-    decomp_bytes = _df_to_bytes(decomp_df)
     stats_df = compute_summary_stats(
         ts_bytes,
-        decomp_dir={int(pid): decomp_bytes},
+        decomp_dir=decomp_dir,
         value_col="mean_ndvi",
         period=12,
     ).to_dataframe()
@@ -306,6 +323,9 @@ class ProjectComputeService:
             else:
                 required = {
                     "ndvi_mean",
+                    "ndvi_median",
+                    "ndvi_min",
+                    "ndvi_max",
                     "ndvi_std",
                     "ndvi_slope",
                     "ndvi_delta",
@@ -313,6 +333,9 @@ class ProjectComputeService:
                     "ndvi_peak",
                     "ndvi_pct_fill",
                     "msavi_mean",
+                    "msavi_median",
+                    "msavi_min",
+                    "msavi_max",
                     "msavi_std",
                 }
                 if required.issubset(metrics_df.columns):
