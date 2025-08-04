@@ -189,6 +189,7 @@ class ChipExporter:
             )
         # Diagnostic: log final raster path and existence after COG conversion (or not)
         from pathlib import Path
+
         self.logger.debug(
             "ChipExporter → final raster path %s (exists=%s)",
             out_path,
