@@ -89,9 +89,10 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         (aoi_gdf.to_json() + json.dumps(rasters, sort_keys=True)).encode("utf-8")
     ).hexdigest()
 
-    if (
-        st.session_state.get("map_layers_key") != layers_key
-        or "main_map" not in st.session_state
+    cached_map = st.session_state.get("map_obj")
+
+    if st.session_state.get("map_layers_key") != layers_key or not isinstance(
+        cached_map, folium.Map
     ):
         bounds_arr = aoi_gdf.total_bounds.reshape(2, 2)
         m = folium.Map(tiles="CartoDB positron")
@@ -135,7 +136,7 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
 
         m.fit_bounds(bounds_arr.tolist())
 
-        st.session_state["main_map"] = m
+        st.session_state["map_obj"] = m
         st.session_state["map_layers_key"] = layers_key
 
-    st_folium(st.session_state["main_map"], width="100%", height=500, key="main_map")
+    st_folium(st.session_state["map_obj"], width="100%", height=500, key="main_map")
