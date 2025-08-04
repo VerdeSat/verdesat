@@ -11,6 +11,7 @@ import folium
 import numpy as np
 import rasterio
 from PIL import Image
+from folium import FeatureGroup
 from folium.raster_layers import ImageOverlay, TileLayer
 from streamlit_folium import st_folium
 import streamlit as st
@@ -98,6 +99,13 @@ def _local_overlay(path: str, *, name: str | None = None) -> ImageOverlay:
 
 
 def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
+    """Render Folium map with AOI boundaries and VI layers.
+
+    The map object is cached in ``st.session_state`` so user interactions like
+    panning and zooming persist across Streamlit reruns. A new map is
+    constructed only when the AOI geometry or attached rasters change.
+    """
+
     layers_key = hashlib.sha256(
         (aoi_gdf.to_json() + json.dumps(rasters, sort_keys=True)).encode("utf-8")
     ).hexdigest()
@@ -109,7 +117,6 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
     cached_key = st.session_state.get("map_layers_key")
     cached_map = st.session_state.get("map_obj")
 
-    # REVERT to WORKING BEHAVIOR:
     if cached_key != layers_key or not isinstance(cached_map, folium.Map):
         bounds_arr = aoi_gdf.total_bounds.reshape(2, 2)
         centre = [
@@ -126,40 +133,47 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
                 "fill": False,
             },
         ).add_to(m)
-        aois_layer_added = True
-        ndvi_layer_added = False
-        msavi_layer_added = False
+
+        ndvi_group = FeatureGroup(name="NDVI 2024")
+        msavi_group = FeatureGroup(name="MSAVI 2024")
+        ndvi_added = False
+        msavi_added = False
+
         for layers in rasters.values():
             ndvi_key = layers.get("ndvi")
             if ndvi_key:
-                name = "NDVI 2024"
                 ndvi_path = _resolve_cog_path(ndvi_key)
                 if ndvi_path:
-                    _local_overlay(str(ndvi_path), name=name).add_to(m)
+                    _local_overlay(str(ndvi_path)).add_to(ndvi_group)
                 else:
                     TileLayer(
                         tiles=_cog_to_tile_url(ndvi_key),
                         overlay=True,
                         attr="Sentinel-2",
-                        name=name,
-                    ).add_to(m)
-                ndvi_layer_added = True
+                        control=False,
+                    ).add_to(ndvi_group)
+                ndvi_added = True
+
             msavi_key = layers.get("msavi")
             if msavi_key:
-                name = "MSAVI 2024"
                 msavi_path = _resolve_cog_path(msavi_key)
                 if msavi_path:
-                    _local_overlay(str(msavi_path), name=name).add_to(m)
+                    _local_overlay(str(msavi_path)).add_to(msavi_group)
                 else:
                     TileLayer(
                         tiles=_cog_to_tile_url(msavi_key),
                         overlay=True,
                         attr="Sentinel-2",
-                        name=name,
-                    ).add_to(m)
-                msavi_layer_added = True
-        if aois_layer_added or ndvi_layer_added or msavi_layer_added:
-            folium.LayerControl(position="topright", collapsed=False).add_to(m)
+                        control=False,
+                    ).add_to(msavi_group)
+                msavi_added = True
+
+        if ndvi_added:
+            ndvi_group.add_to(m)
+        if msavi_added:
+            msavi_group.add_to(m)
+
+        folium.LayerControl(position="topright", collapsed=False).add_to(m)
         m.fit_bounds(bounds_arr.tolist())
         st.session_state["map_obj"] = m
         st.session_state["map_layers_key"] = layers_key
