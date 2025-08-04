@@ -132,7 +132,7 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
 
         for layers in rasters.values():
             ndvi_key = layers.get("ndvi")
-            if ndvi_key:
+            if ndvi_key and not ndvi_layer_added:
                 name = "NDVI 2024"
                 ndvi_path = _resolve_cog_path(ndvi_key)
                 if ndvi_path:
@@ -146,7 +146,7 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
                     ).add_to(m)
                 ndvi_layer_added = True
             msavi_key = layers.get("msavi")
-            if msavi_key:
+            if msavi_key and not msavi_layer_added:
                 name = "MSAVI 2024"
                 msavi_path = _resolve_cog_path(msavi_key)
                 if msavi_path:
@@ -159,6 +159,8 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
                         name=name,
                     ).add_to(m)
                 msavi_layer_added = True
+            if ndvi_layer_added and msavi_layer_added:
+                break
 
         if ndvi_layer_added or msavi_layer_added:
             folium.LayerControl(position="topright", collapsed=False).add_to(m)
