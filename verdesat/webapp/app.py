@@ -46,7 +46,6 @@ project_compute = ProjectComputeService(
 )
 
 
-@st.cache_data
 def load_demo_project() -> Project:
     """Load demo project from bundled GeoJSON and attach demo rasters."""
 
@@ -70,7 +69,6 @@ def load_demo_project() -> Project:
     return project
 
 
-@st.cache_data(hash_funcs={Project: project_compute._hash_project})
 def compute_project(project: Project, start_year: int, end_year: int) -> tuple[
     pd.DataFrame,
     pd.DataFrame,
@@ -82,8 +80,8 @@ def compute_project(project: Project, start_year: int, end_year: int) -> tuple[
     """Compute metrics and vegetation indices for *project*.
 
     The returned tuple includes per-AOI raster paths and metrics so callers can
-    reattach them to freshly initialised :class:`Project` instances on cache
-    hits where the function body is not executed.
+    reattach them to freshly initialised :class:`Project` instances when
+    rebuilding state from persisted caches.
     """
 
     metrics_df, ndvi_df, msavi_df = project_compute.compute(
