@@ -125,6 +125,38 @@ st.set_page_config(page_title="VerdeSat B-Score", page_icon="🌳", layout="wide
 # ---- Sidebar ---------------------------------------------------------------
 st.sidebar.header("VerdeSat B-Score v0.1")
 
+# ---- Dev log pane ---------------------------------------------------------
+
+
+class StreamlitHandler(logging.Handler):
+    """Stream logging records to a Streamlit code block."""
+
+    def __init__(self, container: st.delta_generator.DeltaGenerator) -> None:
+        super().__init__()
+        self.container = container
+        self.lines: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - UI
+        self.lines.append(self.format(record))
+        self.container.code("\n".join(self.lines))
+
+
+show_log = st.sidebar.checkbox("Show log pane")
+root_logger = logging.getLogger()
+existing_handler = cast(logging.Handler | None, st.session_state.get("log_handler"))
+if show_log:
+    log_container = st.empty()
+    if existing_handler:
+        root_logger.removeHandler(existing_handler)
+    handler = StreamlitHandler(log_container)
+    handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+    root_logger.addHandler(handler)
+    st.session_state["log_handler"] = handler
+else:
+    if existing_handler:
+        root_logger.removeHandler(existing_handler)
+        st.session_state.pop("log_handler")
+
 # --- Compute trigger --------------------------------------------------
 if "run_requested" not in st.session_state:
     st.session_state["run_requested"] = False
@@ -274,26 +306,3 @@ elif "results" in st.session_state:
         msavi_bar_chart_all(msavi_df, start_year=start_year, end_year=end_year)
 else:
     st.info("Adjust parameters, then press **Run analysis**.")
-
-# ---- Dev log pane ---------------------------------------------------------
-log_handler: logging.Handler | None = None
-if st.sidebar.checkbox("Show log pane"):
-    log_container = st.empty()
-
-    class StreamlitHandler(logging.Handler):
-        """Stream logging records to a Streamlit code block."""
-
-        def __init__(self, container: st.delta_generator.DeltaGenerator) -> None:
-            super().__init__()
-            self.container = container
-            self.lines: list[str] = []
-
-        def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - UI
-            self.lines.append(self.format(record))
-            self.container.code("\n".join(self.lines))
-
-    log_handler = StreamlitHandler(log_container)
-    logging.getLogger().addHandler(log_handler)
-
-if log_handler is not None:  # pragma: no cover - UI
-    logging.getLogger().removeHandler(log_handler)
