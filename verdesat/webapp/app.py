@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Streamlit dashboard for visualising VerdeSat project metrics."""
+__doc__ = "Streamlit dashboard for visualising VerdeSat project metrics."
 
 import json
 import logging

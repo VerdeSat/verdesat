@@ -6,7 +6,7 @@ import streamlit as st
 
 NAV_LINKS: tuple[tuple[str, str], ...] = (
     ("Book a Demo", "https://calendly.com/andreydara/meet-verdesat"),
-    ("Home", "https://www.verdesat.com"),
+    ("VerdeSat", "https://www.verdesat.com"),
 )
 
 
