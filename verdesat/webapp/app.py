@@ -29,6 +29,12 @@ from verdesat.webapp.services.chip_service import EEChipServiceAdapter
 from verdesat.webapp.services.project_compute import ProjectComputeService
 from verdesat.webapp.services.r2 import signed_url
 from verdesat.webapp.services.exports import export_project_pdf
+from verdesat.webapp.themes import (
+    inject_style,
+    render_hero,
+    render_navbar,
+    section,
+)
 
 logger = Logger.get_logger(__name__)
 
@@ -119,6 +125,9 @@ def report_controls(
 
 # ---- Page config -----------------------------------------------------------
 st.set_page_config(page_title="VerdeSat B-Score", page_icon="🌳", layout="wide")
+inject_style()
+render_navbar()
+render_hero()
 
 # ---- Sidebar ---------------------------------------------------------------
 st.sidebar.header("VerdeSat B-Score v0.1")
@@ -203,11 +212,9 @@ if _demo_cfg and st.session_state.get("project") and not uploaded_file:
 project: Project | None = st.session_state.get("project")
 
 # ---- Main canvas -----------------------------------------------------------
-st.title("VerdeSat Biodiversity Dashboard")
-col1, col2 = st.columns([3, 1])
-
 if project is None:
-    st.info("Upload a GeoJSON file or load the demo project to begin.")
+    with section():
+        st.info("Upload a GeoJSON file or load the demo project to begin.")
 elif st.session_state.get("run_requested"):
     (
         metrics_df,
@@ -218,14 +225,10 @@ elif st.session_state.get("run_requested"):
         metrics_by_id,
     ) = compute_project(project, start_year, end_year)
 
-    # Reattach artefacts when results are served from cache.
     project.attach_rasters(ndvi_paths, msavi_paths)
     project.attach_metrics(metrics_by_id)
-
-    # Clear the flag so slider tweaks alone don’t recompute
     st.session_state["run_requested"] = False
 
-    # Cache results in session_state so they persist on subsequent reruns
     gdf = gpd.GeoDataFrame(
         [{**a.static_props, "geometry": a.geometry} for a in project.aois],
         crs="EPSG:4326",
@@ -242,32 +245,36 @@ elif st.session_state.get("run_requested"):
         "metrics": metrics,
     }
 
-    with col1:
-        display_map(gdf, project.rasters)
-    with col2:
-        bscore_gauge(metrics.bscore)
+    with section():
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            display_map(gdf, project.rasters)
+        with col2:
+            bscore_gauge(metrics.bscore)
 
-    st.markdown("---")
-    display_metrics(metrics)
-    st.dataframe(metrics_df)
-    report_controls(metrics_df, project, start_year, end_year)
+    with section(alt=True):
+        display_metrics(metrics)
+        st.dataframe(metrics_df)
+        report_controls(metrics_df, project, start_year, end_year)
 
-    st.markdown("---")
-    tab_obs, tab_trend, tab_season, tab_msavi = st.tabs(
-        ["NDVI Observed", "NDVI Trend", "NDVI Seasonal", "MSAVI YE"]
-    )
-    with tab_obs:
-        ndvi_component_chart(
-            ndvi_df, "observed", start_year=start_year, end_year=end_year
+    with section():
+        tab_obs, tab_trend, tab_season, tab_msavi = st.tabs(
+            ["NDVI Observed", "NDVI Trend", "NDVI Seasonal", "MSAVI YE"]
         )
-    with tab_trend:
-        ndvi_component_chart(ndvi_df, "trend", start_year=start_year, end_year=end_year)
-    with tab_season:
-        ndvi_component_chart(
-            ndvi_df, "seasonal", start_year=start_year, end_year=end_year
-        )
-    with tab_msavi:
-        msavi_bar_chart_all(msavi_df, start_year=start_year, end_year=end_year)
+        with tab_obs:
+            ndvi_component_chart(
+                ndvi_df, "observed", start_year=start_year, end_year=end_year
+            )
+        with tab_trend:
+            ndvi_component_chart(
+                ndvi_df, "trend", start_year=start_year, end_year=end_year
+            )
+        with tab_season:
+            ndvi_component_chart(
+                ndvi_df, "seasonal", start_year=start_year, end_year=end_year
+            )
+        with tab_msavi:
+            msavi_bar_chart_all(msavi_df, start_year=start_year, end_year=end_year)
 elif "results" in st.session_state:
     res = st.session_state["results"]
     gdf = res["gdf"]
@@ -276,31 +283,36 @@ elif "results" in st.session_state:
     msavi_df = res["msavi_df"]
     metrics = res["metrics"]
 
-    with col1:
-        display_map(gdf, project.rasters)
-    with col2:
-        bscore_gauge(metrics.bscore)
+    with section():
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            display_map(gdf, project.rasters)
+        with col2:
+            bscore_gauge(metrics.bscore)
 
-    st.markdown("---")
-    display_metrics(metrics)
-    st.dataframe(metrics_df)
-    report_controls(metrics_df, project, start_year, end_year)
+    with section(alt=True):
+        display_metrics(metrics)
+        st.dataframe(metrics_df)
+        report_controls(metrics_df, project, start_year, end_year)
 
-    st.markdown("---")
-    tab_obs, tab_trend, tab_season, tab_msavi = st.tabs(
-        ["NDVI Observed", "NDVI Trend", "NDVI Seasonal", "MSAVI YE"]
-    )
-    with tab_obs:
-        ndvi_component_chart(
-            ndvi_df, "observed", start_year=start_year, end_year=end_year
+    with section():
+        tab_obs, tab_trend, tab_season, tab_msavi = st.tabs(
+            ["NDVI Observed", "NDVI Trend", "NDVI Seasonal", "MSAVI YE"]
         )
-    with tab_trend:
-        ndvi_component_chart(ndvi_df, "trend", start_year=start_year, end_year=end_year)
-    with tab_season:
-        ndvi_component_chart(
-            ndvi_df, "seasonal", start_year=start_year, end_year=end_year
-        )
-    with tab_msavi:
-        msavi_bar_chart_all(msavi_df, start_year=start_year, end_year=end_year)
+        with tab_obs:
+            ndvi_component_chart(
+                ndvi_df, "observed", start_year=start_year, end_year=end_year
+            )
+        with tab_trend:
+            ndvi_component_chart(
+                ndvi_df, "trend", start_year=start_year, end_year=end_year
+            )
+        with tab_season:
+            ndvi_component_chart(
+                ndvi_df, "seasonal", start_year=start_year, end_year=end_year
+            )
+        with tab_msavi:
+            msavi_bar_chart_all(msavi_df, start_year=start_year, end_year=end_year)
 else:
-    st.info("Adjust parameters, then press **Run analysis**.")
+    with section():
+        st.info("Adjust parameters, then press **Run analysis**.")
