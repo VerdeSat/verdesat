@@ -25,6 +25,11 @@ from verdesat.webapp.components.charts import (
 )
 from verdesat.webapp.components.kpi_cards import Metrics, bscore_gauge, display_metrics
 from verdesat.webapp.components.map_widget import display_map
+from verdesat.webapp.components.layout import (
+    apply_theme,
+    render_hero,
+    render_navbar,
+)
 from verdesat.webapp.services.chip_service import EEChipServiceAdapter
 from verdesat.webapp.services.project_compute import ProjectComputeService
 from verdesat.webapp.services.r2 import signed_url
@@ -119,6 +124,9 @@ def report_controls(
 
 # ---- Page config -----------------------------------------------------------
 st.set_page_config(page_title="VerdeSat B-Score", page_icon="🌳", layout="wide")
+apply_theme()
+render_navbar()
+render_hero("VerdeSat Biodiversity Dashboard")
 
 # ---- Sidebar ---------------------------------------------------------------
 st.sidebar.header("VerdeSat B-Score v0.1")
@@ -203,7 +211,6 @@ if _demo_cfg and st.session_state.get("project") and not uploaded_file:
 project: Project | None = st.session_state.get("project")
 
 # ---- Main canvas -----------------------------------------------------------
-st.title("VerdeSat Biodiversity Dashboard")
 col1, col2 = st.columns([3, 1])
 
 if project is None:
