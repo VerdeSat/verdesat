@@ -186,7 +186,6 @@ def test_compute_uses_cache(monkeypatch):
             }
         },
     )
-    project_compute.ProjectComputeService.compute.clear()
     monkeypatch.setattr(project_compute, "_load_cache", lambda storage, key: cached)
 
     result = svc.compute(project, date(2024, 1, 1), date(2024, 12, 31))
@@ -212,7 +211,6 @@ def test_compute_recomputes_legacy_cache(monkeypatch):
         pd.DataFrame(),
         pd.DataFrame(),
     )
-    project_compute.ProjectComputeService.compute.clear()
     monkeypatch.setattr(
         project_compute, "_load_cache", lambda storage, key: legacy_cached
     )

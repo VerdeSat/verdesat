@@ -18,7 +18,6 @@ from typing import Any, Dict, Tuple, Protocol, cast
 
 import geopandas as gpd
 import pandas as pd
-import streamlit as st
 from shapely.geometry import mapping
 
 try:  # pragma: no cover - optional dependency
@@ -142,7 +141,6 @@ def _stats_row_to_dict(row: pd.Series, index: str) -> dict[str, float | str]:
     return stats
 
 
-@st.cache_data
 def _ndvi_stats(
     aoi_path: str, start_year: int, end_year: int
 ) -> tuple[dict[str, float | str], pd.DataFrame]:
@@ -200,7 +198,6 @@ def _ndvi_stats(
     return stats, decomp_df[["date", "observed", "trend", "seasonal"]]
 
 
-@st.cache_data
 def _msavi_stats(
     aoi_path: str, start_year: int, end_year: int
 ) -> tuple[dict[str, float | str], pd.DataFrame]:
@@ -274,25 +271,13 @@ class ProjectComputeService:
         return self._hash_project(project)
 
     # ------------------------------------------------------------------
-    @st.cache_data(
-        show_spinner=False,
-        hash_funcs={
-            Project: _hash_project,
-            MSAService: lambda _svc: 0,
-            BScoreCalculator: lambda _svc: 0,
-            StorageAdapter: lambda _svc: 0,
-            ChipService: lambda _svc: 0,
-            ConfigManager: lambda _svc: 0,
-            Logger: lambda _svc: 0,
-        },
-    )
     def compute(
         _self, project: Project, start: date, end: date
     ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """Compute biodiversity metrics and vegetation indices for *project*.
 
-        Results are cached both in-memory via Streamlit and persisted via
-        :func:`_persist_cache` to avoid recomputation.
+        Results are persisted via :func:`_persist_cache` to avoid
+        recomputation.
         """
 
         cache_key = f"project_{_self._project_hash(project)}_{start}_{end}"
