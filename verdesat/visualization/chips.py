@@ -156,7 +156,7 @@ class ChipExporter:
                 ext = "png"
             else:
                 url = clipped.getDownloadURL(viz_params)
-                ext = "tiff"
+                ext = "tif"
         except EEException as ee_err:
             self.logger.error(
                 "Failed to get URL for %s on %s: %s", pid, date_str, ee_err
@@ -165,6 +165,9 @@ class ChipExporter:
 
         filename = f"{com_type}_{pid}_{date_str}.{ext}"
         out_path = self.storage.join(self.out_dir, filename)
+        self.logger.debug(
+            "ChipExporter → download %s ➜ %s", url.split("?")[0], out_path
+        )
 
         try:
             resp = requests.get(url, timeout=60)
@@ -184,6 +187,14 @@ class ChipExporter:
                 geometry=aoi.geometry,
                 logger=self.logger,
             )
+        # Diagnostic: log final raster path and existence after COG conversion (or not)
+        from pathlib import Path
+
+        self.logger.debug(
+            "ChipExporter → final raster path %s (exists=%s)",
+            out_path,
+            Path(out_path).exists(),
+        )
 
         return out_path
 

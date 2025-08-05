@@ -52,3 +52,7 @@ venv/
 
 # Data
 data/
+
+# Cache
+cache/
+chips/

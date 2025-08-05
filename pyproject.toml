@@ -40,6 +40,7 @@ streamlit = "^1.47.1"
 streamlit-folium = "^0.25.0"
 folium = "^0.20.0"
 reportlab = "^4.2.2"
+watchdog = "^6.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"

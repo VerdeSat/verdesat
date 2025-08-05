@@ -9,14 +9,12 @@ import streamlit as st
 from verdesat.webapp.services.r2 import signed_url
 
 
-@st.cache_data
 def load_ndvi_decomposition(aoi_id: int) -> pd.DataFrame:
     """Load NDVI decomposition CSV for ``aoi_id`` from R2."""
     url = signed_url(f"resources/decomp/{aoi_id}_decomposition.csv")
     return pd.read_csv(url, parse_dates=["date"])
 
 
-@st.cache_data
 def load_msavi_timeseries() -> pd.DataFrame:
     """Load MSAVI time series CSV from R2."""
     url = signed_url("resources/msavi.csv")
@@ -67,7 +65,8 @@ def ndvi_decomposition_chart(
             ]
         )
     fig.update_layout(margin=dict(l=0, r=0, t=10, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    key = f"ndvi_decomp_{hash(aoi_id) if aoi_id is not None else id(data)}"
+    st.plotly_chart(fig, use_container_width=True, key=key)
 
 
 def msavi_bar_chart(
@@ -110,4 +109,62 @@ def msavi_bar_chart(
         yaxis_title="MSAVI",
         margin=dict(l=0, r=0, t=10, b=0),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    key = f"msavi_single_{hash(tuple(df['id'].unique()))}"
+    st.plotly_chart(fig, use_container_width=True, key=key)
+
+
+def ndvi_component_chart(
+    data: pd.DataFrame,
+    component: str,
+    *,
+    start_year: int | None = None,
+    end_year: int | None = None,
+) -> None:
+    """Plot a single NDVI ``component`` for all AOIs."""
+
+    df = data.copy()
+    if start_year is not None and end_year is not None:
+        mask = (df["date"].dt.year >= start_year) & (df["date"].dt.year <= end_year)
+        df = df.loc[mask]
+
+    fig = go.Figure()
+    for aoi_id, grp in df.groupby("id"):
+        fig.add_trace(go.Scatter(x=grp["date"], y=grp[component], name=str(aoi_id)))
+
+    fig.update_layout(margin=dict(l=0, r=0, t=10, b=0))
+    key = f"ndvi_{component}_{hash(tuple(sorted(df['id'].unique())))}"
+    st.plotly_chart(fig, use_container_width=True, key=key)
+
+
+def msavi_bar_chart_all(
+    data: pd.DataFrame,
+    *,
+    start_year: int | None = None,
+    end_year: int | None = None,
+) -> None:
+    """Render annual mean MSAVI for all AOIs as grouped bars."""
+
+    df = data.copy()
+    if start_year is not None and end_year is not None:
+        mask = (df["date"].dt.year >= start_year) & (df["date"].dt.year <= end_year)
+        df = df.loc[mask]
+
+    value_col = next((c for c in ("mean_msavi", "msavi") if c in df.columns), None)
+    if value_col is None:
+        value_col = df.columns[1]
+
+    df["year"] = df["date"].dt.year
+    agg = df.groupby(["year", "id"])[value_col].mean().reset_index()
+
+    fig = go.Figure()
+    for aoi_id, grp in agg.groupby("id"):
+        fig.add_trace(go.Bar(x=grp["year"], y=grp[value_col], name=str(aoi_id)))
+
+    fig.update_layout(
+        barmode="group",
+        xaxis_title="Year",
+        yaxis_title="MSAVI",
+        margin=dict(l=0, r=0, t=10, b=0),
+    )
+    key = f"msavi_all_{hash(tuple(sorted(df['id'].unique())))}"
+    st.plotly_chart(fig, use_container_width=True, key=key)

@@ -185,7 +185,7 @@ def test_download_writes_file(tmp_path, monkeypatch, dummy_aoi):
     svc = LandcoverService(ee_manager_instance=mgr, storage=storage)
     svc.download(dummy_aoi, 2021, str(tmp_path))
 
-    out = tmp_path / "LANDCOVER_1_2021.tiff"
+    out = tmp_path / "LANDCOVER_1_2021.tif"
     assert storage.calls and storage.calls[0][0] == str(out)
     assert storage.calls[0][1] == b"DATA"
     assert out.exists() and out.read_bytes() == b"DATA"
@@ -286,7 +286,7 @@ def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
     svc = LandcoverService(ee_manager_instance=mgr2, storage=storage)
     svc.download(dummy_aoi, LandcoverService.LATEST_ESRI_YEAR, str(tmp_path))
 
-    out = tmp_path / f"LANDCOVER_1_{LandcoverService.LATEST_ESRI_YEAR}.tiff"
+    out = tmp_path / f"LANDCOVER_1_{LandcoverService.LATEST_ESRI_YEAR}.tif"
     assert storage.calls and storage.calls[0][0] == str(out)
     assert years[0] == LandcoverService.LATEST_ESRI_YEAR
     assert years[1] > LandcoverService.LATEST_ESRI_YEAR
