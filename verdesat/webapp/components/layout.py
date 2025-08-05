@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+# (label, url) pairs used to build the navbar. The "Book a Demo" link is
+# styled separately from the main site link.
 NAV_LINKS: tuple[tuple[str, str], ...] = (
     ("Book a Demo", "https://calendly.com/andreydara/meet-verdesat"),
     ("VerdeSat", "https://www.verdesat.com"),
@@ -26,15 +28,18 @@ def apply_theme() -> None:
         header {visibility: hidden;}
         .vs-navbar {position: fixed; top: 0; left: 0; right: 0; background: rgba(255,255,255,0.8); backdrop-filter: blur(6px); height: 56px; padding: 8px 24px; display: flex; align-items: center; z-index: 1000; box-shadow: 0 1px 2px rgba(0,0,0,0.05);}
         .vs-navbar img {height: 32px; margin-right: 8px;}
-        .vs-navbar a {
+        .vs-nav-links {margin-left: auto; display: flex; align-items: center;}
+        .vs-nav-links a {
             color: #14213D;
             margin-left: 24px;
             text-decoration: none;
             font-family: 'Montserrat', sans-serif;
             font-weight: 600;
         }
-        .vs-navbar a:hover {color: #2B6E3F;}
-        .vs-hero {margin-top: 56px; background: linear-gradient(180deg, rgba(19,78,74,0.5), rgba(19,78,74,0.5) 50%, #134E4A), url('https://www.verdesat.com/images/hero-sat-screen.webp'); background-size: cover; background-position: center; padding: 96px 24px; text-align: center; color: #FFFFFF;}
+        .vs-nav-links a.book-demo {color: #111827; font-weight: 400;}
+        .vs-nav-links a:hover {color: #2B6E3F;}
+        .vs-hero {background: linear-gradient(180deg, rgba(19,78,74,0.5), rgba(19,78,74,0.5) 50%, #134E4A), url('https://www.verdesat.com/images/hero-sat-screen.webp'); background-size: cover; background-position: center; padding: 96px 24px; text-align: center; color: #FFFFFF;}
+        div[data-testid="collapsedControl"] {top: 64px; z-index: 2000;}
         div.block-container > div:nth-child(even):not(.vs-hero) {background-color: #FFFFFF;}
         div.block-container > div:nth-child(odd):not(.vs-hero) {background-color: #F8F9FA;}
         div.block-container > div:not(.vs-hero) {padding: 32px 24px;}
@@ -54,15 +59,16 @@ def apply_theme() -> None:
 def render_navbar() -> None:
     """Render the fixed top navigation bar."""
 
-    links = "".join(
-        f'<a href="{url}" target="_blank" rel="noopener noreferrer">{label}</a>'
+    links_html = "".join(
+        f"<a class='{ 'book-demo' if label == 'Book a Demo' else '' }' "
+        f'href="{url}" target="_blank" rel="noopener noreferrer">{label}</a>'
         for label, url in NAV_LINKS
     )
     st.markdown(
         f"""
         <nav class="vs-navbar">
             <img src="https://www.verdesat.com/favicon.svg" alt="VerdeSat logo" />
-            {links}
+            <div class="vs-nav-links">{links_html}</div>
         </nav>
         """,
         unsafe_allow_html=True,

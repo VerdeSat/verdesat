@@ -129,7 +129,7 @@ render_navbar()
 render_hero("VerdeSat Biodiversity Dashboard")
 
 # ---- Sidebar ---------------------------------------------------------------
-st.sidebar.header("VerdeSat B-Score v0.1")
+st.sidebar.header("VerdeSat B-Score v0.1.2")
 
 # ---- Dev log pane ---------------------------------------------------------
 
@@ -147,6 +147,47 @@ class StreamlitHandler(logging.Handler):
         self.container.code("\n".join(self.lines))
 
 
+# Initialise run flag before drawing controls
+if "run_requested" not in st.session_state:
+    st.session_state["run_requested"] = False
+
+if st.sidebar.button("Load demo project"):
+    st.session_state["project"] = load_demo_project()
+    st.session_state["run_requested"] = False
+    # Drop any cached map from a previous project
+    st.session_state.pop("main_map", None)
+    st.session_state.pop("map_obj", None)
+    st.session_state.pop("map_layers_key", None)
+
+start_year, end_year = st.sidebar.slider(
+    "Years",
+    2019,
+    2024,
+    value=(
+        int(_defaults.get("start_year", 2019)),
+        int(_defaults.get("end_year", 2024)),
+    ),
+)
+
+uploaded_file = st.sidebar.file_uploader("GeoJSON Project", type="geojson")
+if uploaded_file is not None:
+    # Create / refresh the project only when the user selects
+    # *a different* file. On normal reruns `uploaded_file` is the
+    # same  object and we must *not* wipe the run_requested flag.
+    if st.session_state.get("uploaded_filename") != uploaded_file.name:
+        geojson = json.load(uploaded_file)
+        st.session_state["project"] = Project.from_geojson(
+            "Uploaded Project", "Guest", geojson, CONFIG, storage=storage
+        )
+        st.session_state["uploaded_filename"] = uploaded_file.name
+        st.session_state["run_requested"] = False
+        st.session_state.pop("main_map", None)
+        st.session_state.pop("map_obj", None)
+        st.session_state.pop("map_layers_key", None)
+
+if st.sidebar.button("Run analysis"):
+    st.session_state["run_requested"] = True
+
 show_log = st.sidebar.checkbox("Show log pane")
 root_logger = logging.getLogger()
 existing_handler = cast(logging.Handler | None, st.session_state.get("log_handler"))
@@ -162,48 +203,6 @@ else:
     if existing_handler:
         root_logger.removeHandler(existing_handler)
         st.session_state.pop("log_handler")
-
-# --- Compute trigger --------------------------------------------------
-if "run_requested" not in st.session_state:
-    st.session_state["run_requested"] = False
-if st.sidebar.button("Run analysis"):
-    st.session_state["run_requested"] = True
-
-
-# --- Years Slider --------------------------------------------------
-start_year, end_year = st.sidebar.slider(
-    "Years",
-    2019,
-    2024,
-    value=(
-        int(_defaults.get("start_year", 2019)),
-        int(_defaults.get("end_year", 2024)),
-    ),
-)
-
-uploaded_file = st.sidebar.file_uploader("GeoJSON Project", type="geojson")
-if st.sidebar.button("Load demo project"):
-    st.session_state["project"] = load_demo_project()
-    st.session_state["run_requested"] = False
-    # Drop any cached map from a previous project
-    st.session_state.pop("main_map", None)
-    st.session_state.pop("map_obj", None)
-    st.session_state.pop("map_layers_key", None)
-
-if uploaded_file is not None:
-    # Create / refresh the project only when the user selects
-    # *a different* file. On normal reruns `uploaded_file` is the
-    # same  object and we must *not* wipe the run_requested flag.
-    if st.session_state.get("uploaded_filename") != uploaded_file.name:
-        geojson = json.load(uploaded_file)
-        st.session_state["project"] = Project.from_geojson(
-            "Uploaded Project", "Guest", geojson, CONFIG, storage=storage
-        )
-        st.session_state["uploaded_filename"] = uploaded_file.name
-        st.session_state["run_requested"] = False
-        st.session_state.pop("main_map", None)
-        st.session_state.pop("map_obj", None)
-        st.session_state.pop("map_layers_key", None)
 
 if _demo_cfg and st.session_state.get("project") and not uploaded_file:
     st.session_state["run_requested"] = True
@@ -256,10 +255,6 @@ elif st.session_state.get("run_requested"):
 
     st.markdown("---")
     display_metrics(metrics)
-    st.dataframe(metrics_df)
-    report_controls(metrics_df, project, start_year, end_year)
-
-    st.markdown("---")
     tab_obs, tab_trend, tab_season, tab_msavi = st.tabs(
         ["NDVI Observed", "NDVI Trend", "NDVI Seasonal", "MSAVI YE"]
     )
@@ -275,6 +270,8 @@ elif st.session_state.get("run_requested"):
         )
     with tab_msavi:
         msavi_bar_chart_all(msavi_df, start_year=start_year, end_year=end_year)
+    report_controls(metrics_df, project, start_year, end_year)
+    st.dataframe(metrics_df)
 elif "results" in st.session_state:
     res = st.session_state["results"]
     gdf = res["gdf"]
@@ -290,10 +287,6 @@ elif "results" in st.session_state:
 
     st.markdown("---")
     display_metrics(metrics)
-    st.dataframe(metrics_df)
-    report_controls(metrics_df, project, start_year, end_year)
-
-    st.markdown("---")
     tab_obs, tab_trend, tab_season, tab_msavi = st.tabs(
         ["NDVI Observed", "NDVI Trend", "NDVI Seasonal", "MSAVI YE"]
     )
@@ -309,5 +302,7 @@ elif "results" in st.session_state:
         )
     with tab_msavi:
         msavi_bar_chart_all(msavi_df, start_year=start_year, end_year=end_year)
+    report_controls(metrics_df, project, start_year, end_year)
+    st.dataframe(metrics_df)
 else:
     st.info("Adjust parameters, then press **Run analysis**.")
