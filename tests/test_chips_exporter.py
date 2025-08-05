@@ -130,7 +130,7 @@ def test_export_one_thumbnail_geotiff_cog(
         max_val=1,
     )
 
-    out_path = tmp_export_dir / "NDVI_1_2024-01-01.tiff"
+    out_path = tmp_export_dir / "NDVI_1_2024-01-01.tif"
     assert dest == str(out_path)
     assert out_path.exists()
     assert fake_rasterio.open.called

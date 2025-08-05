@@ -1,0 +1,441 @@
+from __future__ import annotations
+
+"""Utilities for exporting dashboard metrics as files on R2."""
+
+from dataclasses import asdict, is_dataclass
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from typing import Any, Mapping, cast
+from uuid import uuid4
+
+import io
+
+import pandas as pd
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas
+from reportlab.platypus import Table, TableStyle
+
+from verdesat.core.config import ConfigManager
+from verdesat.geo.aoi import AOI
+from verdesat.project.project import Project
+
+from .r2 import upload_bytes, signed_url
+
+
+def _to_dict(metrics: Mapping[str, Any] | object) -> dict[str, Any]:
+    """Return a plain ``dict`` from ``metrics`` preserving non-numeric values."""
+
+    def _convert(value: Any) -> Any:
+        return float(value) if isinstance(value, (int, float)) else value
+
+    if is_dataclass(metrics) and not isinstance(metrics, type):
+        return {k: _convert(v) for k, v in asdict(cast(Any, metrics)).items()}
+    if isinstance(metrics, Mapping):
+        return {k: _convert(v) for k, v in metrics.items()}
+    raise TypeError("metrics must be a dataclass or mapping")
+
+
+def export_metrics_csv(metrics: Mapping[str, Any] | object, aoi: AOI) -> str:
+    """Serialize ``metrics`` for ``aoi`` to CSV and return a presigned URL."""
+
+    data = _to_dict(metrics)
+    aoi_id = int(aoi.static_props.get("id", 0))
+    data["aoi_id"] = float(aoi_id)
+    df = pd.DataFrame([data])
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
+    key = f"results/aoi_{aoi_id}/metrics_{uuid4().hex}.csv"
+    upload_bytes(key, csv_bytes, content_type="text/csv")
+    return signed_url(key)
+
+
+def export_project_csv(metrics: pd.DataFrame, project: Project) -> str:
+    """Export aggregated ``metrics`` for ``project`` and return a URL."""
+
+    csv_bytes = metrics.to_csv(index=False).encode("utf-8")
+    key = f"results/project_{uuid4().hex}/metrics.csv"
+    upload_bytes(key, csv_bytes, content_type="text/csv")
+    return signed_url(key)
+
+
+def _project_map_png(project: Project) -> bytes:
+    """Return a PNG rendering of all AOIs in ``project``."""
+
+    import geopandas as gpd  # noqa: WPS433
+    import matplotlib.pyplot as plt
+
+    gdf = gpd.GeoDataFrame(
+        [{"geometry": aoi.geometry} for aoi in project.aois], crs="EPSG:4326"
+    )
+    fig, ax = plt.subplots(figsize=(6, 4))
+    gdf.plot(ax=ax, edgecolor="#159466", facecolor="none", linewidth=1)
+    ax.set_axis_off()
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png")
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def _project_index_trend_df(
+    project: Project,
+    index_name: str,
+    start_year: int | None = None,
+    end_year: int | None = None,
+) -> pd.DataFrame:
+    """Collect monthly trend curves for ``index_name`` across project AOIs."""
+
+    from verdesat.webapp.components.charts import load_ndvi_decomposition
+
+    if index_name.lower() != "ndvi":
+        raise ValueError("only ndvi trend is supported")
+
+    dfs: list[pd.DataFrame] = []
+    for aoi in project.aois:
+        aoi_id = int(aoi.static_props.get("id", 0))
+        df = load_ndvi_decomposition(aoi_id)[["date", "trend"]].copy()
+        df["id"] = aoi_id
+        dfs.append(df)
+    if not dfs:
+        raise ValueError("project has no AOIs")
+    result = pd.concat(dfs, ignore_index=True)
+    if start_year is not None and end_year is not None:
+        mask = (result["date"].dt.year >= start_year) & (
+            result["date"].dt.year <= end_year
+        )
+        result = result.loc[mask]
+    return result
+
+
+def _project_index_yearly_df(
+    project: Project,
+    index_name: str,
+    start_year: int | None = None,
+    end_year: int | None = None,
+) -> pd.DataFrame:
+    """Return annual time series for ``index_name`` across ``project`` AOIs."""
+
+    from verdesat.webapp.components.charts import load_msavi_timeseries
+
+    if index_name.lower() != "msavi":
+        raise ValueError("only msavi timeseries are supported")
+
+    df = load_msavi_timeseries()
+    ids = {int(a.static_props.get("id", 0)) for a in project.aois}
+    if "id" in df.columns and ids:
+        df = df[df["id"].isin(ids)]
+    if start_year is not None and end_year is not None:
+        mask = (df["date"].dt.year >= start_year) & (df["date"].dt.year <= end_year)
+        df = df.loc[mask]
+    return df
+
+
+def _monthly_trend_png(df: pd.DataFrame, index_name: str) -> bytes:
+    """Plot monthly trend lines for all AOIs."""
+
+    import matplotlib.pyplot as plt  # noqa: WPS433
+
+    plt.style.use("seaborn-v0_8")
+    df = df.copy()
+    df["month"] = df["date"].dt.to_period("M").dt.to_timestamp()
+    agg = df.groupby(["month", "id"])["trend"].mean().reset_index()
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for aoi_id, grp in agg.groupby("id"):
+        ax.plot(grp["month"], grp["trend"], marker="o", label=str(aoi_id))
+    ax.set_xlabel("Date")
+    ax.set_ylabel(f"{index_name.upper()} Trend")
+    ax.legend(title="AOI")
+    ax.grid(True, linestyle="--", alpha=0.5)
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150)
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def _build_project_pdf(
+    metrics: pd.DataFrame,
+    project: Project,
+    map_png: bytes,
+    monthly_png: bytes,
+    yearly_png: bytes,
+) -> bytes:
+    """Assemble a PDF with project metrics, map and charts."""
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    width, height = letter
+    title = getattr(project, "name", "VerdeSat Project")
+    c.setTitle(f"{title} Metrics")
+    y = height - 40
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(40, y, title)
+    y -= 30
+
+    c.drawImage(
+        ImageReader(io.BytesIO(map_png)),
+        40,
+        y - 180,
+        width - 80,
+        180,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    y -= 200
+
+    table_data: list[list[str]] = [list(metrics.columns)]
+    for row in metrics.itertuples(index=False):
+        formatted = [f"{v:.4f}" if isinstance(v, (int, float)) else str(v) for v in row]
+        table_data.append(formatted)
+
+    table = Table(table_data, repeatRows=1)
+    table.setStyle(
+        TableStyle(
+            [
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+    table_width, table_height = table.wrap(width - 80, height)
+    table.drawOn(c, 40, max(40, y - table_height))
+
+    c.showPage()
+    c.drawImage(
+        ImageReader(io.BytesIO(monthly_png)),
+        40,
+        height - 260,
+        width - 80,
+        240,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    c.drawImage(
+        ImageReader(io.BytesIO(yearly_png)),
+        40,
+        height - 520,
+        width - 80,
+        240,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    c.save()
+    return buf.getvalue()
+
+
+def export_project_pdf(
+    metrics: pd.DataFrame,
+    project: Project,
+    start_year: int | None = None,
+    end_year: int | None = None,
+) -> str:
+    """Render project metrics, map and charts as a PDF and return a URL."""
+
+    cfg = project.config
+    monthly_index = cfg.get("monthly_index", ConfigManager.DEFAULT_MONTHLY_INDEX)
+    annual_index = cfg.get("annual_index", ConfigManager.DEFAULT_ANNUAL_INDEX)
+    map_png = _project_map_png(project)
+    monthly_df = _project_index_trend_df(project, monthly_index, start_year, end_year)
+    annual_df = _project_index_yearly_df(project, annual_index, start_year, end_year)
+    monthly_png = _monthly_trend_png(monthly_df, monthly_index)
+    annual_png = _annual_index_png(None, annual_df, annual_index, start_year, end_year)
+    pdf_bytes = _build_project_pdf(metrics, project, map_png, monthly_png, annual_png)
+    key = f"results/project_{uuid4().hex}/metrics.pdf"
+    upload_bytes(key, pdf_bytes, content_type="application/pdf")
+    return signed_url(key)
+
+
+def _aoi_map_png(aoi: AOI) -> bytes:
+    """Return a simple PNG rendering of ``aoi`` geometry."""
+
+    import geopandas as gpd  # noqa: WPS433
+    import matplotlib.pyplot as plt
+
+    gdf = gpd.GeoDataFrame([{"geometry": aoi.geometry}], crs="EPSG:4326")
+    fig, ax = plt.subplots(figsize=(6, 4))
+    gdf.plot(ax=ax, edgecolor="#159466", facecolor="none", linewidth=2)
+    ax.set_axis_off()
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png")
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def _ndvi_png(aoi_id: int | None, df: pd.DataFrame | None) -> bytes:
+    """Generate NDVI decomposition plot using ``Visualizer``."""
+
+    if df is None:
+        from verdesat.webapp.components.charts import load_ndvi_decomposition
+
+        if aoi_id is None:
+            raise ValueError("aoi_id or df must be provided")
+        df = load_ndvi_decomposition(aoi_id)
+
+    class _Decomp:
+        def __init__(self, frame: pd.DataFrame):
+            self.frame = frame
+
+        def plot(self):  # pragma: no cover - thin wrapper around matplotlib
+            import matplotlib.pyplot as plt
+
+            fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 4))
+            axes[0].plot(self.frame["date"], self.frame["observed"])
+            axes[0].set_ylabel("Observed")
+            axes[1].plot(self.frame["date"], self.frame["trend"])
+            axes[1].set_ylabel("Trend")
+            axes[2].plot(self.frame["date"], self.frame["seasonal"])
+            axes[2].set_ylabel("Seasonal")
+            fig.tight_layout()
+            return fig
+
+    from verdesat.visualization.visualizer import Visualizer
+
+    viz = Visualizer()
+    with NamedTemporaryFile(suffix=".png") as tmp:
+        viz.plot_decomposition(_Decomp(df), tmp.name)
+        return Path(tmp.name).read_bytes()
+
+
+def _annual_index_png(
+    aoi_id: int | None,
+    df: pd.DataFrame | None,
+    index_name: str,
+    start_year: int | None = None,
+    end_year: int | None = None,
+) -> bytes:
+    """Generate annual time-series plot for ``index_name``."""
+
+    if df is None:
+        from verdesat.webapp.components.charts import load_msavi_timeseries
+
+        if aoi_id is None:
+            raise ValueError("aoi_id or df must be provided")
+        if index_name.lower() != "msavi":
+            raise ValueError("only msavi timeseries are supported")
+        df = load_msavi_timeseries()
+        if "id" in df.columns:
+            df = df[df["id"] == aoi_id]
+    if start_year is not None and end_year is not None:
+        mask = (df["date"].dt.year >= start_year) & (df["date"].dt.year <= end_year)
+        df = df.loc[mask]
+    value_col = next((c for c in ("mean_msavi", "msavi") if c in df.columns), None)
+    if value_col is None:
+        value_col = df.columns[2] if df.shape[1] > 2 else df.columns[-1]
+    if "id" not in df.columns:
+        df = df.copy()
+        df["id"] = 0
+
+    import matplotlib.pyplot as plt  # noqa: WPS433
+
+    plt.style.use("seaborn-v0_8")
+    df = df.copy()
+    df["year"] = df["date"].dt.year
+    agg = df.groupby(["year", "id"])[value_col].mean().reset_index()
+    agg["year"] = pd.to_datetime(agg["year"].astype(str) + "-01-01")
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for pid, grp in agg.groupby("id"):
+        ax.plot(grp["year"], grp[value_col], marker="o", label=str(pid))
+    ax.set_xlabel("Year")
+    ax.set_ylabel(index_name.upper())
+    ax.legend(title="AOI")
+    ax.grid(True, linestyle="--", alpha=0.5)
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150)
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def _build_pdf(
+    metrics: Mapping[str, Any],
+    aoi: AOI,
+    project: str,
+    map_png: bytes,
+    ndvi_png: bytes,
+    msavi_png: bytes,
+) -> bytes:
+    """Assemble a simple PDF document from supplied assets."""
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    width, height = letter
+    aoi_id = int(aoi.static_props.get("id", 0))
+
+    # Cover page with map and metrics
+    c.setTitle(f"{project} AOI {aoi_id} Metrics")
+    y = height - 40
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(40, y, project)
+    y -= 20
+    c.setFont("Helvetica", 12)
+    c.drawString(40, y, f"AOI {aoi_id}")
+    y -= 20
+    c.drawImage(
+        ImageReader(io.BytesIO(map_png)),
+        40,
+        y - 180,
+        width - 80,
+        180,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    y -= 200
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(40, y, "Metrics")
+    y -= 14
+    c.setFont("Helvetica", 10)
+    for key, val in sorted(metrics.items()):
+        if isinstance(val, (int, float)):
+            c.drawString(50, y, f"{key}: {val:.4f}")
+        else:
+            c.drawString(50, y, f"{key}: {val}")
+        y -= 12
+
+    # Charts page
+    c.showPage()
+    c.drawImage(
+        ImageReader(io.BytesIO(ndvi_png)),
+        40,
+        height - 260,
+        width - 80,
+        240,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    c.drawImage(
+        ImageReader(io.BytesIO(msavi_png)),
+        40,
+        height - 520,
+        width - 80,
+        240,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+    c.save()
+    return buf.getvalue()
+
+
+def export_metrics_pdf(
+    metrics: Mapping[str, Any] | object,
+    aoi: AOI,
+    project: str = "VerdeSat Demo",
+    ndvi_df: pd.DataFrame | None = None,
+    msavi_df: pd.DataFrame | None = None,
+) -> str:
+    """Render ``metrics`` and visuals for ``aoi`` as a PDF and return a URL."""
+
+    data = _to_dict(metrics)
+    map_png = _aoi_map_png(aoi)
+    aoi_id = int(aoi.static_props.get("id", 0))
+    ndvi_png = _ndvi_png(aoi_id, ndvi_df)
+    msavi_png = _annual_index_png(aoi_id, msavi_df, ConfigManager.DEFAULT_ANNUAL_INDEX)
+    pdf_bytes = _build_pdf(data, aoi, project, map_png, ndvi_png, msavi_png)
+    key = f"results/aoi_{aoi_id}/metrics_{uuid4().hex}.pdf"
+    upload_bytes(key, pdf_bytes, content_type="application/pdf")
+    return signed_url(key)

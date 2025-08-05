@@ -961,5 +961,16 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title, collection):
     click.echo(f"\n✅  All done! Your full report is here: {report_path}")
 
 
+@cli.command()
+def webapp():
+    """Run local Streamlit dashboard."""
+    import subprocess, sys, pathlib, importlib
+
+    app_path = pathlib.Path(importlib.import_module("verdesat.webapp.app").__file__)
+    subprocess.run(
+        [sys.executable, "-m", "streamlit", "run", str(app_path)], check=True
+    )
+
+
 if __name__ == "__main__":
     cli()

@@ -39,6 +39,7 @@ venv/
 .venv/
 .env
 .env.*
+.ee-andreydara.json
 
 # OS temp files
 *.swp
@@ -51,3 +52,7 @@ venv/
 
 # Data
 data/
+
+# Cache
+cache/
+chips/
