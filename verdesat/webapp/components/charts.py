@@ -9,14 +9,12 @@ import streamlit as st
 from verdesat.webapp.services.r2 import signed_url
 
 
-@st.cache_data
 def load_ndvi_decomposition(aoi_id: int) -> pd.DataFrame:
     """Load NDVI decomposition CSV for ``aoi_id`` from R2."""
     url = signed_url(f"resources/decomp/{aoi_id}_decomposition.csv")
     return pd.read_csv(url, parse_dates=["date"])
 
 
-@st.cache_data
 def load_msavi_timeseries() -> pd.DataFrame:
     """Load MSAVI time series CSV from R2."""
     url = signed_url("resources/msavi.csv")
