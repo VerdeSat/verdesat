@@ -26,6 +26,9 @@ def apply_theme() -> None:
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
         header {visibility: hidden;}
+        header div[data-testid="collapsedControl"] {
+            visibility: visible;
+        }
         .vs-navbar {position: fixed; top: 0; left: 0; right: 0; background: rgba(255,255,255,0.8); backdrop-filter: blur(6px); height: 56px; padding: 8px 24px; display: flex; align-items: center; z-index: 1000; box-shadow: 0 1px 2px rgba(0,0,0,0.05);}
         .vs-nav-links {margin-left: auto; display: flex; align-items: center;}
         .vs-nav-links img {height: 24px; margin: 0 8px;}
@@ -40,7 +43,7 @@ def apply_theme() -> None:
         .vs-nav-links a.verdesat-link {color: #2B6E3F; font-size: 1.125rem;}
         .vs-nav-links a:hover {color: #2B6E3F;}
         .vs-hero {background: linear-gradient(180deg, rgba(19,78,74,0.5), rgba(19,78,74,0.5) 50%, #134E4A), url('https://www.verdesat.com/images/hero-sat-screen.webp'); background-size: cover; background-position: center; padding: 96px 24px; text-align: center; color: #FFFFFF; margin-top: -56px;}
-        div[data-testid="collapsedControl"] {top: 80px; z-index: 2001;}
+        div[data-testid="collapsedControl"] {position: fixed; top: 72px; z-index: 2001;}
         div.block-container {padding-top: 0;}
         div.block-container > div:nth-child(even):not(.vs-hero) {background-color: #FFFFFF;}
         div.block-container > div:nth-child(odd):not(.vs-hero) {background-color: #F8F9FA;}
