@@ -14,7 +14,7 @@ import tempfile
 import io
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, Tuple, Protocol, cast
+from typing import Any, Dict, Tuple, Protocol, Callable, cast
 
 import geopandas as gpd
 import pandas as pd
@@ -272,7 +272,11 @@ class ProjectComputeService:
 
     # ------------------------------------------------------------------
     def compute(
-        _self, project: Project, start: date, end: date
+        _self,
+        project: Project,
+        start: date,
+        end: date,
+        progress: Callable[[float], None] | None = None,
     ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """Compute biodiversity metrics and vegetation indices for *project*.
 
@@ -339,7 +343,10 @@ class ProjectComputeService:
 
         engine = MetricEngine(storage=_self.storage)
 
-        for aoi in project.aois:
+        total = len(project.aois)
+        if progress:
+            progress(0.0)
+        for idx, aoi in enumerate(project.aois, start=1):
             aoi_id = str(aoi.static_props.get(id_col))
 
             existing = project.rasters.get(aoi_id, {})
@@ -395,6 +402,9 @@ class ProjectComputeService:
             msavi_df_single = msavi_df_single.copy()
             msavi_df_single["id"] = aoi_id
             msavi_frames.append(msavi_df_single)
+
+            if progress:
+                progress(idx / total)
 
         metrics_df = pd.DataFrame.from_records(metrics_records)
         ndvi_df = pd.concat(ndvi_frames, ignore_index=True)

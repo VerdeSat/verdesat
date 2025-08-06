@@ -92,9 +92,18 @@ def compute_project(project: Project, start_year: int, end_year: int) -> tuple[
     rebuilding state from persisted caches.
     """
 
+    progress_bar = st.progress(0.0, text="Running analysis...")
+
+    def update_progress(frac: float) -> None:
+        progress_bar.progress(frac, text="Running analysis...")
+
     metrics_df, ndvi_df, msavi_df = project_compute.compute(
-        project, date(start_year, 1, 1), date(end_year, 12, 31)
+        project,
+        date(start_year, 1, 1),
+        date(end_year, 12, 31),
+        progress=update_progress,
     )
+    progress_bar.empty()
     ndvi_paths = {
         aoi_id: layers.get("ndvi", "") for aoi_id, layers in project.rasters.items()
     }
