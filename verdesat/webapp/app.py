@@ -154,6 +154,7 @@ render_hero("VerdeSat Biodiversity Dashboard")
 # ---- Sidebar ---------------------------------------------------------------
 st.sidebar.header("VerdeSat B-Score v0.1.2")
 
+
 # ---- Dev log pane ---------------------------------------------------------
 class StreamlitHandler(logging.Handler):
     """Stream logging records to a Streamlit code block."""
