@@ -3,6 +3,7 @@ import rasterio
 from rasterio.transform import from_origin
 
 from verdesat.webapp.components import map_widget
+import streamlit as st
 
 
 def test_local_overlay(tmp_path):
@@ -33,6 +34,11 @@ def test_resolve_cog_path_relative():
     assert resolved.exists()
 
 
+def _clear_state() -> None:
+    for k in list(st.session_state.keys()):
+        del st.session_state[k]
+
+
 def test_display_map_uses_constant_key(monkeypatch):
     """Ensure map renders without triggering reruns."""
     from shapely.geometry import Polygon
@@ -43,14 +49,38 @@ def test_display_map_uses_constant_key(monkeypatch):
         crs="EPSG:4326",
     )
 
+    _clear_state()
     called_kwargs = {}
 
     def fake_st_folium(*args, **kwargs):
         called_kwargs.update(kwargs)
-        return {}
+        return {"center": [0.5, 0.5], "zoom": 10}
 
     monkeypatch.setattr(map_widget, "st_folium", fake_st_folium)
     map_widget.display_map(gdf, {})
 
     assert called_kwargs["key"] == "main_map"
     assert called_kwargs["returned_objects"] == []
+    assert st.session_state["main_map_center"] == [0.5, 0.5]
+    assert st.session_state["main_map_zoom"] == 10
+
+
+def test_display_map_saves_view(monkeypatch):
+    from shapely.geometry import Polygon
+    import geopandas as gpd
+
+    gdf = gpd.GeoDataFrame(
+        {"geometry": [Polygon([(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0)])]},
+        crs="EPSG:4326",
+    )
+
+    _clear_state()
+
+    def fake_st_folium(*args, **kwargs):
+        return {"center": [1.0, 2.0], "zoom": 7}
+
+    monkeypatch.setattr(map_widget, "st_folium", fake_st_folium)
+    map_widget.display_map(gdf, {})
+
+    assert st.session_state["main_map_center"] == [1.0, 2.0]
+    assert st.session_state["main_map_zoom"] == 7

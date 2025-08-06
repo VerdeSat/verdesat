@@ -178,6 +178,8 @@ if st.sidebar.button("Load demo project"):
     st.session_state["run_requested"] = False
     # Drop any cached map from a previous project
     st.session_state.pop("main_map", None)
+    st.session_state.pop("main_map_center", None)
+    st.session_state.pop("main_map_zoom", None)
 
 start_year, end_year = st.sidebar.slider(
     "Years",
@@ -202,6 +204,8 @@ if uploaded_file is not None:
         st.session_state["uploaded_filename"] = uploaded_file.name
         st.session_state["run_requested"] = False
         st.session_state.pop("main_map", None)
+        st.session_state.pop("main_map_center", None)
+        st.session_state.pop("main_map_zoom", None)
 
 if st.sidebar.button("Run analysis"):
     st.session_state["run_requested"] = True

@@ -12,6 +12,7 @@ from PIL import Image
 from folium import FeatureGroup
 from folium.raster_layers import ImageOverlay, TileLayer
 from streamlit_folium import st_folium
+import streamlit as st
 
 from verdesat.webapp.services.r2 import signed_url
 
@@ -100,12 +101,14 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
 
     bounds = aoi_gdf.total_bounds  # minx, miny, maxx, maxy
     bounds_latlon = [[bounds[1], bounds[0]], [bounds[3], bounds[2]]]
-    centre = [
+    default_centre = [
         (bounds_latlon[0][0] + bounds_latlon[1][0]) / 2,
         (bounds_latlon[0][1] + bounds_latlon[1][1]) / 2,
     ]
+    centre = st.session_state.get("main_map_center", default_centre)
+    zoom_start = st.session_state.get("main_map_zoom")
 
-    m = folium.Map(location=centre, tiles="CartoDB positron")
+    m = folium.Map(location=centre, tiles="CartoDB positron", zoom_start=zoom_start)
     folium.GeoJson(
         aoi_gdf,
         name="AOI Boundaries",
@@ -156,12 +159,16 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         msavi_group.add_to(m)
 
     folium.LayerControl(position="topright", collapsed=False).add_to(m)
-    m.fit_bounds(bounds_latlon)
+    if "main_map_zoom" not in st.session_state:
+        m.fit_bounds(bounds_latlon)
 
-    st_folium(
+    state = st_folium(
         m,
         width="100%",
         height=500,
         key="main_map",
         returned_objects=[],
     )
+    if state and "center" in state and "zoom" in state:
+        st.session_state["main_map_center"] = state["center"]
+        st.session_state["main_map_zoom"] = state["zoom"]
