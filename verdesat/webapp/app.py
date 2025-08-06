@@ -135,7 +135,6 @@ def report_controls(
 
 
 # ---- Page config -----------------------------------------------------------
-render_navbar()
 
 if "sidebar_state" not in st.session_state:
     st.session_state.sidebar_state = "expanded"  # default
@@ -147,7 +146,7 @@ st.set_page_config(
     initial_sidebar_state=st.session_state.sidebar_state,
 )
 apply_theme()
-
+render_navbar()
 render_hero("VerdeSat Biodiversity Dashboard")
 
 
