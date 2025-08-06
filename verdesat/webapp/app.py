@@ -145,6 +145,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state=st.session_state.sidebar_state,
 )
+
 apply_theme()
 render_navbar()
 render_hero("VerdeSat Biodiversity Dashboard")
@@ -154,8 +155,6 @@ render_hero("VerdeSat Biodiversity Dashboard")
 st.sidebar.header("VerdeSat B-Score v0.1.2")
 
 # ---- Dev log pane ---------------------------------------------------------
-
-
 class StreamlitHandler(logging.Handler):
     """Stream logging records to a Streamlit code block."""
 
@@ -287,7 +286,9 @@ elif st.session_state.get("run_requested"):
     }
 
     with col1:
-        display_map(gdf, project.rasters)
+        map_container = st.container(height=450)
+        with map_container:
+            display_map(gdf, project.rasters)
     with col2:
         bscore_gauge(metrics.bscore)
 
