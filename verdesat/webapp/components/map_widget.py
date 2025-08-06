@@ -182,7 +182,15 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
     if "map_center" not in st.session_state:
         m.fit_bounds(bounds_latlon)
 
-    state = st_folium(m, width="100%", height=500, key=f"main_map_{layers_key}")
+    placeholder = st.session_state.get("map_placeholder")
+    if placeholder is None:
+        placeholder = st.empty()
+        st.session_state["map_placeholder"] = placeholder
+    else:
+        placeholder.empty()
+
+    with placeholder:
+        state = st_folium(m, width="100%", height=500, key="main_map")
 
     # Persist pan/zoom state for subsequent reruns
     if isinstance(state, dict):

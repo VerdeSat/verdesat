@@ -5,6 +5,8 @@ import streamlit as st
 from shapely.geometry import Polygon
 from rasterio.transform import from_origin
 
+from unittest.mock import Mock
+
 from verdesat.webapp.components import map_widget
 
 
@@ -64,3 +66,21 @@ def test_display_map_persists_view(monkeypatch):
     assert recorded["zoom_used"] == 5
     assert st.session_state["map_center"] == [0.4, 0.5]
     assert st.session_state["map_zoom"] == 7
+
+
+def test_display_map_reuses_placeholder(monkeypatch):
+    gdf = gpd.GeoDataFrame(
+        {"geometry": [Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])]},
+        crs="EPSG:4326",
+    )
+
+    placeholder = Mock()
+    placeholder.empty = Mock()
+    empty_mock = Mock(return_value=placeholder)
+    monkeypatch.setattr(st, "empty", empty_mock)
+    monkeypatch.setattr(map_widget, "st_folium", lambda *_args, **_kwargs: {})
+    st.session_state.clear()
+    map_widget.display_map(gdf, {})
+    map_widget.display_map(gdf, {})
+    assert empty_mock.call_count == 1
+    assert placeholder.empty.call_count == 1
