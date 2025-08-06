@@ -1,11 +1,9 @@
 """Utilities for rendering project maps in the dashboard."""
 
-from typing import Mapping, Any
+from typing import Mapping
 from pathlib import Path
 import base64
 import io
-import json
-import hashlib
 
 import folium
 import numpy as np
@@ -14,7 +12,6 @@ from PIL import Image
 from folium import FeatureGroup
 from folium.raster_layers import ImageOverlay, TileLayer
 from streamlit_folium import st_folium
-import streamlit as st
 
 from verdesat.webapp.services.r2 import signed_url
 
@@ -99,32 +96,16 @@ def _local_overlay(path: str, *, name: str | None = None) -> ImageOverlay:
 
 
 def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
-    """Render Folium map with AOI boundaries and VI layers.
-
-    The map is rebuilt on every Streamlit rerun, but the user's pan/zoom state
-    is preserved in ``st.session_state`` so interactions persist. When the AOI
-    geometry or rasters change, stored state is cleared and the map recentres on
-    the AOI.
-    """
-
-    layers_key = hashlib.sha256(
-        (aoi_gdf.to_json() + json.dumps(rasters, sort_keys=True)).encode("utf-8")
-    ).hexdigest()
-
-    if st.session_state.get("map_layers_key") != layers_key:
-        st.session_state["map_layers_key"] = layers_key
-        st.session_state.pop("map_center", None)
-        st.session_state.pop("map_zoom", None)
+    """Render Folium map with AOI boundaries and VI layers."""
 
     bounds = aoi_gdf.total_bounds  # minx, miny, maxx, maxy
     bounds_latlon = [[bounds[1], bounds[0]], [bounds[3], bounds[2]]]
-    centre = st.session_state.get("map_center") or [
+    centre = [
         (bounds_latlon[0][0] + bounds_latlon[1][0]) / 2,
         (bounds_latlon[0][1] + bounds_latlon[1][1]) / 2,
     ]
-    zoom = st.session_state.get("map_zoom")
 
-    m = folium.Map(location=centre, tiles="CartoDB positron", zoom_start=zoom)
+    m = folium.Map(location=centre, tiles="CartoDB positron")
     folium.GeoJson(
         aoi_gdf,
         name="AOI Boundaries",
@@ -175,16 +156,12 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         msavi_group.add_to(m)
 
     folium.LayerControl(position="topright", collapsed=False).add_to(m)
-    if "map_center" not in st.session_state:
-        m.fit_bounds(bounds_latlon)
+    m.fit_bounds(bounds_latlon)
 
-    state: Mapping[str, Any] | None = st_folium(
-        m, width="100%", height=500, key=f"main_map_{layers_key}"
+    st_folium(
+        m,
+        width="100%",
+        height=500,
+        key="main_map",
+        returned_objects=[],
     )
-    if isinstance(state, Mapping):
-        center = state.get("center")
-        if center:
-            st.session_state["map_center"] = center
-        zoom_state = state.get("zoom")
-        if zoom_state:
-            st.session_state["map_zoom"] = zoom_state

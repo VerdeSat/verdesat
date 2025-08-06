@@ -2,11 +2,6 @@ import numpy as np
 import rasterio
 from rasterio.transform import from_origin
 
-from unittest.mock import patch
-
-import geopandas as gpd
-from shapely.geometry import Polygon
-
 from verdesat.webapp.components import map_widget
 
 
@@ -38,13 +33,24 @@ def test_resolve_cog_path_relative():
     assert resolved.exists()
 
 
-def test_display_map_persists_state():
-    map_widget.st.session_state.clear()
+def test_display_map_uses_constant_key(monkeypatch):
+    """Ensure map renders without triggering reruns."""
+    from shapely.geometry import Polygon
+    import geopandas as gpd
+
     gdf = gpd.GeoDataFrame(
-        {"geometry": [Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])]}, crs="EPSG:4326"
+        {"geometry": [Polygon([(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0)])]},
+        crs="EPSG:4326",
     )
-    with patch("verdesat.webapp.components.map_widget.st_folium") as st_folium:
-        st_folium.return_value = {"center": [0.5, 0.5], "zoom": 8}
-        map_widget.display_map(gdf, {})
-    assert map_widget.st.session_state["map_center"] == [0.5, 0.5]
-    assert map_widget.st.session_state["map_zoom"] == 8
+
+    called_kwargs = {}
+
+    def fake_st_folium(*args, **kwargs):
+        called_kwargs.update(kwargs)
+        return {}
+
+    monkeypatch.setattr(map_widget, "st_folium", fake_st_folium)
+    map_widget.display_map(gdf, {})
+
+    assert called_kwargs["key"] == "main_map"
+    assert called_kwargs["returned_objects"] == []
