@@ -123,7 +123,12 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         (bounds_latlon[0][1] + bounds_latlon[1][1]) / 2,
     ]
 
-    m = folium.Map(location=centre, tiles="CartoDB positron")
+    # Restore previous zoom level if available so reruns don't jump
+    zoom = st.session_state.get("map_zoom")
+    if zoom is not None:
+        m = folium.Map(location=centre, tiles="CartoDB positron", zoom_start=zoom)
+    else:
+        m = folium.Map(location=centre, tiles="CartoDB positron")
     folium.GeoJson(
         aoi_gdf,
         name="AOI Boundaries",
@@ -178,3 +183,12 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         m.fit_bounds(bounds_latlon)
 
     state = st_folium(m, width="100%", height=500, key=f"main_map_{layers_key}")
+
+    # Persist pan/zoom state for subsequent reruns
+    if isinstance(state, dict):
+        center = state.get("center")
+        zoom_level = state.get("zoom")
+        if center:
+            st.session_state["map_center"] = center
+        if zoom_level is not None:
+            st.session_state["map_zoom"] = zoom_level
