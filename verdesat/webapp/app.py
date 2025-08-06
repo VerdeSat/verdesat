@@ -142,7 +142,7 @@ if "sidebar_state" not in st.session_state:
 
 st.set_page_config(
     page_title="VerdeSat B-Score",
-    page_icon="🌳",
+    page_icon="verdesat/webapp/themes/favicon.svg",
     layout="wide",
     initial_sidebar_state=st.session_state.sidebar_state,
 )
