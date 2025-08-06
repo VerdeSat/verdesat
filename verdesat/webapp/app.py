@@ -35,6 +35,9 @@ from verdesat.webapp.services.project_compute import ProjectComputeService
 from verdesat.webapp.services.r2 import signed_url
 from verdesat.webapp.services.exports import export_project_pdf
 
+# -------------------------------------------------------------------
+
+
 logger = Logger.get_logger(__name__)
 
 CONFIG = ConfigManager(
@@ -123,10 +126,21 @@ def report_controls(
 
 
 # ---- Page config -----------------------------------------------------------
-st.set_page_config(page_title="VerdeSat B-Score", page_icon="🌳", layout="wide")
-apply_theme()
 render_navbar()
+
+if "sidebar_state" not in st.session_state:
+    st.session_state.sidebar_state = "expanded"  # default
+
+st.set_page_config(
+    page_title="VerdeSat B-Score",
+    page_icon="🌳",
+    layout="wide",
+    initial_sidebar_state=st.session_state.sidebar_state,
+)
+apply_theme()
+
 render_hero("VerdeSat Biodiversity Dashboard")
+
 
 # ---- Sidebar ---------------------------------------------------------------
 st.sidebar.header("VerdeSat B-Score v0.1.2")
@@ -208,6 +222,22 @@ if _demo_cfg and st.session_state.get("project") and not uploaded_file:
     st.session_state["run_requested"] = True
 
 project: Project | None = st.session_state.get("project")
+
+# Sidebar state helper ------------------------------------------------
+
+# Draw a stub button; JS in layout.py will click it.
+# We give it a title attr so we can target it from CSS & JS.
+hidden_toggle = st.empty()
+if hidden_toggle.button(
+    "Toggle sidebar <<>>",  # no label
+    key="Sidebar",
+    help="Sidebar",  # used by JS to find the button
+):
+    st.session_state.sidebar_state = (
+        "collapsed" if st.session_state.sidebar_state == "expanded" else "expanded"
+    )
+    st.rerun()
+
 
 # ---- Main canvas -----------------------------------------------------------
 col1, col2 = st.columns([3, 1])
