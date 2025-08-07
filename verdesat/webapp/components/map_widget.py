@@ -206,3 +206,12 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
                 key=map_key,
                 returned_objects=["last_object_clicked_tooltip", "last_clicked"],
             )
+
+        # Persist the last map view so reruns maintain the user's position
+        if state:
+            st.session_state["map_center"] = state.get(
+                "center", st.session_state.get("map_center")
+            )
+            st.session_state["map_zoom"] = state.get(
+                "zoom", st.session_state.get("map_zoom")
+            )
