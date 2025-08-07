@@ -81,7 +81,7 @@ def bscore_gauge(score: float, *, title: str | None = None) -> None:
                 "bar": {"color": "#159466"},
                 "bgcolor": "white",
             },
-            title={"text": title or "B-Score"},
+            title={"text": title or "Project B-Score"},
         )
     )
     st.plotly_chart(fig, use_container_width=True)
