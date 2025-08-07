@@ -157,7 +157,10 @@ st.set_page_config(
 
 apply_theme()
 render_navbar()
-render_hero("VerdeSat Biodiversity Dashboard")
+render_hero(
+    "VerdeSat Biodiversity Dashboard",
+    "Screening-grade biodiversity & forest-health insights from satellites—ready for CSRD/TNFD drafts",
+)
 
 
 # ---- Sidebar ---------------------------------------------------------------
@@ -183,6 +186,9 @@ if "run_requested" not in st.session_state:
     st.session_state["run_requested"] = False
 
 if st.sidebar.button("Load demo project"):
+    st.sidebar.caption(
+        "Use case - Mexican reforestation project (AOI 1) next to a reference plot (AOI 2)."
+    )
     st.session_state["project"] = load_demo_project()
     st.session_state["run_requested"] = False
     # Drop any cached map from a previous project
@@ -221,7 +227,10 @@ if uploaded_file is not None:
         st.session_state.pop("main_map_center", None)
         st.session_state.pop("main_map_zoom", None)
 
-if st.sidebar.button("Run analysis"):
+if st.sidebar.button(
+    "Run analysis",
+    help="Fetch satellite layers, compute metrics, and render results for your uploaded GeoJSON.",
+):
     st.session_state["run_requested"] = True
 
 show_log = st.sidebar.checkbox("Show log pane")
@@ -357,3 +366,9 @@ elif "results" in st.session_state:
     st.dataframe(metrics_df)
 else:
     st.info("Adjust parameters, then press **Run analysis**.")
+
+# ---- Footer ---------------------------------------------------------------
+st.markdown(
+    "<small>Data sources: Copernicus Sentinel-2, ESA, WDPA, Globio, and others</small>",
+    unsafe_allow_html=True,
+)
