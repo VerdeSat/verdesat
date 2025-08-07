@@ -65,7 +65,7 @@ def _local_overlay(path: str, *, name: str | None = None) -> ImageOverlay:
     """
     with rasterio.open(path) as src:
         data = src.read(1, masked=True)
-        # Cast to built‑in float so Folium → Jinja → JSON doesn’t choke on numpy scalars
+        # Cast to built‑in float so Folium → Jinja → JSON doesn't choke on numpy scalars
         bounds = [
             [float(src.bounds.bottom), float(src.bounds.left)],
             [float(src.bounds.top), float(src.bounds.right)],
@@ -123,58 +123,95 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         (bounds_latlon[0][1] + bounds_latlon[1][1]) / 2,
     ]
 
-    m = folium.Map(location=centre, tiles="CartoDB positron")
-    folium.GeoJson(
-        aoi_gdf,
-        name="AOI Boundaries",
-        style_function=lambda *_: {
-            "color": "#159466",
-            "weight": 2,
-            "fill": False,
-        },
-    ).add_to(m)
+    # Use a container to control the map layout better
+    map_container = st.container()
 
-    ndvi_group = FeatureGroup(name="Last annual NDVI", show=True)
-    msavi_group = FeatureGroup(name="Last annual MSAVI", show=True)
-    ndvi_added = False
-    msavi_added = False
+    with map_container:
+        m = folium.Map(location=centre, tiles="CartoDB positron")
+        folium.GeoJson(
+            aoi_gdf,
+            name="AOI Boundaries",
+            style_function=lambda *_: {
+                "color": "#159466",
+                "weight": 2,
+                "fill": False,
+            },
+        ).add_to(m)
 
-    for layers in rasters.values():
-        ndvi_key = layers.get("ndvi")
-        if ndvi_key:
-            ndvi_path = _resolve_cog_path(ndvi_key)
-            if ndvi_path:
-                _local_overlay(str(ndvi_path)).add_to(ndvi_group)
-            else:
-                TileLayer(
-                    tiles=_cog_to_tile_url(ndvi_key),
-                    overlay=True,
-                    attr="Sentinel-2",
-                    control=False,
-                ).add_to(ndvi_group)
-            ndvi_added = True
+        ndvi_group = FeatureGroup(name="Last annual NDVI", show=True)
+        msavi_group = FeatureGroup(name="Last annual MSAVI", show=True)
+        ndvi_added = False
+        msavi_added = False
 
-        msavi_key = layers.get("msavi")
-        if msavi_key:
-            msavi_path = _resolve_cog_path(msavi_key)
-            if msavi_path:
-                _local_overlay(str(msavi_path)).add_to(msavi_group)
-            else:
-                TileLayer(
-                    tiles=_cog_to_tile_url(msavi_key),
-                    overlay=True,
-                    attr="Sentinel-2",
-                    control=False,
-                ).add_to(msavi_group)
-            msavi_added = True
+        for layers in rasters.values():
+            ndvi_key = layers.get("ndvi")
+            if ndvi_key:
+                ndvi_path = _resolve_cog_path(ndvi_key)
+                if ndvi_path:
+                    _local_overlay(str(ndvi_path)).add_to(ndvi_group)
+                else:
+                    TileLayer(
+                        tiles=_cog_to_tile_url(ndvi_key),
+                        overlay=True,
+                        attr="Sentinel-2",
+                        control=False,
+                    ).add_to(ndvi_group)
+                ndvi_added = True
 
-    if ndvi_added:
-        ndvi_group.add_to(m)
-    if msavi_added:
-        msavi_group.add_to(m)
+            msavi_key = layers.get("msavi")
+            if msavi_key:
+                msavi_path = _resolve_cog_path(msavi_key)
+                if msavi_path:
+                    _local_overlay(str(msavi_path)).add_to(msavi_group)
+                else:
+                    TileLayer(
+                        tiles=_cog_to_tile_url(msavi_key),
+                        overlay=True,
+                        attr="Sentinel-2",
+                        control=False,
+                    ).add_to(msavi_group)
+                msavi_added = True
 
-    folium.LayerControl(position="topright", collapsed=False).add_to(m)
-    if "map_center" not in st.session_state:
-        m.fit_bounds(bounds_latlon)
+        if ndvi_added:
+            ndvi_group.add_to(m)
+        if msavi_added:
+            msavi_group.add_to(m)
 
-    state = st_folium(m, width="100%", height=500, key=f"main_map_{layers_key}")
+        folium.LayerControl(position="topright", collapsed=False).add_to(m)
+        if "map_center" not in st.session_state:
+            m.fit_bounds(bounds_latlon)
+
+        # Store map state and use cached version when available
+        map_key = f"main_map_{layers_key}"
+
+        # Only create new map if not in session state or layer changed
+        if map_key not in st.session_state.get("cached_maps", {}):
+            if "cached_maps" not in st.session_state:
+                st.session_state["cached_maps"] = {}
+
+            state = st_folium(
+                m,
+                width=None,
+                height=425,
+                key=map_key,
+                returned_objects=["last_object_clicked_tooltip", "last_clicked"],
+            )
+            st.session_state["cached_maps"][map_key] = state
+        else:
+            # Use cached version but still render the component
+            state = st_folium(
+                m,
+                width=None,
+                height=425,
+                key=map_key,
+                returned_objects=["last_object_clicked_tooltip", "last_clicked"],
+            )
+
+        # Persist the last map view so reruns maintain the user's position
+        if state:
+            st.session_state["map_center"] = state.get(
+                "center", st.session_state.get("map_center")
+            )
+            st.session_state["map_zoom"] = state.get(
+                "zoom", st.session_state.get("map_zoom")
+            )

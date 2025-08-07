@@ -145,6 +145,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state=st.session_state.sidebar_state,
 )
+
 apply_theme()
 render_navbar()
 render_hero("VerdeSat Biodiversity Dashboard")
@@ -153,9 +154,8 @@ render_hero("VerdeSat Biodiversity Dashboard")
 # ---- Sidebar ---------------------------------------------------------------
 st.sidebar.header("VerdeSat B-Score v0.1.2")
 
+
 # ---- Dev log pane ---------------------------------------------------------
-
-
 class StreamlitHandler(logging.Handler):
     """Stream logging records to a Streamlit code block."""
 
@@ -178,8 +178,8 @@ if st.sidebar.button("Load demo project"):
     st.session_state["run_requested"] = False
     # Drop any cached map from a previous project
     st.session_state.pop("main_map", None)
-    st.session_state.pop("map_obj", None)
-    st.session_state.pop("map_layers_key", None)
+    st.session_state.pop("main_map_center", None)
+    st.session_state.pop("main_map_zoom", None)
 
 start_year, end_year = st.sidebar.slider(
     "Years",
@@ -204,8 +204,8 @@ if uploaded_file is not None:
         st.session_state["uploaded_filename"] = uploaded_file.name
         st.session_state["run_requested"] = False
         st.session_state.pop("main_map", None)
-        st.session_state.pop("map_obj", None)
-        st.session_state.pop("map_layers_key", None)
+        st.session_state.pop("main_map_center", None)
+        st.session_state.pop("main_map_zoom", None)
 
 if st.sidebar.button("Run analysis"):
     st.session_state["run_requested"] = True
@@ -287,7 +287,9 @@ elif st.session_state.get("run_requested"):
     }
 
     with col1:
-        display_map(gdf, project.rasters)
+        map_container = st.container(height=450)
+        with map_container:
+            display_map(gdf, project.rasters)
     with col2:
         bscore_gauge(metrics.bscore)
 
