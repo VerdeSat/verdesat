@@ -6,8 +6,60 @@ import base64
 import io
 import json
 import hashlib
-
+import os
 import folium
+
+
+def _add_basemap(m: folium.Map) -> None:
+    """Add a basemap TileLayer to the folium Map based on environment variables."""
+    provider = os.environ.get("BASEMAP_PROVIDER", "stadia-satellite").lower()
+    stadia_key = os.environ.get("STADIA_API_KEY")
+    stadia_region = os.environ.get("STADIA_REGION")
+    if provider in ("stadia-satellite", "stadia.alidadesatellite"):
+        # See: https://docs.stadiamaps.com/guides/basemap-urls/#alidade-satellite
+        # Example: https://tiles.stadiamaps.com/tiles/alidade_satellite/{z}/{x}/{y}{r}.jpg?api_key=YOUR_API_KEY
+        url = "https://tiles.stadiamaps.com/tiles/alidade_satellite/{z}/{x}/{y}{r}.jpg"
+        if stadia_key:
+            url += f"?api_key={stadia_key}"
+        attribution = (
+            'Tiles &copy; <a href="https://stadiamaps.com/">Stadia Maps</a>, '
+            '&copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> '
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, '
+            'Satellite imagery &copy; <a href="https://www.maxar.com/">Maxar Technologies</a>'
+        )
+        TileLayer(
+            tiles=url,
+            name="Stadia Satellite",
+            attr=attribution,
+            overlay=False,
+            control=False,
+        ).add_to(m)
+    elif provider in ("carto-positron", "carto.light", "carto"):
+        url = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+        attribution = (
+            '&copy; <a href="https://carto.com/attributions">CARTO</a> '
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+        )
+        TileLayer(
+            tiles=url,
+            name="Carto Positron",
+            attr=attribution,
+            overlay=False,
+            control=False,
+        ).add_to(m)
+    else:
+        # Default to OpenStreetMap
+        url = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+        TileLayer(
+            tiles=url,
+            name="OpenStreetMap",
+            attr=attribution,
+            overlay=False,
+            control=False,
+        ).add_to(m)
+
+
 import numpy as np
 import rasterio
 from PIL import Image
@@ -168,7 +220,8 @@ def display_map(
     map_container = st.container()
 
     with map_container:
-        m = folium.Map(location=centre, tiles="Stadia.AlidadeSatellite")
+        m = folium.Map(location=centre, tiles=None)
+        _add_basemap(m)
 
         fields = [f for f in field_aliases if f in gdf.columns]
         aliases = [field_aliases[f] for f in fields]

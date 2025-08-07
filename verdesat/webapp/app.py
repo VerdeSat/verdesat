@@ -183,6 +183,7 @@ if "run_requested" not in st.session_state:
     st.session_state["run_requested"] = False
 
 if st.sidebar.button("Load demo project"):
+    st.sidebar.caption("Use case - Mexican reforestation project (AOI 1) next to a reference plot (AOI 2).")
     st.session_state["project"] = load_demo_project()
     st.session_state["run_requested"] = False
     # Drop any cached map from a previous project
@@ -357,3 +358,6 @@ elif "results" in st.session_state:
     st.dataframe(metrics_df)
 else:
     st.info("Adjust parameters, then press **Run analysis**.")
+
+# ---- Footer ---------------------------------------------------------------
+st.markdown("<small>Data sources: Copernicus Sentinel-2, ESA, WDPA, Globio, and others</small>", unsafe_allow_html=True)
