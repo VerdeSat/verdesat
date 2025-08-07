@@ -4,10 +4,9 @@ __doc__ = "Streamlit dashboard for visualising VerdeSat project metrics."
 
 import json
 import logging
-from dataclasses import fields
 from datetime import date
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 import geopandas as gpd
 import pandas as pd
@@ -23,7 +22,12 @@ from verdesat.webapp.components.charts import (
     msavi_bar_chart_all,
     ndvi_component_chart,
 )
-from verdesat.webapp.components.kpi_cards import Metrics, bscore_gauge, display_metrics
+from verdesat.webapp.components.kpi_cards import (
+    Metrics,
+    aggregate_metrics,
+    bscore_gauge,
+    display_metrics,
+)
 from verdesat.webapp.components.map_widget import display_map
 from verdesat.webapp.components.layout import (
     apply_theme,
@@ -284,10 +288,7 @@ elif st.session_state.get("run_requested"):
         [{**a.static_props, "geometry": a.geometry} for a in project.aois],
         crs="EPSG:4326",
     )
-    first_row = metrics_df.iloc[0].to_dict()
-    metric_fields = {f.name for f in fields(Metrics)}
-    metric_data = {k: first_row[k] for k in metric_fields if k in first_row}
-    metrics = Metrics(**cast(dict[str, Any], metric_data))
+    metrics = aggregate_metrics(metrics_df)
     st.session_state["results"] = {
         "gdf": gdf,
         "metrics_df": metrics_df,
