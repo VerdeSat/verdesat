@@ -157,7 +157,10 @@ st.set_page_config(
 
 apply_theme()
 render_navbar()
-render_hero("VerdeSat Biodiversity Dashboard")
+render_hero(
+    "VerdeSat Biodiversity Dashboard",
+    "Screening-grade biodiversity & forest-health insights from satellites—ready for CSRD/TNFD drafts",
+)
 
 
 # ---- Sidebar ---------------------------------------------------------------

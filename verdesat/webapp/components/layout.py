@@ -60,7 +60,9 @@ def apply_theme() -> None:
         .vs-nav-links a.book-demo {color: #111827; font-weight: 400;}
         .vs-nav-links a.verdesat-link {color: #254D4A; font-size: 1.3rem; font-weight: 650;}
         .vs-nav-links a:hover {color: #2B6E3F;}
-        .vs-hero {background: linear-gradient(180deg, rgba(19,78,74,0.5), rgba(19,78,74,0.5) 50%, #134E4A), url('https://www.verdesat.com/images/hero-sat-screen.webp'); background-size: cover; background-position: center; padding: 96px 24px; text-align: center; color: #FFFFFF; margin-top: -56px;}
+        .vs-hero {background: linear-gradient(180deg, rgba(19,78,74,0.5), rgba(19,78,74,0.5) 50%, #134E4A), url('https://www.verdesat.com/images/hero-sat-screen.webp'); background-size: cover; background-position: center; padding: 48px 24px; text-align: center; color: #FFFFFF; margin-top: -56px;}
+        .vs-hero h1 { margin-bottom: 8px; }
+        .vs-hero .subtitle { font-family: 'Inter', sans-serif; font-weight: 400; font-size: 1.1rem; color: #F0FDF4; opacity: 0.95; margin-top: 0; }
         div.block-container {padding-top: 0;}
         div.block-container > div:nth-child(even):not(.vs-hero) {background-color: #FFFFFF;}
         div.block-container > div:nth-child(odd):not(.vs-hero) {background-color: #F8F9FA;}
@@ -83,7 +85,7 @@ def apply_theme() -> None:
         @media (max-width: 600px) {
             .vs-navbar {flex-wrap: wrap; height: auto; padding: 8px 16px; background: rgba(255,255,255,0.9);}
             .vs-navbar a {margin-left: 16px; margin-top: 4px;}
-            .vs-hero {padding: 64px 16px;}
+            .vs-hero {padding: 32px 16px;}
         }
         div[data-testid="collapsedControl"] {display:none !important;}
         </style>
@@ -109,13 +111,15 @@ def render_navbar() -> None:
     st.markdown(navbar_html, unsafe_allow_html=True)
 
 
-def render_hero(title: str) -> None:
-    """Display a full-width hero banner with ``title``."""
+def render_hero(title: str, subtitle: str | None = None) -> None:
+    """Display a full-width hero banner with ``title`` and optional ``subtitle``."""
 
+    subtitle_html = f"<p class=\"subtitle\">{subtitle}</p>" if subtitle else ""
     st.markdown(
         f"""
         <section class="vs-hero">
             <h1>{title}</h1>
+            {subtitle_html}
         </section>
         """,
         unsafe_allow_html=True,
