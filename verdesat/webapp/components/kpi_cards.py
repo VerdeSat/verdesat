@@ -2,8 +2,10 @@ from __future__ import annotations
 
 """Reusable KPI card components for the Streamlit dashboard."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
+from typing import Any, cast
 
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -25,6 +27,26 @@ class Metrics:
     msavi_mean: float
     msavi_std: float
     bscore: float
+
+
+def aggregate_metrics(df: pd.DataFrame) -> Metrics:
+    """Return mean values for ``df`` as a :class:`Metrics` instance.
+
+    The mean is computed column-wise for all numeric metric fields. For the
+    ``ndvi_peak`` column, the modal (most frequent) value is used.
+    """
+
+    metric_fields = {f.name for f in fields(Metrics)}
+    numeric_fields = [
+        field for field in metric_fields if field != "ndvi_peak" and field in df.columns
+    ]
+    data: dict[str, float | str] = df[numeric_fields].mean(numeric_only=True).to_dict()
+    data["ndvi_peak"] = (
+        str(df["ndvi_peak"].mode().iat[0])
+        if "ndvi_peak" in df.columns and not df["ndvi_peak"].empty
+        else ""
+    )
+    return Metrics(**cast(dict[str, Any], data))
 
 
 def display_metrics(metrics: Metrics) -> None:
