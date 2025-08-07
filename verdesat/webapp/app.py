@@ -60,7 +60,11 @@ def load_demo_project() -> Project:
     gdf = gpd.read_file(signed_url(DEMO_AOI_KEY))
     geojson = json.loads(gdf.to_json())
     project = Project.from_geojson(
-        "Demo Project", "VerdeSat", geojson, CONFIG, storage=storage
+        geojson,
+        CONFIG,
+        name="Demo Project",
+        customer="VerdeSat",
+        storage=storage,
     )
     ndvi_paths: dict[str, str] = {}
     msavi_paths: dict[str, str] = {}
@@ -198,8 +202,13 @@ if uploaded_file is not None:
     # same  object and we must *not* wipe the run_requested flag.
     if st.session_state.get("uploaded_filename") != uploaded_file.name:
         geojson = json.load(uploaded_file)
+        meta = geojson.get("metadata", {})
         st.session_state["project"] = Project.from_geojson(
-            "Uploaded Project", "Guest", geojson, CONFIG, storage=storage
+            geojson,
+            CONFIG,
+            name=meta.get("name"),
+            customer=meta.get("customer"),
+            storage=storage,
         )
         st.session_state["uploaded_filename"] = uploaded_file.name
         st.session_state["run_requested"] = False

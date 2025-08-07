@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 import logging
 from typing import Any, Dict, List, Literal
 
+import geopandas as gpd
+from shapely.geometry import shape
+
 from verdesat.analytics.timeseries import TimeSeries
 from verdesat.core.config import ConfigManager
 from verdesat.core.logger import Logger
@@ -33,23 +36,43 @@ class Project:
     @classmethod
     def from_geojson(
         cls,
-        name: str,
-        customer: str,
         geojson: Dict[str, Any],
         config: ConfigManager,
         *,
+        name: str | None = None,
+        customer: str | None = None,
         storage: StorageAdapter | None = None,
         logger: logging.Logger | None = None,
     ) -> "Project":
-        """Construct a project from a GeoJSON feature collection."""
+        """Construct a project from a GeoJSON feature collection.
+
+        The GeoJSON may include a top-level ``metadata`` object with optional
+        ``name`` and ``customer`` entries.  When ``name`` or ``customer`` are not
+        provided explicitly they will be taken from this metadata.  Each feature
+        will receive an ``area_m2`` property calculated using
+        :func:`VectorPreprocessor.compute_area`.
+        """
 
         log = logger or Logger.get_logger(__name__)
+        meta = geojson.get("metadata", {})
+        proj_name = name or meta.get("name", "Uploaded Project")
+        proj_customer = customer or meta.get("customer", "Guest")
+
         id_col = config.get("id_col", "id")
-        aois = AOI.from_geojson(geojson, id_col=id_col)
+        features = geojson.get("features", [])
+        gdf = gpd.GeoDataFrame(
+            [
+                {**feat.get("properties", {}), "geometry": shape(feat["geometry"])}
+                for feat in features
+            ],
+            crs="EPSG:4326",
+        )
+        VectorPreprocessor.compute_area(gdf)
+        aois = AOI.from_gdf(gdf, id_col=id_col)
         log.debug("Loaded %s AOIs from GeoJSON", len(aois))
         return cls(
-            name=name,
-            customer=customer,
+            name=proj_name,
+            customer=proj_customer,
             aois=aois,
             config=config,
             storage=storage,

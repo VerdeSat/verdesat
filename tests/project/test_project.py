@@ -33,7 +33,7 @@ def _geojson() -> dict:
 
 def test_from_geojson_builds_aois() -> None:
     config = ConfigManager()
-    project = Project.from_geojson("Demo", "Client", _geojson(), config)
+    project = Project.from_geojson(_geojson(), config, name="Demo", customer="Client")
     assert project.name == "Demo"
     assert project.customer == "Client"
     assert len(project.aois) == 2
@@ -43,7 +43,7 @@ def test_from_geojson_builds_aois() -> None:
 
 def test_attach_rasters() -> None:
     config = ConfigManager()
-    project = Project.from_geojson("Demo", "Client", _geojson(), config)
+    project = Project.from_geojson(_geojson(), config, name="Demo", customer="Client")
     project.attach_rasters(
         {"1": "a_ndvi.tif"}, {"1": "a_msavi.tif", "2": "b_msavi.tif"}
     )
@@ -55,7 +55,32 @@ def test_attach_rasters() -> None:
 
 def test_attach_metrics() -> None:
     config = ConfigManager()
-    project = Project.from_geojson("Demo", "Client", _geojson(), config)
+    project = Project.from_geojson(_geojson(), config, name="Demo", customer="Client")
     project.attach_metrics({"biodiv": 0.5, "vi": 0.7})
     assert project.metrics["biodiv"] == 0.5
     assert project.metrics["vi"] == 0.7
+
+
+def test_from_geojson_reads_metadata_and_area() -> None:
+    config = ConfigManager()
+    gj = {
+        "type": "FeatureCollection",
+        "metadata": {"name": "MetaProj", "customer": "MetaCust"},
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]
+                    ],
+                },
+            }
+        ],
+    }
+    project = Project.from_geojson(gj, config)
+    assert project.name == "MetaProj"
+    assert project.customer == "MetaCust"
+    assert "area_m2" in project.aois[0].static_props
+    assert project.aois[0].static_props["area_m2"] > 0
