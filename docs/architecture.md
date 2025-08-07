@@ -16,7 +16,7 @@ The VerdeSat MVP is structured to enable scalable, modular, and maintainable geo
 ## 2. High-Level Structure
 
 ```
-VerdeSatProject
+Project
 ├── AOI [1..N]
 │   ├── static_props (dict)
 │   ├── geometry (Polygon/MultiPolygon)
@@ -69,15 +69,15 @@ class Logger:
 
 ### project/
 
-#### `VerdeSatProject`
+#### `Project`
 ```python
-class VerdeSatProject:
-    """
-    Represents a client project. Holds multiple AOIs and project-level metadata.
-    Responsible for loading/saving project data and batch operations.
-    """
-    def __init__(self, name, customer, aois: List['AOI'], config: ConfigManager):
-        ...
+@dataclass
+class Project:
+    """Represents a client project with AOIs and project-level metadata."""
+    name: str
+    customer: str
+    aois: List['AOI']
+    config: ConfigManager
 ```
 
 ---
@@ -240,7 +240,7 @@ Current backlog items are listed in `roadmap.md`.
 
 ```python
 config = ConfigManager.load("config.toml")
-project = VerdeSatProject("ClientXYZ", "Acme Corp", [], config)
+project = Project("ClientXYZ", "Acme Corp", [], config)
 aoi = AOI(geometry, {"name": "Field1", "climate_zone": "temperate"})
 ts = TimeSeries("ndvi", "unitless", "monthly", df)
 aoi.add_timeseries("ndvi", ts)

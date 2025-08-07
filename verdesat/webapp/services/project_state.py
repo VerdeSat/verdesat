@@ -1,7 +1,7 @@
 """Helpers for persisting project state.
 
 This module currently provides lightweight hooks for saving a
-:class:`~verdesat.project.project.VerdeSatProject` definition using the
+:class:`~verdesat.project.project.Project` definition using the
 existing :class:`~verdesat.core.storage.StorageAdapter`.  In the real
 application this would integrate with a database or cloud object store to
 persist project state for authenticated users.
@@ -14,11 +14,11 @@ from typing import Any
 
 from shapely.geometry import mapping
 
-from verdesat.project.project import VerdeSatProject
+from verdesat.project.project import Project
 from verdesat.core.storage import StorageAdapter
 
 
-def persist_project(project: VerdeSatProject, storage: StorageAdapter) -> str:
+def persist_project(project: Project, storage: StorageAdapter) -> str:
     """Persist ``project`` definition using ``storage`` and return its URI.
 
     The project is serialised to GeoJSON where each AOI becomes a feature and
