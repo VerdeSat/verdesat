@@ -229,7 +229,7 @@ if uploaded_file is not None:
 
 if st.sidebar.button(
     "Run analysis",
-    help="Fetch satellite layers, compute metrics, and render results for your uploaded GeoJSON.",
+    help="Fetch satellite layers, compute metrics, and render results for your uploaded GeoJSON."
 ):
     st.session_state["run_requested"] = True
 

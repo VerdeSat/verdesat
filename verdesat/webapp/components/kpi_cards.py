@@ -17,6 +17,7 @@ class Metrics:
     intactness: float
     shannon: float
     fragmentation: float
+    msa: float
     ndvi_mean: float
     ndvi_std: float
     ndvi_slope: float
@@ -52,7 +53,7 @@ def aggregate_metrics(df: pd.DataFrame) -> Metrics:
 def display_metrics(metrics: Metrics) -> None:
     """Render KPI cards for the provided metrics."""
 
-    top = st.columns(6)
+    top = st.columns(5)
     top[0].metric(
         "Intactness %",
         f"{metrics.intactness * 100:.1f}",
@@ -69,43 +70,49 @@ def display_metrics(metrics: Metrics) -> None:
         help="Normalized fragmentation index; higher = more fragmented.",
     )
     top[3].metric(
-        "NDVI μ",
-        f"{metrics.ndvi_mean:.2f}",
-        help="Average NDVI value; higher indicates denser/healthier vegetation.",
+        "MSA %",
+        f"{metrics.msa * 100:.1f}",
+        help=(
+            "Mean Species Abundance (0–100%). 100% = near‑pristine reference conditions; lower values indicate human pressure."
+        ),
     )
+
     top[4].metric(
-        "MSAVI μ",
-        f"{metrics.msavi_mean:.2f}",
-        help="Average MSAVI value; soil-adjusted vegetation index useful for sparse vegetation.",
-    )
-    top[5].metric(
         "B-Score",
         f"{metrics.bscore:.1f}",
         help="Composite biodiversity score (0–100) based on structural and diversity metrics.",
     )
 
-    bottom = st.columns(5)
+    bottom = st.columns(6)
+
     bottom[0].metric(
+        "NDVI μ",
+        f"{metrics.ndvi_mean:.2f}",
+        help="Average NDVI value; higher indicates denser/healthier vegetation.",
+    )
+    bottom[1].metric(
+        "MSAVI μ",
+        f"{metrics.msavi_mean:.2f}",
+        help="Average MSAVI value; soil-adjusted vegetation index useful for sparse vegetation.",
+    )
+
+    bottom[2].metric(
         "NDVI slope",
         f"{metrics.ndvi_slope:.3f}",
         help="Annual NDVI trend; positive = increasing greenness.",
     )
-    bottom[1].metric(
+    bottom[3].metric(
         "ΔNDVI",
         f"{metrics.ndvi_delta:.3f}",
         help="Change in NDVI between baseline and last year.",
     )
-    bottom[2].metric(
+    bottom[4].metric(
         "p-value",
         f"{metrics.ndvi_p_value:.3f}",
         help="Statistical significance of NDVI trend - lower is better (0.05 = 95% confidence).",
     )
-    bottom[3].metric(
-        "Peak",
-        metrics.ndvi_peak or "–",
-        help="Month of peak NDVI.",
-    )
-    bottom[4].metric(
+
+    bottom[5].metric(
         "% Fill",
         f"{metrics.ndvi_pct_fill:.1f}",
         help="Percentage of interpolated (cloudy) observations in NDVI time series.",

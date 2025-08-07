@@ -67,21 +67,36 @@ def apply_theme() -> None:
         div.block-container > div:nth-child(even):not(.vs-hero) {background-color: #FFFFFF;}
         div.block-container > div:nth-child(odd):not(.vs-hero) {background-color: #F8F9FA;}
         div.block-container > div:not(.vs-hero) {padding: 32px 24px;}
-        .stButton>button, .stDownloadButton>button {background-color: #2B6E3F; color: #FFFFFF; border-radius: 9999px;}
+        .stButton button:not([title="Sidebar"]), .stDownloadButton button {
+            background-color: #2B6E3F !important;
+            color: #FFFFFF !important;
+            border-radius: 9999px !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
 
-        .stButton>button:hover,
-        .stDownloadButton>button:hover {
+        .stButton button:not([title="Sidebar"]):hover,
+        .stDownloadButton button:hover {
             color: #6EE7B7
         }
-        .stDownloadButton>button:focus {
+        .stDownloadButton button:focus {
             color: #6EE7B7
         }
-        .stButton>button:focus,
-        .stButton>button:active,
-        .stDownloadButton>button:focus,
-        .stDownloadButton>button:active {
+        .stButton button:not([title="Sidebar"]):focus,
+        .stButton button:not([title="Sidebar"]):active,
+        .stDownloadButton button:focus,
+        .stDownloadButton button:active {
             color: #FFFFFF
         }
+        /* Sidebar-specific override to ensure Run analysis button keeps custom style */
+        section[data-testid="stSidebar"] .stButton button:not([title="Sidebar"]) {
+            background-color: #2B6E3F !important;
+            color: #FFFFFF !important;
+            border-radius: 9999px !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        section[data-testid="stSidebar"] .stButton button:not([title="Sidebar"]):hover { color: #6EE7B7 !important; }
         @media (max-width: 600px) {
             .vs-navbar {flex-wrap: wrap; height: auto; padding: 8px 16px; background: rgba(255,255,255,0.9);}
             .vs-navbar a {margin-left: 16px; margin-top: 4px;}
