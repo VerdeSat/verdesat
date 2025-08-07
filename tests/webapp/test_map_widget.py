@@ -87,3 +87,49 @@ def test_display_map_saves_view(monkeypatch):
 
     assert st.session_state["map_center"] == [1.0, 2.0]
     assert st.session_state["map_zoom"] == 7
+
+
+def test_display_map_adds_tooltip_and_popup(monkeypatch):
+    from shapely.geometry import Polygon
+    import geopandas as gpd
+    import folium
+
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": [1],
+            "area_ha": [12.5],
+            "bscore": [0.8],
+            "geometry": [Polygon([(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0)])],
+        },
+        crs="EPSG:4326",
+    )
+
+    _clear_state()
+    captured: dict[str, folium.Map] = {}
+
+    def fake_st_folium(m, *args, **kwargs):
+        captured["map"] = m
+        return {}
+
+    monkeypatch.setattr(map_widget, "st_folium", fake_st_folium)
+    map_widget.display_map(gdf, {})
+
+    geo_layers = [
+        child
+        for child in captured["map"]._children.values()
+        if isinstance(child, folium.GeoJson)
+    ]
+    assert geo_layers
+    layer = geo_layers[0]
+    tooltip = next(
+        c
+        for c in layer._children.values()
+        if isinstance(c, folium.features.GeoJsonTooltip)
+    )
+    popup = next(
+        c
+        for c in layer._children.values()
+        if isinstance(c, folium.features.GeoJsonPopup)
+    )
+    assert {"id", "area_ha", "bscore"} <= set(tooltip.fields)
+    assert {"id", "area_ha", "bscore"} <= set(popup.fields)

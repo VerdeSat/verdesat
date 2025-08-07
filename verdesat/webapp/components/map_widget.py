@@ -12,6 +12,7 @@ import numpy as np
 import rasterio
 from PIL import Image
 from folium import FeatureGroup
+from folium.features import GeoJsonPopup, GeoJsonTooltip
 from folium.raster_layers import ImageOverlay, TileLayer
 from streamlit_folium import st_folium
 import streamlit as st
@@ -127,7 +128,26 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
     map_container = st.container()
 
     with map_container:
-        m = folium.Map(location=centre, tiles="CartoDB positron")
+        m = folium.Map(location=centre, tiles="Stadia.AlidadeSatellite")
+
+        fields: list[str] = []
+        aliases: list[str] = []
+        if "id" in aoi_gdf.columns:
+            fields.append("id")
+            aliases.append("AOI ID")
+        if "area_ha" in aoi_gdf.columns:
+            fields.append("area_ha")
+            aliases.append("Area (ha)")
+        bscore_col = next(
+            (c for c in ("bscore", "b_score") if c in aoi_gdf.columns), None
+        )
+        if bscore_col:
+            fields.append(bscore_col)
+            aliases.append("B-score")
+
+        tooltip = GeoJsonTooltip(fields=fields, aliases=aliases) if fields else None
+        popup = GeoJsonPopup(fields=fields, aliases=aliases) if fields else None
+
         folium.GeoJson(
             aoi_gdf,
             name="AOI Boundaries",
@@ -136,6 +156,8 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
                 "weight": 2,
                 "fill": False,
             },
+            tooltip=tooltip,
+            popup=popup,
         ).add_to(m)
 
         ndvi_group = FeatureGroup(name="Last annual NDVI", show=True)
@@ -192,7 +214,7 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
             state = st_folium(
                 m,
                 width=None,
-                height=425,
+                height=390,
                 key=map_key,
                 returned_objects=["last_object_clicked_tooltip", "last_clicked"],
             )
@@ -202,7 +224,7 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
             state = st_folium(
                 m,
                 width=None,
-                height=425,
+                height=390,
                 key=map_key,
                 returned_objects=["last_object_clicked_tooltip", "last_clicked"],
             )
