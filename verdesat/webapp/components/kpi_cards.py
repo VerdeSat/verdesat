@@ -130,14 +130,18 @@ def bscore_gauge(
 ) -> None:
     """Display a gauge chart for the B-Score, with risk band and formula explanation."""
     # Define default weights
-    default_weights: dict[str, float] = {"intactness": 0.4, "shannon": 0.3, "fragmentation": 0.3}
+    default_weights: dict[str, float] = {
+        "intactness": 0.4,
+        "shannon": 0.3,
+        "fragmentation": 0.3,
+    }
     used_weights = weights if weights is not None else default_weights
 
     # Colored gauge steps for risk bands
     steps = [
-        {"range": [0, 40], "color": "#f7b6b2"},      # Red-tint
-        {"range": [40, 70], "color": "#ffd480"},     # Amber-tint
-        {"range": [70, 100], "color": "#b7e5c8"},    # Green-tint
+        {"range": [0, 40], "color": "#f7b6b2"},  # Red-tint
+        {"range": [40, 70], "color": "#ffd480"},  # Amber-tint
+        {"range": [70, 100], "color": "#b7e5c8"},  # Green-tint
     ]
 
     fig = go.Figure(
@@ -159,10 +163,7 @@ def bscore_gauge(
             title={"text": title or "Project B-Score"},
         )
     )
-    fig.update_layout(
-        height=200,
-        margin=dict(l=15, r=27, t=10, b=10)
-    )
+    fig.update_layout(height=200, margin=dict(l=15, r=27, t=10, b=10))
 
     with st.container(height=450):
         st.plotly_chart(fig, use_container_width=True)

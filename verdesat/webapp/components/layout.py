@@ -114,7 +114,7 @@ def render_navbar() -> None:
 def render_hero(title: str, subtitle: str | None = None) -> None:
     """Display a full-width hero banner with ``title`` and optional ``subtitle``."""
 
-    subtitle_html = f"<p class=\"subtitle\">{subtitle}</p>" if subtitle else ""
+    subtitle_html = f'<p class="subtitle">{subtitle}</p>' if subtitle else ""
     st.markdown(
         f"""
         <section class="vs-hero">
