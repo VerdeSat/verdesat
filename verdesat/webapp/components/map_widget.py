@@ -135,9 +135,9 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         if "id" in aoi_gdf.columns:
             fields.append("id")
             aliases.append("AOI ID")
-        if "area_ha" in aoi_gdf.columns:
-            fields.append("area_ha")
-            aliases.append("Area (ha)")
+        if "area_m2" in aoi_gdf.columns:
+            fields.append("area_m2")
+            aliases.append("Area (m2)")
         bscore_col = next(
             (c for c in ("bscore", "b_score") if c in aoi_gdf.columns), None
         )
