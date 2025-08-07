@@ -39,8 +39,8 @@ def _clear_state() -> None:
         del st.session_state[k]
 
 
-def test_display_map_uses_constant_key(monkeypatch):
-    """Ensure map renders without triggering reruns."""
+def test_display_map_uses_layer_hash_key(monkeypatch):
+    """Ensure map renders without triggering reruns and uses stable hash key."""
     from shapely.geometry import Polygon
     import geopandas as gpd
 
@@ -59,10 +59,13 @@ def test_display_map_uses_constant_key(monkeypatch):
     monkeypatch.setattr(map_widget, "st_folium", fake_st_folium)
     map_widget.display_map(gdf, {})
 
-    assert called_kwargs["key"] == "main_map"
-    assert called_kwargs["returned_objects"] == []
-    assert st.session_state["main_map_center"] == [0.5, 0.5]
-    assert st.session_state["main_map_zoom"] == 10
+    assert called_kwargs["key"].startswith("main_map_")
+    assert called_kwargs["returned_objects"] == [
+        "last_object_clicked_tooltip",
+        "last_clicked",
+    ]
+    assert st.session_state["map_center"] == [0.5, 0.5]
+    assert st.session_state["map_zoom"] == 10
 
 
 def test_display_map_saves_view(monkeypatch):
@@ -82,5 +85,5 @@ def test_display_map_saves_view(monkeypatch):
     monkeypatch.setattr(map_widget, "st_folium", fake_st_folium)
     map_widget.display_map(gdf, {})
 
-    assert st.session_state["main_map_center"] == [1.0, 2.0]
-    assert st.session_state["main_map_zoom"] == 7
+    assert st.session_state["map_center"] == [1.0, 2.0]
+    assert st.session_state["map_zoom"] == 7
