@@ -127,7 +127,7 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
     map_container = st.container()
 
     with map_container:
-        m = folium.Map(location=centre, tiles="CartoDB positron")
+        m = folium.Map(location=centre, tiles="Stadia.AlidadeSatellite")
         folium.GeoJson(
             aoi_gdf,
             name="AOI Boundaries",
@@ -192,7 +192,7 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
             state = st_folium(
                 m,
                 width=None,
-                height=425,
+                height=390,
                 key=map_key,
                 returned_objects=["last_object_clicked_tooltip", "last_clicked"],
             )
@@ -202,7 +202,7 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
             state = st_folium(
                 m,
                 width=None,
-                height=425,
+                height=390,
                 key=map_key,
                 returned_objects=["last_object_clicked_tooltip", "last_clicked"],
             )
