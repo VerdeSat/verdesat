@@ -221,7 +221,7 @@ if uploaded_file is not None:
         st.session_state.pop("main_map_center", None)
         st.session_state.pop("main_map_zoom", None)
 
-if st.sidebar.button("Run analysis"):
+if st.sidebar.button("Run analysis", help="Fetch satellite layers, compute metrics, and render results for your uploaded GeoJSON."):
     st.session_state["run_requested"] = True
 
 show_log = st.sidebar.checkbox("Show log pane")
