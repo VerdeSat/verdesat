@@ -25,6 +25,22 @@ verdesat pipeline report \
   --out-dir verdesat_output
 ```
 
+### GeoJSON project metadata
+GeoJSON uploads may include a top-level `metadata` object to describe the
+project:
+
+```json
+{
+  "type": "FeatureCollection",
+  "metadata": {"name": "Demo", "customer": "Acme Co"},
+  "features": [ ... ]
+}
+```
+
+`Project.from_geojson` and the web app will use these fields when initialising a
+project. Each uploaded feature also receives an `area_m2` property calculated in
+square metres.
+
 ### Custom Index
 By default the toolkit uses **NDVI** and writes a `mean_ndvi` column.
 Pass `--index` and `--value-col` to work with other indices (e.g.

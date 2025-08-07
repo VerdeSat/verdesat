@@ -124,12 +124,26 @@ class VectorPreprocessor:
         self.gdf.reset_index(drop=True, inplace=True)
         self.gdf[self.id_col] = self.gdf.index.astype(int) + 1
 
+    @staticmethod
+    def compute_area(gdf: gpd.GeoDataFrame, area_crs: int = 8857) -> None:
+        """Add an ``area_m2`` column to ``gdf`` using ``area_crs``.
+
+        Parameters
+        ----------
+        gdf:
+            GeoDataFrame whose area should be computed.
+        area_crs:
+            Projected CRS (defaults to EPSG:8857) used to calculate area in
+            square metres.
+        """
+        area_gdf = gdf.to_crs(epsg=area_crs)
+        gdf["area_m2"] = area_gdf.geometry.area
+
     def calculate_area(self) -> None:
         """Calculate area in m2 using the area CRS."""
         if self.gdf is None:
             return
-        area_gdf = self.gdf.to_crs(epsg=self.area_crs)
-        self.gdf["area_m2"] = area_gdf.geometry.area
+        self.compute_area(self.gdf, self.area_crs)
 
     def add_username(self) -> None:
         """Add a 'username' column based on the input directory name."""
