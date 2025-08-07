@@ -45,6 +45,7 @@ CONFIG = ConfigManager(
 )
 _demo_cfg = CONFIG.get("demo", {})
 _defaults = CONFIG.get("defaults", {})
+_map_fields = CONFIG.get("map", {}).get("fields", {})
 DEMO_AOI_KEY = _demo_cfg.get("aoi_key", "resources/reference.geojson")
 
 storage = LocalFS()
@@ -298,7 +299,7 @@ elif st.session_state.get("run_requested"):
     with col1:
         map_container = st.container(height=450)
         with map_container:
-            display_map(gdf, project.rasters)
+            display_map(gdf, project.rasters, project.metrics, info_fields=_map_fields)
     with col2:
         bscore_gauge(metrics.bscore)
 
@@ -330,7 +331,7 @@ elif "results" in st.session_state:
     metrics = res["metrics"]
 
     with col1:
-        display_map(gdf, project.rasters)
+        display_map(gdf, project.rasters, project.metrics, info_fields=_map_fields)
     with col2:
         bscore_gauge(metrics.bscore)
 

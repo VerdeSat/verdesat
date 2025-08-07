@@ -20,6 +20,12 @@ msavi = "resources/MSAVI_2_2024-01-01.tif"
 start_year = 2019
 end_year = 2024
 
+[map.fields]
+id = "AOI ID"
+area_m2 = "Area (m2)"
+area_ha = "Area (ha)"
+bscore = "B-score"
+
 [r2]
 endpoint = "${R2_ENDPOINT}"
 bucket = "${R2_BUCKET}"
