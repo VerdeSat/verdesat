@@ -99,17 +99,57 @@ def _local_overlay(path: str, *, name: str | None = None) -> ImageOverlay:
     )
 
 
-def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
-    """Render Folium map with AOI boundaries and VI layers.
+def display_map(
+    aoi_gdf,
+    rasters: Mapping[str, Mapping[str, str]],
+    metrics: Mapping[str, Mapping[str, float | str]] | None = None,
+    *,
+    info_fields: Mapping[str, str] | None = None,
+) -> None:
+    """Render Folium map with AOI boundaries, metrics and VI layers.
+
+    Parameters
+    ----------
+    aoi_gdf:
+        AOI geometries to render.
+    rasters:
+        Mapping of AOI IDs to raster layer paths.
+    metrics:
+        Optional mapping of AOI IDs to metric dictionaries.
+    info_fields:
+        Mapping of property/metric keys to display labels used for the tooltip
+        and popup. When ``None`` a default set of fields is used.
 
     The map is rebuilt on every Streamlit rerun, but the user's pan/zoom state
     is preserved in ``st.session_state`` so interactions persist. When the AOI
-    geometry or rasters change, stored state is cleared and the map recentres on
-    the AOI.
+    geometry, metrics or rasters change, stored state is cleared and the map
+    recentres on the AOI.
     """
 
+    field_aliases = dict(
+        info_fields
+        or {
+            "id": "AOI ID",
+            "area_m2": "Area (m2)",
+            "area_ha": "Area (ha)",
+            "bscore": "B-score",
+        }
+    )
+
+    gdf = aoi_gdf.copy()
+    if metrics:
+        id_col = next((c for c in ("id", "aoi_id") if c in gdf.columns), None)
+        if id_col:
+            for key in field_aliases:
+                if key not in gdf.columns and any(key in m for m in metrics.values()):
+                    gdf[key] = (
+                        gdf[id_col]
+                        .astype(str)
+                        .map(lambda i: metrics.get(str(i), {}).get(key))
+                    )
+
     layers_key = hashlib.sha256(
-        (aoi_gdf.to_json() + json.dumps(rasters, sort_keys=True)).encode("utf-8")
+        (gdf.to_json() + json.dumps(rasters, sort_keys=True)).encode("utf-8")
     ).hexdigest()
 
     if st.session_state.get("map_layers_key") != layers_key:
@@ -117,7 +157,7 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
         st.session_state.pop("map_center", None)
         st.session_state.pop("map_zoom", None)
 
-    bounds = aoi_gdf.total_bounds  # minx, miny, maxx, maxy
+    bounds = gdf.total_bounds  # minx, miny, maxx, maxy
     bounds_latlon = [[bounds[1], bounds[0]], [bounds[3], bounds[2]]]
     centre = st.session_state.get("map_center") or [
         (bounds_latlon[0][0] + bounds_latlon[1][0]) / 2,
@@ -130,26 +170,14 @@ def display_map(aoi_gdf, rasters: Mapping[str, Mapping[str, str]]) -> None:
     with map_container:
         m = folium.Map(location=centre, tiles="Stadia.AlidadeSatellite")
 
-        fields: list[str] = []
-        aliases: list[str] = []
-        if "id" in aoi_gdf.columns:
-            fields.append("id")
-            aliases.append("AOI ID")
-        if "area_ha" in aoi_gdf.columns:
-            fields.append("area_ha")
-            aliases.append("Area (ha)")
-        bscore_col = next(
-            (c for c in ("bscore", "b_score") if c in aoi_gdf.columns), None
-        )
-        if bscore_col:
-            fields.append(bscore_col)
-            aliases.append("B-score")
+        fields = [f for f in field_aliases if f in gdf.columns]
+        aliases = [field_aliases[f] for f in fields]
 
         tooltip = GeoJsonTooltip(fields=fields, aliases=aliases) if fields else None
         popup = GeoJsonPopup(fields=fields, aliases=aliases) if fields else None
 
         folium.GeoJson(
-            aoi_gdf,
+            gdf,
             name="AOI Boundaries",
             style_function=lambda *_: {
                 "color": "#159466",
