@@ -23,7 +23,6 @@ class Metrics:
     ndvi_slope: float
     ndvi_delta: float
     ndvi_p_value: float
-    ndvi_peak: str
     ndvi_pct_fill: float
     msavi_mean: float
     msavi_std: float
@@ -33,20 +32,16 @@ class Metrics:
 def aggregate_metrics(df: pd.DataFrame) -> Metrics:
     """Return mean values for ``df`` as a :class:`Metrics` instance.
 
-    The mean is computed column-wise for all numeric metric fields. For the
-    ``ndvi_peak`` column, the modal (most frequent) value is used.
+    The mean is computed column-wise for all metric fields present in the DataFrame.
+    Any missing fields are defaulted to 0.0.
     """
-
     metric_fields = {f.name for f in fields(Metrics)}
-    numeric_fields = [
-        field for field in metric_fields if field != "ndvi_peak" and field in df.columns
-    ]
+    numeric_fields = [field for field in metric_fields if field in df.columns]
     data: dict[str, float | str] = df[numeric_fields].mean(numeric_only=True).to_dict()
-    data["ndvi_peak"] = (
-        str(df["ndvi_peak"].mode().iat[0])
-        if "ndvi_peak" in df.columns and not df["ndvi_peak"].empty
-        else ""
-    )
+    # Ensure defaults for any missing numeric fields
+    for name in metric_fields:
+        if name not in data:
+            data[name] = 0.0
     return Metrics(**cast(dict[str, Any], data))
 
 
