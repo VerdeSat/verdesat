@@ -14,6 +14,7 @@ from verdesat.services.raster_utils import convert_to_cog
 from verdesat.geo.aoi import AOI
 from verdesat.ingestion.eemanager import EarthEngineManager, ee_manager
 from verdesat.core.storage import LocalFS, StorageAdapter
+from verdesat.core.utils import sanitize_identifier
 from .base import BaseService
 
 
@@ -127,9 +128,10 @@ class LandcoverService(BaseService):
             else:
                 raise
 
-        pid = aoi.static_props.get("id") or aoi.static_props.get(
+        raw_pid = aoi.static_props.get("id") or aoi.static_props.get(
             "system:index", "unknown"
         )
+        pid = sanitize_identifier(str(raw_pid))
         filename = f"LANDCOVER_{pid}_{year}.tif"
         output = self.storage.join(out_dir, filename)
 

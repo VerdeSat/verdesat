@@ -292,3 +292,40 @@ def test_download_fallback_on_missing_asset(tmp_path, monkeypatch, dummy_aoi):
     assert years[1] > LandcoverService.LATEST_ESRI_YEAR
     assert out.exists() and out.read_bytes() == b"X"
     assert captured["shapes"][0] == {"geom": True}
+
+
+def test_download_sanitizes_aoi_id(tmp_path, monkeypatch):
+    dummy_img = MagicMock()
+    dummy_img.getDownloadURL.return_value = "http://example.com/lc.tif"
+
+    monkeypatch.setattr(
+        LandcoverService, "get_image", lambda self, *_a, **_k: dummy_img
+    )
+
+    class FakeResp:
+        content = b"X"
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr(
+        "verdesat.services.landcover.requests",
+        SimpleNamespace(get=lambda *_a, **_k: FakeResp()),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "verdesat.services.landcover.convert_to_cog",
+        lambda *_a, **_k: None,
+    )
+
+    dummy_aoi = MagicMock()
+    dummy_aoi.static_props = {"id": "../evil"}
+    dummy_aoi.ee_geometry.return_value = MagicMock()
+    dummy_aoi.geometry = MagicMock()
+
+    svc = LandcoverService(ee_manager_instance=MagicMock(), storage=LocalFS())
+    dest = svc.download(dummy_aoi, 2020, str(tmp_path))
+
+    out = tmp_path / "LANDCOVER_evil_2020.tif"
+    assert dest == str(out)
+    assert out.exists()
