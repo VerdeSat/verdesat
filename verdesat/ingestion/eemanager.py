@@ -86,7 +86,13 @@ class EarthEngineManager:
                     sa_inline_credentials: Any = ee.ServiceAccountCredentials(
                         creds_data.get("client_email"), temp_path  # type: ignore[arg-type]
                     )
-                    ee.Initialize(sa_inline_credentials, project=project)
+                    try:
+                        ee.Initialize(sa_inline_credentials, project=project)
+                    finally:
+                        os.remove(temp_path)
+                        self.logger.debug(
+                            "Deleted temporary service-account JSON file %s", temp_path
+                        )
                     return
                 else:
                     ee.Initialize(project=project)
