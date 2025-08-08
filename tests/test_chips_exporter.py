@@ -154,3 +154,56 @@ def test_palette_dropped_when_gamma(tmp_export_dir, monkeypatch):
     )
     # palette should *not* be present when gamma supplied
     assert "palette" not in params and params["gamma"] == [0.7]
+
+
+# -------------------------------------------------------------------
+# 4) Identifier sanitization
+# -------------------------------------------------------------------
+def test_export_one_sanitizes_aoi_id(
+    tmp_export_dir, dummy_img, dummy_feat, monkeypatch
+):
+    class _FakeResp:
+        status_code = 200
+        content = b"PNGDATA"
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr(
+        "verdesat.visualization.chips.requests",
+        types.SimpleNamespace(get=lambda *_a, **_k: _FakeResp()),
+        raising=False,
+    )
+
+    dummy_aoi = MagicMock()
+    dummy_aoi.static_props = {"id": "../evil"}
+    dummy_geom = MagicMock()
+    dummy_geom.bounds.return_value = MagicMock()
+    dummy_aoi.buffered_ee_geometry.return_value = dummy_geom
+
+    exporter = ChipExporter(
+        ee_manager=MagicMock(), out_dir=str(tmp_export_dir), fmt="png"
+    )
+
+    exporter.ee_manager.safe_get_info.return_value = {
+        "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1]]]
+    }
+
+    dest = exporter.export_one(
+        img=dummy_img,
+        aoi=dummy_aoi,
+        date_str="2024-01-01",
+        com_type="RGB",
+        bands=["red"],
+        palette=None,
+        scale=30,
+        buffer_m=0,
+        gamma=None,
+        min_val=0,
+        max_val=1,
+    )
+
+    out_path = tmp_export_dir / "RGB_evil_2024-01-01.png"
+    assert dest == str(out_path)
+    assert out_path.exists()
+    assert out_path.read_bytes() == b"PNGDATA"

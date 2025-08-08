@@ -1,6 +1,5 @@
 """Module implementing ChipExporter and ChipService for exporting image chips via GEE."""
 
-import os
 from typing import Any, Dict, List, Optional, Union
 
 import ee
@@ -17,6 +16,7 @@ from verdesat.ingestion.sensorspec import SensorSpec
 from verdesat.visualization._chips_config import ChipsConfig
 from verdesat.core.logger import Logger
 from verdesat.core.storage import LocalFS, StorageAdapter
+from verdesat.core.utils import sanitize_identifier
 
 
 class ChipExporter:
@@ -115,9 +115,10 @@ class ChipExporter:
         str | None
             Destination URI if successful, otherwise ``None``.
         """
-        pid = aoi.static_props.get("id") or aoi.static_props.get(
+        raw_pid = aoi.static_props.get("id") or aoi.static_props.get(
             "system:index", "unknown"
         )
+        pid = sanitize_identifier(str(raw_pid))
 
         try:
             geom = aoi.buffered_ee_geometry(buffer_m)

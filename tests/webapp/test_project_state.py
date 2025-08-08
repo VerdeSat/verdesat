@@ -28,3 +28,15 @@ def test_persist_project(tmp_path):
     saved = json.loads(Path(uri).read_text())
     assert saved["metadata"]["name"] == "TestProj"
     assert len(saved["features"]) == 1
+
+
+def test_persist_project_sanitizes_name(tmp_path):
+    aoi = AOI(Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]), {"id": 1})
+    project = Project("../evil", "Cust", [aoi], ConfigManager())
+    storage = TempStorage(str(tmp_path))
+    uri = persist_project(project, storage)
+    saved_path = Path(uri)
+    assert saved_path.parent == tmp_path / "projects"
+    assert saved_path.name == "evil.geojson"
+    saved = json.loads(saved_path.read_text())
+    assert saved["metadata"]["name"] == "../evil"
