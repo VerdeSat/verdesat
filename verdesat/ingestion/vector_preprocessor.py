@@ -69,7 +69,9 @@ class VectorPreprocessor:
                     for name in kmls:
                         # Extract KML content to a temp file and track the path for cleanup
                         with z.open(name) as kml:
-                            with tempfile.NamedTemporaryFile(suffix=".kml", delete=False) as tmp:
+                            with tempfile.NamedTemporaryFile(
+                                suffix=".kml", delete=False
+                            ) as tmp:
                                 tmp.write(kml.read())
                                 tmp.flush()
                                 temp_paths.append(tmp.name)
