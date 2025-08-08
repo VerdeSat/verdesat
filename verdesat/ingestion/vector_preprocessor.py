@@ -59,19 +59,29 @@ class VectorPreprocessor:
     def _read_file(self, filepath: str) -> gpd.GeoDataFrame:
         """Read a single file, handling KMZ/KML if needed."""
         if filepath.lower().endswith(".kmz"):
-            gdfs = []
+            gdfs: list[gpd.GeoDataFrame] = []
+            temp_paths: list[str] = []
             with zipfile.ZipFile(filepath, "r") as z:
                 kmls = [n for n in z.namelist() if n.lower().endswith(".kml")]
                 if not kmls:
                     raise RuntimeError(f"No .kml found in KMZ: {filepath}")
-                for name in kmls:
-                    with z.open(name) as kml:
-                        with tempfile.NamedTemporaryFile(
-                            suffix=".kml", delete=False
-                        ) as tmp:
-                            tmp.write(kml.read())
-                            tmp.flush()
-                            gdfs.append(gpd.read_file(tmp.name, driver="KML"))
+                try:
+                    for name in kmls:
+                        # Extract KML content to a temp file and track the path for cleanup
+                        with z.open(name) as kml:
+                            with tempfile.NamedTemporaryFile(suffix=".kml", delete=False) as tmp:
+                                tmp.write(kml.read())
+                                tmp.flush()
+                                temp_paths.append(tmp.name)
+                        # Read after the temp file handle is closed
+                        gdfs.append(gpd.read_file(temp_paths[-1], driver="KML"))
+                finally:
+                    # Ensure all temp files are removed even if read fails
+                    for p in temp_paths:
+                        try:
+                            os.remove(p)
+                        except OSError:
+                            pass
             return gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True))
         else:
             return gpd.read_file(filepath)
