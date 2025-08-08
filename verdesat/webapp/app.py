@@ -353,7 +353,9 @@ elif "results" in st.session_state:
     metrics = res["metrics"]
 
     with col1:
-        display_map(gdf, project.rasters, project.metrics, info_fields=_map_fields)
+        map_container = st.container(height=450)
+        with map_container:
+            display_map(gdf, project.rasters, project.metrics, info_fields=_map_fields)
     with col2:
         bscore_gauge(metrics.bscore)
 
