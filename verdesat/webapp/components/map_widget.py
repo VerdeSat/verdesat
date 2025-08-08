@@ -281,8 +281,7 @@ def display_map(
             msavi_group.add_to(m)
 
         folium.LayerControl(position="topright", collapsed=False).add_to(m)
-        if "map_center" not in st.session_state:
-            m.fit_bounds(bounds_latlon)
+        m.fit_bounds(bounds_latlon)
 
         # Store map state and use cached version when available
         map_key = f"main_map_{layers_key}"
@@ -294,7 +293,7 @@ def display_map(
 
             state = st_folium(
                 m,
-                width=None,
+                width="100%",
                 height=390,
                 key=map_key,
                 returned_objects=["last_object_clicked_tooltip", "last_clicked"],
@@ -304,7 +303,7 @@ def display_map(
             # Use cached version but still render the component
             state = st_folium(
                 m,
-                width=None,
+                width="100%",
                 height=390,
                 key=map_key,
                 returned_objects=["last_object_clicked_tooltip", "last_clicked"],

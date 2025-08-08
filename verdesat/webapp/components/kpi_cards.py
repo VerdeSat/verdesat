@@ -165,7 +165,7 @@ def bscore_gauge(
             title={"text": title or "Project B-Score"},
         )
     )
-    fig.update_layout(height=200, margin=dict(l=15, r=27, t=10, b=10))
+    fig.update_layout(height=200, margin=dict(l=15, r=27, t=40, b=10))
 
     with st.container(height=450):
         st.plotly_chart(fig, use_container_width=True)
