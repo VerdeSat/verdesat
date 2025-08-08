@@ -30,7 +30,7 @@ def test_fill_gaps_and_to_csv(tmp_path):
 
 
 def test_decompose():
-    dates = pd.date_range("2020-01-01", periods=24, freq="M")
+    dates = pd.date_range("2020-01-01", periods=24, freq="ME")
     values = pd.Series(range(24)) + pd.Series([1] * 24)
     df = pd.DataFrame({"id": 1, "date": dates, "mean_ndvi": values})
     ts = TimeSeries.from_dataframe(df, index="ndvi")
