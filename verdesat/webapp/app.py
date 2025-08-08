@@ -4,6 +4,7 @@ __doc__ = "Streamlit dashboard for visualising VerdeSat project metrics."
 
 import json
 import logging
+import hashlib
 from datetime import date
 from pathlib import Path
 from typing import cast
@@ -190,6 +191,10 @@ if st.sidebar.button("Load demo project"):
         "Use case - Mexican reforestation project (AOI 1) next to a reference plot (AOI 2)."
     )
     st.session_state["project"] = load_demo_project()
+    st.session_state["project_source"] = "demo"
+    st.session_state.pop("results", None)
+    st.session_state.pop("uploaded_filename", None)
+    st.session_state.pop("uploaded_file_hash", None)
     st.session_state["run_requested"] = False
     # Drop any cached map from a previous project
     st.session_state.pop("main_map", None)
@@ -208,17 +213,27 @@ start_year, end_year = st.sidebar.slider(
 
 uploaded_file = st.sidebar.file_uploader("GeoJSON Project", type="geojson")
 if uploaded_file is not None:
-    # Create / refresh the project only when the user selects
-    # *a different* file. On normal reruns `uploaded_file` is the
-    # same  object and we must *not* wipe the run_requested flag.
-    if st.session_state.get("uploaded_filename") != uploaded_file.name:
+    # Always consider switching to the uploaded project if either the current
+    # project was not sourced from an upload, or the file content has changed.
+    try:
+        uploaded_bytes = uploaded_file.getvalue()
+    except Exception:
+        uploaded_bytes = uploaded_file.read()  # fallback
+    file_hash = hashlib.sha256(uploaded_bytes).hexdigest()
+
+    should_reload = (
+        st.session_state.get("project_source") != "upload"
+        or st.session_state.get("uploaded_file_hash") != file_hash
+    )
+
+    if should_reload:
         max_bytes = 5 * 1024 * 1024  # 5MB
-        if uploaded_file.size > max_bytes:
+        if getattr(uploaded_file, "size", len(uploaded_bytes)) > max_bytes:
             st.sidebar.error("File too large; limit 5MB")
         else:
             try:
-                geojson = json.load(uploaded_file)
-            except json.JSONDecodeError:
+                geojson = json.loads(uploaded_bytes.decode("utf-8"))
+            except Exception:
                 st.sidebar.error("Invalid GeoJSON file")
             else:
                 try:
@@ -234,7 +249,11 @@ if uploaded_file is not None:
                     st.sidebar.error(str(exc))
                 else:
                     st.session_state["uploaded_filename"] = uploaded_file.name
+                    st.session_state["uploaded_file_hash"] = file_hash
+                    st.session_state["project_source"] = "upload"
                     st.session_state["run_requested"] = False
+                    # Clear stale results and map state when switching projects
+                    st.session_state.pop("results", None)
                     st.session_state.pop("main_map", None)
                     st.session_state.pop("main_map_center", None)
                     st.session_state.pop("main_map_zoom", None)
@@ -261,7 +280,11 @@ else:
         root_logger.removeHandler(existing_handler)
         st.session_state.pop("log_handler")
 
-if _demo_cfg and st.session_state.get("project") and not uploaded_file:
+if (
+    _demo_cfg
+    and st.session_state.get("project")
+    and st.session_state.get("project_source") == "demo"
+):
     st.session_state["run_requested"] = True
 
 project: Project | None = st.session_state.get("project")
