@@ -55,6 +55,12 @@ class Project:
         """
 
         log = logger or Logger.get_logger(__name__)
+        if geojson.get("type") != "FeatureCollection" or not isinstance(
+            geojson.get("features"), list
+        ):
+            raise ValueError(
+                "GeoJSON must be a FeatureCollection with a 'features' array"
+            )
         meta = geojson.get("metadata", {})
         proj_name_raw = name or meta.get("name", "Uploaded Project")
         proj_customer_raw = customer or meta.get("customer", "Guest")
