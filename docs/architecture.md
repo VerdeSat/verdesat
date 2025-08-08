@@ -1,264 +1,189 @@
+# VerdeSat Architecture — Current State, Target v1.0, Migration Plan
 
-
-
-# VerdeSat Modular Architecture Design
-
-_Last updated: 2025-05-29_
+_Last updated: 2025-08-08_
 
 ---
 
-## 1. Overview
-
-The VerdeSat MVP is structured to enable scalable, modular, and maintainable geospatial analytics for land monitoring. The architecture is built around clearly defined Python classes and modules, each responsible for a narrow domain, to ensure extensibility and clarity.
-
----
-
-## 2. High-Level Structure
-
-```
-Project
-├── AOI [1..N]
-│   ├── static_props (dict)
-│   ├── geometry (Polygon/MultiPolygon)
-│   └── timeseries: {variable: TimeSeries}
-│         └── TimeSeries (variable, units, freq, DataFrame)
-├── ConfigManager
-├── Logger
-├── DataIngestor
-│   ├── SensorSpec (per backend)
-├── AnalyticsEngine
-├── Visualizer
-└── resources/
-```
-
-### Module Mapping
-
-- `core/` — config, logging, cli glue, utils
-- `project/` — project and aoi management
-- `geo/` — geometric and AOI logic
-- `ingestion/` — data download, sensor specs, cloud masking
-- `analytics/` — time series, indices, filling, trend, decomposition
-- `modeling/` — forecasting models (Prophet, LSTM, etc.)
-- `visualization/` — plotting, maps, GIFs, reporting
-- `resources/` — palettes, band maps, formulas, etc. (JSON/YAML)
+## 0) TL;DR
+- **Today (MVP):** Python monorepo; EO analytics in pure Python; Streamlit dashboard; private COGs/CSV/PDFs on **Cloudflare R2** accessed via **presigned URLs**; Folium/Leaflet tiles served via Titiler; CLI and webapp reuse the same service classes.
+- **Target v1.0:** One **FastAPI Core** (Auth, Projects, AOIs, Jobs, MetricSets, Artifacts) + **Postgres/PostGIS** (metadata & metrics) + **Workers/Queue** (long jobs) + **R2** (heavy artifacts). Streamlit & CLI become thin clients of this API.
+- **Why:** Single source of truth, multi-tenant, cloud‑native, cheap to run, easy to extend.
 
 ---
 
-## 3. Class & Module Outlines
+## 1) Current State (MVP)
 
-### core/
-
-#### `ConfigManager`
-```python
-class ConfigManager:
-    """
-    Loads and manages configuration from file, env, CLI, or defaults.
-    Central entry point for all parameterization.
-    """
+### 1.1 Repository & Modules (high‑level)
 ```
-
-#### `Logger`
-```python
-class Logger:
-    """
-    Central logging setup, all modules use this for consistent logging.
-    """
-```
-
----
-
-### project/
-
-#### `Project`
-```python
-@dataclass
-class Project:
-    """Represents a client project with AOIs and project-level metadata."""
-    name: str
-    customer: str
-    aois: List['AOI']
-    config: ConfigManager
+verdesat/
+├─ analytics/
+│  ├─ ee_chipping.py         # chip export helpers (GEE)
+│  ├─ ee_masking.py          # cloud masking utilities
+│  ├─ engine.py              # AnalyticsEngine
+│  ├─ results.py             # dataclasses for results
+│  ├─ stats.py               # summary stats
+│  ├─ timeseries.py          # TimeSeries & decomposition helpers
+│  └─ trend.py               # trend fitting
+├─ biodiv/
+│  ├─ bscore.py              # BScoreCalculator & weights
+│  ├─ gbif_validator.py      # occurrence density (optional)
+│  └─ metrics.py             # MetricEngine (intactness, shannon, frag_norm)
+├─ core/
+│  ├─ cli.py                 # CLI entry + commands
+│  ├─ config.py              # ConfigManager / validation
+│  ├─ logger.py              # JSON logger
+│  ├─ pipeline.py            # report pipeline
+│  ├─ storage.py             # StorageAdapter, LocalFS, S3Bucket
+│  └─ utils.py               # small helpers
+├─ geo/aoi.py                # AOI model
+├─ ingestion/
+│  ├─ downloader.py          # EarthEngineDownloader
+│  ├─ eemanager.py           # EarthEngineManager (auth/collections)
+│  ├─ earthengine_ingestor.py# EarthEngineIngestor (time series & chips)
+│  ├─ indices.py             # spectral index formulas
+│  ├─ sensorspec.py          # SensorSpec
+│  └─ vector_preprocessor.py # shapefile/KML → clean GeoJSON
+├─ project/project.py        # Project model
+├─ services/
+│  ├─ base.py                # BaseService
+│  ├─ bscore.py              # compute_bscores helper
+│  ├─ landcover.py           # LandcoverService (Esri 10 m TS)
+│  ├─ msa.py                 # MSAService (GLOBIO 2015 mean)
+│  ├─ raster_reader.py       # open_dataset with egress budget
+│  ├─ raster_utils.py        # convert_to_cog
+│  ├─ report.py              # build_report
+│  └─ timeseries.py          # download_timeseries
+├─ visualization/
+│  ├─ chips.py               # ChipExporter / ChipService
+│  ├─ report.py              # HTML report builder
+│  └─ visualizer.py          # plotting helpers
+├─ webapp/
+│  ├─ app.py                 # Streamlit entry
+│  ├─ components/
+│  │  ├─ charts.py           # NDVI decomposition, MSAVI bars
+│  │  ├─ kpi_cards.py        # KPI & gauge
+│  │  ├─ layout.py           # theme & navbar
+│  │  └─ map_widget.py       # Folium+Titiler layers
+│  ├─ services/
+│  │  ├─ chip_service.py     # EE chip adapter for UI
+│  │  ├─ exports.py          # CSV/PDF exports (presigned)
+│  │  ├─ project_compute.py  # project‑wide compute orchestrator
+│  │  ├─ project_state.py    # state persistence
+│  │  └─ r2.py               # **presigned URL** helper (R2)
+│  └─ themes/verdesat.css    # branding
+└─ docs/                     # this doc, roadmap, dev principles, MODULES.md
 ```
 
+### 1.2 Capabilities
+- **AOI input** via CLI and Streamlit (upload or draw; demo supports 2 AOIs).
+- **Data sources**: Esri 10 m LULC (2017–latest), Sentinel‑2 L2A for NDVI/MSAVI.
+- **Metrics**: Intactness %, Shannon diversity, Fragmentation (biome‑norm), **B‑Score**.
+- **Visuals**: Annual **NDVI/MSAVI composites**, NDVI time‑series decomposition plots, KPI row & gauge.
+- **Artifacts**: COGs (rasters), CSV time series, HTML/PDF reports stored in **R2**.
+- **Access pattern**: Private R2 bucket; Streamlit signs objects and requests tiles via **Titiler**.
+
+### 1.3 Known gaps
+- No persistent **multi‑tenant** data model (Users/Projects/AOIs in DB).
+- No **unified HTTP API**; clients call Python services directly.
+- No background **job queue**; long jobs can block.
+- Basic auth only; no per‑tenant RBAC.
+
 ---
 
-### geo/
+## 2) Target Architecture v1.0 (12–16 weeks)
 
-#### `AOI`
-```python
-class AOI:
-    """
-    Area of Interest (AOI): one polygon/multipolygon, with static metadata and time series for each dynamic property.
-    """
-    def __init__(self, geometry: Polygon or MultiPolygon, static_props: dict, timeseries: Dict[str, TimeSeries] = None):
-        self.geometry = geometry
-        self.static_props = static_props
-        self.timeseries = timeseries or {}
-
-    def add_timeseries(self, variable: str, ts: TimeSeries):
-        self.timeseries[variable] = ts
+### 2.1 Diagram
+```
+             +-------------------+        +-------------------+
+  CLI  --->  |   FastAPI Core    |  --->  |  Postgres+PostGIS |
+ WebApp ---> | (Auth, CRUD, Jobs)|        +-------------------+
+             |        |   ^      |
+             |        v   |      |
+             |    Queue/Events   |
+             +--------|----------+
+                      v
+               +-------------+               +----------------
+               |  Workers    | ---- GEE ----> Earth Engine API
+               |  (RQ/Celery)| ---- R2  ----> Cloudflare R2 (COGs/CSVs/PDFs)
+               +-------------+               +----------------
 ```
 
+### 2.2 Domain model (DB)
+- **User** *(id, email, pw_hash, role, created_at)*
+- **Project** *(id, user_id FK, name, created_at)*
+- **AOI** *(id, project_id FK, name, geom: geometry(MultiPolygon, 4326), area_ha)*
+- **Job** *(id, project_id FK, aoi_id FK NULLABLE, kind, params JSONB, status, started_at, finished_at, cost_ms)*
+- **MetricSet** *(id, aoi_id FK, year, payload JSONB — includes NDVI/MSAVI stats & optional MSA, version, created_at)*
+- **Artifact** *(id, project_id FK, aoi_id FK NULLABLE, kind, r2_key, mime, bytes, checksum, created_at)*
+
+> **R2 key convention**: `s3://verdesat-data/{project_id}/{aoi_id}/{run_id}/{year}/{KIND}.tif|csv|pdf`
+
+### 2.3 API surface (FastAPI)
+- `POST /auth/signup`, `POST /auth/login`
+- `POST /projects`, `GET /projects/{id}`
+- `POST /projects/{id}/aois` (GeoJSON upload) / `GET /projects/{id}/aois`
+- `POST /aois/{id}/runs`  → returns **job_id**
+- `GET /jobs/{job_id}`     → status
+- `GET /aois/{id}/metrics?year=YYYY` → MetricSet JSON
+- `GET /artifacts/{id}`    → presigned URL for COG/CSV/PDF
+
+### 2.4 Processing
+- Workers call existing services (MetricEngine, LandcoverService, TimeSeries, MSAService).
+- Write **MetricSet** and **Artifact** rows; upload heavy files to **R2**.
+- Emit lightweight audit events; ensure idempotency by parameter hashing.
+
+### 2.5 Security
+- JWT/Supabase Auth; project‑scoped tenancy; presigned R2 access (15–60 min expiry).
+- Basic rate‑limit on `/runs` to protect GEE quotas.
+
+### 2.6 Observability
+- JSON logs to stdout; basic request/job metrics; smoke & load tests in CI.
+
 ---
 
-### analytics/
+## 3) Migration Plan (MVP → v1.0)
 
-#### `TimeSeries`
-```python
-class TimeSeries:
-    """
-    Holds a time-indexed pandas DataFrame for one variable (e.g., NDVI, precipitation).
-    - variable: str
-    - units: str
-    - freq: str (temporal resolution)
-    - df: pd.DataFrame (must have 'date' as index)
-    Methods: fill_gaps, decompose, trend, plot, etc.
-    """
-    def __init__(self, variable, units, freq, df):
-        ...
-    def fill_gaps(self, method="linear"):
-        ...
-    def seasonal_decompose(self, period=None):
-        ...
+**Phase A (Weeks 1–3): Foundations**
+- Stand up Postgres/PostGIS (Neon/Supabase/fly.io). Add Alembic migrations.
+- SQLAlchemy models for User/Project/AOI/Job/MetricSet/Artifact.
+- FastAPI core with Auth & CRUD; wire to DB.
+
+**Phase B (Weeks 4–6): Jobs & Artifacts**
+- Introduce Queue (RQ/Redis or Cloudflare Queues) and a Worker container.
+- Execute runs via existing engines; write MetricSet JSONB; upload Artifacts to R2 using the key convention.
+
+**Phase C (Weeks 7–9): Unified Clients**
+- CLI switches to API (`login`, `aoi upload`, `run`, `metrics fetch`).
+- Streamlit reads from API; rasters via `/artifacts/{id}` → presigned URL.
+
+**Phase D (Weeks 10–12): Hardening**
+- RBAC basics, rate‑limits, error taxonomy. Load test (50 parallel jobs, P95 < 12 min/1 km² AOI).
+
+---
+
+## 4) Principles we enforce
+- **Single source of truth** in Postgres; filenames are not truth.
+- **Pure services**, framework‑agnostic; repositories hide the ORM.
+- **DTOs** via Pydantic; explicit schemas at the API boundary.
+- **Idempotent runs** keyed by (AOI, year, params → hash).
+- **12‑factor config** using env/Pydantic; **structured logging**.
+- **Tests:** unit (fast, offline) + integration (EE mocked) + e2e on staging.
+
+---
+
+## 5) Cost (indicative)
+- Postgres (free tier) — €0
+- R2 storage (≈2 TB) — ~$30/mo
+- API + Worker on Fly.io (256–512 MB) — €0–€10/mo
+- Streamlit Cloud — free for staging; Fly for prod
+
+---
+
+## 6) Open Questions
+- Queue choice: Redis/RQ (simple) vs Cloudflare Queues (serverless).
+- Auth choice: Supabase vs simple JWT vs OAuth (sales‑friendly).
+- Tiling: continue Titiler SaaS vs host a tiny instance.
+
 ```
-
-#### `AnalyticsEngine`
-```python
-class AnalyticsEngine:
-    """
-    Collection of static methods for common time series and analytics operations.
-    Used by TimeSeries or directly for batch ops.
-    """
-    @staticmethod
-    def compute_trend(ts: 'TimeSeries'):
-        ...
+This document is the source of truth for the target architecture and migration plan. Keep it updated when major components land.
 ```
-
----
-
-### ingestion/
-
-#### `SensorSpec`
-```python
-class SensorSpec:
-    """
-    Contains info about a remote sensing product/collection.
-    - bands: Dict[str, str] (e.g., {'nir': 'B8', 'red': 'B4'})
-    - native_resolution: int
-    - collection_id: str
-    - cloud_mask_method: str
-    """
-    ...
-```
-
-#### `DataIngestor`
-```python
-class DataIngestor:
-    """
-    Abstract base class for data ingestion. Subclass for EarthEngine, openEO, local, etc.
-    """
-    def download_timeseries(self, aoi: 'AOI', sensor: 'SensorSpec', index: str, ...):
-        raise NotImplementedError()
-```
-
----
-
-### modeling/
-
-#### `ForecastModel` (base class)
-```python
-class ForecastModel:
-    """
-    Abstract base for forecasting (Prophet, LSTM, etc).
-    """
-    def fit(self, timeseries: 'TimeSeries'):
-        raise NotImplementedError()
-    def predict(self, periods: int):
-        raise NotImplementedError()
-```
-
----
-
-### visualization/
-
-#### `Visualizer`
-```python
-class Visualizer:
-    """
-    Handles all plotting, static maps, animated GIFs, HTML reports, etc.
-    """
-    ...
-```
-
----
-
-### resources/
-
-- `palettes.yaml` — Color palettes for spectral indices, user-customizable.
-- `sensor_specs.json` — Sensor and band registry (collection IDs, band aliases, native resolutions, cloud-mask methods).
-- `index_formulas.json` — List of spectral index formulas (expressions, parameters), user-extendable.
-
----
-
-## 4. Critical Config Objects
-
-- `config.toml` or `.env` file for global/project-level parameters (default collection, output dirs, logging level, etc.)
-- Sensor/band registry (JSON/YAML)
-- Palette and index formula registry (JSON/YAML)
-- CLI arguments always override config file/env where applicable
-
----
-
-## 5. Config & Logging Flow
-
-- **ConfigManager** loads config at program start.
-- **Logger** initialized in `core`, used everywhere (no direct `print`).
-- All class constructors accept config/logging objects or use defaults.
-- Most params (collection, scale, bands, output_dir, etc.) are overrideable from CLI.
-
----
-
-## 6. OOP Best Practices & Recommendations
-
-- Each class should have a single responsibility.
-- Favor composition (AOI contains TimeSeries, not inheritance).
-- Use abstract base classes for extensibility (e.g., DataIngestor, ForecastModel).
-- Avoid global variables/magic constants — use config/resource files.
-- All major classes and public methods must have docstrings.
-- Don’t over-engineer — keep it clear and pragmatic for actual analytics.
-
----
-
-## 7. Open Roadmap
-
-The initial refactor has aligned the code with this architecture.
-Current backlog items are listed in `roadmap.md`.
-
----
-
-## 8. Example: Usage Pattern
-
-```python
-config = ConfigManager.load("config.toml")
-project = Project("ClientXYZ", "Acme Corp", [], config)
-aoi = AOI(geometry, {"name": "Field1", "climate_zone": "temperate"})
-ts = TimeSeries("ndvi", "unitless", "monthly", df)
-aoi.add_timeseries("ndvi", ts)
-project.aois.append(aoi)
-
-data_ingestor = EarthEngineIngestor(sensor_spec, config)
-data_ingestor.download_timeseries(aoi, sensor_spec, "ndvi", ...)
-```
-
----
-# 9. External Solutions Integration
-
-- EODAG: Provides standardized search/download for Sentinel, Landsat, and more. Consider implementing an EODAGDataIngestor to avoid custom download scripts.
-- openEO: For future cloud-scale processing, add an OpenEODataIngestor subclass and offer as backend option.
-- Index formulas: Move all index calculation formulas to a resource file (JSON/YAML), editable by user. Evaluate [spectral] or other open source registries for expansion.
-- Cloud masking: For Sentinel-2, offer s2cloudless as an option. Wrap it as a cloud mask strategy in SensorSpec or DataIngestor.
-- Visualization: geemap is recommended for future interactive visualizations in notebooks, but static plotting is prioritized for the CLI MVP.
-
----
-**This architecture supports scalable land/EO analytics, new features, cloud migration, and OOP clarity.**  
-Edit and expand as needed!
