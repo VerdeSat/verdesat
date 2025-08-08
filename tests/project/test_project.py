@@ -84,3 +84,12 @@ def test_from_geojson_reads_metadata_and_area() -> None:
     assert project.customer == "MetaCust"
     assert "area_m2" in project.aois[0].static_props
     assert project.aois[0].static_props["area_m2"] > 0
+
+
+def test_from_geojson_sanitizes_metadata() -> None:
+    config = ConfigManager()
+    gj = _geojson()
+    gj["metadata"] = {"name": "../bad*proj", "customer": "Cust<>\n"}
+    project = Project.from_geojson(gj, config)
+    assert project.name == "badproj"
+    assert project.customer == "Cust"
