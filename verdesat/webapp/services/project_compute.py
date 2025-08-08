@@ -6,10 +6,10 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date
 import hashlib
+import hmac
 import json
 import logging
 import os
-import pickle
 import tempfile
 import io
 from concurrent.futures import ThreadPoolExecutor
@@ -41,13 +41,14 @@ CONFIG = ConfigManager(
     str(Path(__file__).resolve().parents[2] / "resources" / "webapp.toml")
 )
 REDIS_URL = CONFIG.get("cache", {}).get("redis_url")
+CACHE_SECRET = CONFIG.get("cache", {}).get("secret", "default-secret").encode("utf-8")
 logger = Logger.get_logger(__name__)
 
 
 def _cache_path(storage: StorageAdapter, key: str) -> str:
     """Return path used for persisted caches."""
 
-    return storage.join("cache", f"{key}.pkl")
+    return storage.join("cache", f"{key}.json")
 
 
 def _df_to_bytes(df: pd.DataFrame) -> io.BytesIO:
@@ -72,20 +73,64 @@ def _suppress_timeseries_logging() -> Iterator[None]:
         ts_logger.setLevel(prev)
 
 
-def _persist_cache(storage: StorageAdapter, key: str, value: object) -> None:
+CacheValue = tuple[
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    dict[str, str],
+    dict[str, str],
+    dict[str, dict[str, float | str]],
+]
+
+
+def _serialize_cache(value: CacheValue) -> str:
+    """Return a JSON string representation of *value*."""
+
+    metrics_json = value[0].to_json(orient="split")
+    ndvi_json = value[1].to_json(orient="split")
+    msavi_json = value[2].to_json(orient="split")
+    payload = {
+        "metrics_df": metrics_json,
+        "ndvi_df": ndvi_json,
+        "msavi_df": msavi_json,
+        "ndvi_paths": value[3],
+        "msavi_paths": value[4],
+        "metrics_by_id": value[5],
+    }
+    return json.dumps(payload, sort_keys=True)
+
+
+def _deserialize_cache(data: str) -> CacheValue:
+    """Deserialize cache *data* into the original value."""
+
+    obj = json.loads(data)
+    metrics_df = pd.read_json(io.StringIO(obj["metrics_df"]), orient="split")
+    ndvi_df = pd.read_json(io.StringIO(obj["ndvi_df"]), orient="split")
+    msavi_df = pd.read_json(io.StringIO(obj["msavi_df"]), orient="split")
+    ndvi_paths = obj["ndvi_paths"]
+    msavi_paths = obj["msavi_paths"]
+    metrics_by_id = obj["metrics_by_id"]
+    return metrics_df, ndvi_df, msavi_df, ndvi_paths, msavi_paths, metrics_by_id
+
+
+def _persist_cache(storage: StorageAdapter, key: str, value: CacheValue) -> None:
     """Persist ``value`` under ``key`` using Redis or storage."""
 
-    data = pickle.dumps(value)
+    data = _serialize_cache(value).encode("utf-8")
+    sig = hmac.new(CACHE_SECRET, data, hashlib.sha256).hexdigest()
+    payload = json.dumps(
+        {"data": data.decode("utf-8"), "sig": sig}, sort_keys=True
+    ).encode("utf-8")
     url = REDIS_URL
     if redis and url:
         try:  # pragma: no cover - network failure
-            redis.Redis.from_url(url).set(key, data)
+            redis.Redis.from_url(url).set(key, payload)
             logger.debug("stored cache %s in Redis", key)
             return
         except Exception:
             logger.exception("failed to persist %s in Redis", key)
     try:  # pragma: no cover - storage failure
-        storage.write_bytes(_cache_path(storage, key), data)
+        storage.write_bytes(_cache_path(storage, key), payload)
         logger.debug("stored cache %s at %s", key, _cache_path(storage, key))
     except Exception:
         logger.exception("failed to persist %s to storage", key)
@@ -94,13 +139,31 @@ def _persist_cache(storage: StorageAdapter, key: str, value: object) -> None:
 def _load_cache(storage: StorageAdapter, key: str) -> object | None:
     """Return persisted cache for ``key`` if available."""
 
+    def _decode(data: bytes) -> CacheValue | None:
+        try:
+            obj = json.loads(data.decode("utf-8"))
+            payload = obj["data"]
+            sig = obj["sig"]
+        except Exception:
+            logger.warning("invalid cache format for %s", key)
+            return None
+        expected = hmac.new(
+            CACHE_SECRET, payload.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            logger.warning("cache signature mismatch for %s", key)
+            return None
+        return _deserialize_cache(payload)
+
     url = REDIS_URL
     if redis and url:
         try:  # pragma: no cover - network failure
             data = redis.Redis.from_url(url).get(key)
             if data:
                 logger.debug("loaded cache %s from Redis", key)
-                return pickle.loads(data)
+                decoded = _decode(data)
+                if decoded is not None:
+                    return decoded
         except Exception:
             logger.exception("failed to load cache %s from Redis", key)
     path = _cache_path(storage, key)
@@ -108,7 +171,9 @@ def _load_cache(storage: StorageAdapter, key: str) -> object | None:
         try:  # pragma: no cover - I/O failure
             with open(path, "rb") as fh:
                 logger.debug("loaded cache %s from %s", key, path)
-                return pickle.loads(fh.read())
+                decoded = _decode(fh.read())
+                if decoded is not None:
+                    return decoded
         except Exception:
             logger.exception("failed to load cache %s from %s", key, path)
     logger.debug("cache miss for %s", key)

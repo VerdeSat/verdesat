@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 from types import SimpleNamespace
 
+import json
 import pandas as pd
 from shapely.geometry import Polygon
 
@@ -450,3 +451,55 @@ def test_ndvi_stats_handles_missing_decomposition(monkeypatch):
         "ndvi_pct_fill",
     } == set(stats.keys())
     assert list(df_out.columns) == ["date", "observed", "trend", "seasonal"]
+
+
+def test_load_cache_rejects_tampered_data(tmp_path, monkeypatch):
+    """Tampered cache payloads are rejected."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(project_compute, "REDIS_URL", None)
+    monkeypatch.setattr(project_compute, "redis", None)
+    storage = LocalFS()
+    key = "test"
+    value = (
+        pd.DataFrame({"id": ["1"], "val": [1.0]}),
+        pd.DataFrame(),
+        pd.DataFrame(),
+        {},
+        {},
+        {},
+    )
+    project_compute._persist_cache(storage, key, value)
+    path = project_compute._cache_path(storage, key)
+    with open(path, "r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    payload["data"] = payload["data"].replace("1.0", "2.0")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh)
+    assert project_compute._load_cache(storage, key) is None
+
+
+def test_load_cache_rejects_tampered_signature(tmp_path, monkeypatch):
+    """Tampering with cache signature invalidates the entry."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(project_compute, "REDIS_URL", None)
+    monkeypatch.setattr(project_compute, "redis", None)
+    storage = LocalFS()
+    key = "test2"
+    value = (
+        pd.DataFrame({"id": ["1"], "val": [1.0]}),
+        pd.DataFrame(),
+        pd.DataFrame(),
+        {},
+        {},
+        {},
+    )
+    project_compute._persist_cache(storage, key, value)
+    path = project_compute._cache_path(storage, key)
+    with open(path, "r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    payload["sig"] = "deadbeef"
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh)
+    assert project_compute._load_cache(storage, key) is None
