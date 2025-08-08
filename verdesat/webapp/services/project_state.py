@@ -10,13 +10,13 @@ persist project state for authenticated users.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from shapely.geometry import mapping
 
 from verdesat.project.project import Project
 from verdesat.core.storage import StorageAdapter
-from verdesat.core.utils import sanitize_identifier
 
 
 def persist_project(project: Project, storage: StorageAdapter) -> str:
@@ -41,7 +41,7 @@ def persist_project(project: Project, storage: StorageAdapter) -> str:
         "features": features,
         "metadata": {"name": project.name, "customer": project.customer},
     }
-    safe_name = sanitize_identifier(project.name)
+    safe_name = re.sub(r"[^A-Za-z0-9_\-]", "", project.name)
     uri = storage.join("projects", f"{safe_name}.geojson")
     storage.write_bytes(uri, json.dumps(data).encode("utf-8"))
     return uri

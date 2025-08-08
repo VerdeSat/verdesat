@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
+import re
 from typing import Any, Dict, List, Literal
 
 import geopandas as gpd
@@ -55,8 +56,10 @@ class Project:
 
         log = logger or Logger.get_logger(__name__)
         meta = geojson.get("metadata", {})
-        proj_name = name or meta.get("name", "Uploaded Project")
-        proj_customer = customer or meta.get("customer", "Guest")
+        proj_name_raw = name or meta.get("name", "Uploaded Project")
+        proj_customer_raw = customer or meta.get("customer", "Guest")
+        proj_name = re.sub(r"[^A-Za-z0-9_\-]", "", proj_name_raw)
+        proj_customer = re.sub(r"[^A-Za-z0-9_\-]", "", proj_customer_raw)
 
         id_col = config.get("id_col", "id")
         features = geojson.get("features", [])
