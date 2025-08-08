@@ -28,18 +28,45 @@ from typing import Dict, List, Tuple
 DEFAULT_PACKAGE = "verdesat"
 DEFAULT_OUTPUT = Path("docs") / "MODULES.md"
 DEFAULT_EXCLUDES = {
-    ".git", ".venv", "venv", "__pycache__", "build", "dist",
-    ".mypy_cache", ".pytest_cache", "node_modules", "notebooks"
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+    ".mypy_cache",
+    ".pytest_cache",
+    "node_modules",
+    "notebooks",
 }
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--root", type=Path, default=Path("."), help="Repo root")
-    p.add_argument("--package", type=str, default=DEFAULT_PACKAGE, help="Top-level package to index")
-    p.add_argument("--write", action="store_true", help="Write to docs/MODULES.md instead of stdout")
-    p.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Path to write (when --write)")
-    p.add_argument("--exclude", nargs="*", default=list(DEFAULT_EXCLUDES), help="Directories to exclude")
+    p.add_argument(
+        "--package",
+        type=str,
+        default=DEFAULT_PACKAGE,
+        help="Top-level package to index",
+    )
+    p.add_argument(
+        "--write",
+        action="store_true",
+        help="Write to docs/MODULES.md instead of stdout",
+    )
+    p.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_OUTPUT,
+        help="Path to write (when --write)",
+    )
+    p.add_argument(
+        "--exclude",
+        nargs="*",
+        default=list(DEFAULT_EXCLUDES),
+        help="Directories to exclude",
+    )
     return p.parse_args()
 
 
@@ -59,7 +86,9 @@ def module_name(pkg_root: Path, file: Path) -> str:
     return ".".join([pkg_root.name] + parts)
 
 
-def extract_symbols(py_file: Path) -> tuple[str, list[tuple[str, str]], list[tuple[str, str]]]:
+def extract_symbols(
+    py_file: Path,
+) -> tuple[str, list[tuple[str, str]], list[tuple[str, str]]]:
     """Return (module_doc, classes, functions) for a file."""
     try:
         text = py_file.read_text(encoding="utf-8")
@@ -97,17 +126,17 @@ def render_markdown(collected: Dict[str, Dict]) -> str:
     lines.append("")
     for mod, info in sorted(collected.items()):
         lines.append(f"## `{mod}`")
-        if info['doc']:
+        if info["doc"]:
             lines.append(f"> {info['doc']}")
-        if info['classes']:
+        if info["classes"]:
             lines.append("**Classes**")
-            for name, doc in info['classes']:
+            for name, doc in info["classes"]:
                 lines.append(f"- `{name}` — {doc}")
-        if info['functions']:
-            if info['classes']:
+        if info["functions"]:
+            if info["classes"]:
                 lines.append("")
             lines.append("**Functions**")
-            for name, doc in info['functions']:
+            for name, doc in info["functions"]:
                 lines.append(f"- `{name}` — {doc}")
         lines.append("")
     return "\n".join(lines).strip() + "\n"
