@@ -1,4 +1,7 @@
 from __future__ import annotations
+
+import pytest
+
 from verdesat.core.config import ConfigManager
 from verdesat.project.project import Project
 
@@ -93,3 +96,11 @@ def test_from_geojson_sanitizes_metadata() -> None:
     project = Project.from_geojson(gj, config)
     assert project.name == "badproj"
     assert project.customer == "Cust"
+
+
+def test_from_geojson_validates_input() -> None:
+    config = ConfigManager()
+    with pytest.raises(ValueError):
+        Project.from_geojson({"type": "Feature"}, config)
+    with pytest.raises(ValueError):
+        Project.from_geojson({"type": "FeatureCollection"}, config)

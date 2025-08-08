@@ -221,19 +221,23 @@ if uploaded_file is not None:
             except json.JSONDecodeError:
                 st.sidebar.error("Invalid GeoJSON file")
             else:
-                meta = geojson.get("metadata", {})
-                st.session_state["project"] = Project.from_geojson(
-                    geojson,
-                    CONFIG,
-                    name=meta.get("name"),
-                    customer=meta.get("customer"),
-                    storage=storage,
-                )
-                st.session_state["uploaded_filename"] = uploaded_file.name
-                st.session_state["run_requested"] = False
-                st.session_state.pop("main_map", None)
-                st.session_state.pop("main_map_center", None)
-                st.session_state.pop("main_map_zoom", None)
+                try:
+                    meta = geojson.get("metadata", {})
+                    st.session_state["project"] = Project.from_geojson(
+                        geojson,
+                        CONFIG,
+                        name=meta.get("name"),
+                        customer=meta.get("customer"),
+                        storage=storage,
+                    )
+                except ValueError as exc:
+                    st.sidebar.error(str(exc))
+                else:
+                    st.session_state["uploaded_filename"] = uploaded_file.name
+                    st.session_state["run_requested"] = False
+                    st.session_state.pop("main_map", None)
+                    st.session_state.pop("main_map_center", None)
+                    st.session_state.pop("main_map_zoom", None)
 
 if st.sidebar.button(
     "Run analysis",
