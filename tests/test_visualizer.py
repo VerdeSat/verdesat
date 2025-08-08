@@ -21,7 +21,7 @@ def test_plot_time_series_creates_png(tmp_path):
     df = _sample_df()
     out = tmp_path / "ts.png"
     viz = Visualizer()
-    viz.plot_time_series(df, "ndvi", str(out), agg_freq="M")
+    viz.plot_time_series(df, "ndvi", str(out), agg_freq="ME")
     assert out.exists()
 
 

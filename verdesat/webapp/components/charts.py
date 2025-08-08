@@ -86,19 +86,19 @@ def msavi_bar_chart(
             raise ValueError("aoi_id or data must be provided")
         df = load_msavi_timeseries()
         if "id" in df.columns:
-            df = df[df["id"] == aoi_id]
+            df = df[df["id"] == aoi_id].copy()
     else:
         df = data
 
     if start_year is not None and end_year is not None:
         mask = (df["date"].dt.year >= start_year) & (df["date"].dt.year <= end_year)
-        df = df.loc[mask]
+        df = df.loc[mask].copy()
 
     value_col = next((c for c in ("mean_msavi", "msavi") if c in df.columns), None)
     if value_col is None:
         value_col = df.columns[2]
 
-    df["year"] = df["date"].dt.year
+    df.loc[:, "year"] = df["date"].dt.year
     agg = df.groupby("year")[value_col].mean()
 
     fig = go.Figure(go.Bar(x=agg.index, y=agg.values, name="MSAVI"))
@@ -147,13 +147,13 @@ def msavi_bar_chart_all(
     df = data.copy()
     if start_year is not None and end_year is not None:
         mask = (df["date"].dt.year >= start_year) & (df["date"].dt.year <= end_year)
-        df = df.loc[mask]
+        df = df.loc[mask].copy()
 
     value_col = next((c for c in ("mean_msavi", "msavi") if c in df.columns), None)
     if value_col is None:
         value_col = df.columns[1]
 
-    df["year"] = df["date"].dt.year
+    df.loc[:, "year"] = df["date"].dt.year
     agg = df.groupby(["year", "id"])[value_col].mean().reset_index()
 
     fig = go.Figure()

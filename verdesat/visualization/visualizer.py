@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-import imageio
+import imageio.v2 as imageio
 import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.express as px

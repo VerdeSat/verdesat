@@ -135,7 +135,7 @@ def _local_overlay(path: str, *, name: str | None = None) -> ImageOverlay:
     alpha = (~mask_arr).astype("uint8") * 255
 
     rgba = np.stack([r, g, b, alpha], axis=-1).astype("uint8")
-    img = Image.fromarray(rgba, mode="RGBA")
+    img = Image.fromarray(rgba)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
