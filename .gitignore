@@ -39,6 +39,7 @@ venv/
 .venv/
 .env
 .env.*
+!.env.example
 .ee-andreydara.json
 
 # OS temp files

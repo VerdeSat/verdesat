@@ -2,6 +2,9 @@ AI Report Summary Module — Specification (VerdeSat)
 
 Last updated: 2025-08-11
 
+Implementation notes: schemas use dataclasses rather than Pydantic, and
+configuration keys follow snake_case names (ai_report_model, etc.).
+
 0) Purpose & Scope
 
 Generate customer-facing report summaries (ESRS/TNFD-aligned, screening-grade) from pre-computed metrics and VI time series. The module must:
@@ -26,7 +29,7 @@ verdesat/
 │  ├─ llm_openai.py         # OpenAI client adapter (Responses API + Structured Outputs)
 │  └─ prompt_store.py       # Versioned prompt templates
 ├─ schemas/
-│  └─ ai_report.py          # Pydantic models for inputs/outputs
+│  └─ ai_report.py          # Dataclass models for inputs/outputs
 ├─ core/
 │  └─ pipeline.py           # will call AiReportService in Evidence Pack step
 └─ tests/
@@ -73,7 +76,8 @@ wdpa_inside, nearest_pa_name, nearest_pa_distance_km,
 nearest_kba_name, nearest_kba_distance_km,
 area_ha, centroid_lat, centroid_lon, ecoregion, elevation_mean_m, slope_mean_deg
 
-Notes: values absent → NaN allowed. Types validated by Pydantic in schemas/ai_report.py.
+Notes: values absent → NaN allowed. Schemas implemented via dataclasses in
+schemas/ai_report.py; validation occurs in the service layer.
 
 2.2 Time series (CSV/Parquet)
 
@@ -259,7 +263,7 @@ Produce JSON conforming to schema ai_report.v1 only.
 ⸻
 
 11) Config & Secrets
-	•	AI_REPORT_MODEL (default: gpt-4o-mini), AI_REPORT_SEED (default: 42), AI_REPORT_PROMPT_VERSION (default: v1).
+	•	AI_REPORT_MODEL (default: gpt-4o-mini), AI_REPORT_SEED (default: 42), AI_REPORT_PROMPT_VERSION (default: v1) via env vars; ConfigManager keys are ai_report_model, ai_report_seed, ai_report_prompt_version.
 	•	OPENAI_API_KEY via env. No keys in repo.
 	•	Max input sizes: enforce 10 MB per request (Responses API). For larger tables, down-select columns or pre-aggregate.
 

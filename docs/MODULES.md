@@ -202,6 +202,7 @@ _Generated: 2025-08-11T17:01:49Z_
 ## `verdesat.schemas`
 
 ## `verdesat.schemas.ai_report`
+> Dataclass-based schemas for AI report requests/results.
 **Classes**
 - `MetricsSummary` — Aggregated AOI metrics passed to the language model.
 - `TimeseriesRow` — Single observation from the VI time series.
