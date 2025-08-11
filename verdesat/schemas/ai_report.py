@@ -1,10 +1,10 @@
-from __future__ import annotations
-
 """Data models for AI report generation.
 
 The original design proposed using Pydantic models. To stay aligned with the
 rest of the codebase, these schemas use :mod:`dataclasses` instead.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
@@ -81,6 +81,7 @@ class AiReportResult:
     summary: Dict[str, Any]
     narrative: str
     uri: str | None = None
+    url: str | None = None
 
 
 __all__ = [

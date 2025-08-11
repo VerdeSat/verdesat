@@ -47,6 +47,11 @@ class FakeStorage(StorageAdapter):
     def open_raster(self, uri: str, **kwargs):  # pragma: no cover - not used
         raise NotImplementedError
 
+    def presign(
+        self, uri: str, *, expires: int = 3_600
+    ) -> str:  # pragma: no cover - simple
+        return f"https://example.com/{uri}?sig=abc"
+
 
 class RecordingLlm:
     """LLM stub that records the last prompt and kwargs."""
@@ -241,6 +246,82 @@ def test_schema_validation_error():
         svc.generate_summary(req)
 
 
+def test_claim_checker_mismatch():
+    storage = FakeStorage()
+    payload = {
+        "executive_summary": "exec",
+        "kpi_sentences": {
+            "bscore": "bscore sent",
+            "intactness": "intact sent",
+            "fragmentation": "frag sent",
+            "ndvi_trend": "ndvi sent",
+        },
+        "esrs_e4": {
+            "extent_condition": "extent",
+            "pressures": "press",
+            "targets": "targets",
+            "actions": "actions",
+            "financial_effects": "effects",
+        },
+        "flags": [],
+        "numbers": {"ndvi_mean": 0.7},  # mismatch with metrics (0.5)
+        "meta": {},
+    }
+    llm = RecordingLlm(payload)
+    svc = _service(llm, storage)
+
+    metrics = _write_metrics(storage, "metrics.csv")
+    timeseries = _write_timeseries(storage, "ts.csv")
+
+    req = AiReportRequest(
+        aoi_id="a1",
+        project_id="p1",
+        metrics_path=metrics,
+        timeseries_path=timeseries,
+    )
+
+    with pytest.raises(ValueError):
+        svc.generate_summary(req)
+
+
+def test_claim_checker_pass():
+    storage = FakeStorage()
+    payload = {
+        "executive_summary": "exec",
+        "kpi_sentences": {
+            "bscore": "bscore sent",
+            "intactness": "intact sent",
+            "fragmentation": "frag sent",
+            "ndvi_trend": "ndvi sent",
+        },
+        "esrs_e4": {
+            "extent_condition": "extent",
+            "pressures": "press",
+            "targets": "targets",
+            "actions": "actions",
+            "financial_effects": "effects",
+        },
+        "flags": [],
+        "numbers": {"ndvi_mean": 0.5},
+        "meta": {},
+    }
+    llm = RecordingLlm(payload)
+    svc = _service(llm, storage)
+
+    metrics = _write_metrics(storage, "metrics.csv")
+    timeseries = _write_timeseries(storage, "ts.csv")
+
+    req = AiReportRequest(
+        aoi_id="a1",
+        project_id="p1",
+        metrics_path=metrics,
+        timeseries_path=timeseries,
+    )
+
+    res = svc.generate_summary(req)
+    assert res.summary["numbers"]["ndvi_mean"] == 0.5
+
+
 def test_generate_summary_caches():
     storage = FakeStorage()
     payload = {
@@ -280,11 +361,13 @@ def test_generate_summary_caches():
     assert llm.calls == 1
     assert storage.writes == initial_writes + 1  # cache artifact
     assert res1.summary["executive_summary"] == "exec"
+    assert res1.url and res1.url.endswith("?sig=abc")
 
     res2 = svc.generate_summary(req)
     assert llm.calls == 1  # cache hit
     assert storage.writes == initial_writes + 1
     assert res2.summary == res1.summary
+    assert res2.url == res1.url
 
 
 def test_generate_summary_logs_cache(caplog):
