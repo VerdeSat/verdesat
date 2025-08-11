@@ -4,6 +4,8 @@ import hashlib
 import logging
 from pathlib import Path
 
+import pandas as pd
+
 from verdesat.adapters.prompt_store import get_prompts
 from verdesat.core.config import ConfigManager
 from verdesat.core.storage import LocalFS
@@ -19,7 +21,25 @@ class DummyLlm:
 
     def generate(self, prompt: str, **kwargs):
         self.calls += 1
-        return {"summary": {"ok": True}, "narrative": "narr"}
+        return {
+            "executive_summary": "exec",
+            "kpi_sentences": {
+                "bscore": "bscore sent",
+                "intactness": "intact sent",
+                "fragmentation": "frag sent",
+                "ndvi_trend": "ndvi sent",
+            },
+            "esrs_e4": {
+                "extent_condition": "extent",
+                "pressures": "press",
+                "targets": "targets",
+                "actions": "actions",
+                "financial_effects": "effects",
+            },
+            "flags": [],
+            "numbers": {},
+            "meta": {},
+        }
 
 
 def _service(llm: DummyLlm, storage: LocalFS) -> AiReportService:
@@ -31,8 +51,41 @@ def _service(llm: DummyLlm, storage: LocalFS) -> AiReportService:
     )
 
 
-def _write(storage: LocalFS, path: Path, content: str) -> str:
-    storage.write_bytes(str(path), content.encode("utf-8"))
+def _write_metrics(storage: LocalFS, path: Path) -> str:
+    df = pd.DataFrame(
+        {
+            "aoi_id": ["a1"],
+            "project_id": ["p1"],
+            "method_version": ["0.1"],
+            "window_start": ["2024-01-01"],
+            "window_end": ["2024-12-31"],
+            "bscore": [50],
+            "intactness_pct": [60.0],
+            "frag_norm": [0.2],
+            "shannon": [1.0],
+            "ndvi_mean": [0.5],
+            "ndvi_slope_per_year": [0.01],
+            "ndvi_delta_yoy": [0.02],
+            "valid_obs_pct": [90.0],
+            "wdpa_inside": [False],
+            "ecoregion": ["Tropical"],
+            "elevation_mean_m": [100.0],
+        }
+    )
+    storage.write_bytes(str(path), df.to_csv(index=False).encode("utf-8"))
+    return str(path)
+
+
+def _write_timeseries(storage: LocalFS, path: Path) -> str:
+    df = pd.DataFrame(
+        {
+            "date": ["2024-01-01", "2024-02-01"],
+            "metric": ["ndvi_mean", "ndvi_mean"],
+            "value": [0.5, 0.6],
+            "aoi_id": ["a1", "a1"],
+        }
+    )
+    storage.write_bytes(str(path), df.to_csv(index=False).encode("utf-8"))
     return str(path)
 
 
@@ -45,9 +98,9 @@ def test_compute_hash(tmp_path, monkeypatch):
     metrics = Path("metrics.csv")
     timeseries = Path("ts.csv")
     lineage = Path("lineage.json")
-    _write(storage, metrics, "m")
-    _write(storage, timeseries, "t")
-    _write(storage, lineage, "{}")
+    _write_metrics(storage, metrics)
+    _write_timeseries(storage, timeseries)
+    storage.write_bytes(str(lineage), b"{}")
 
     req = AiReportRequest(
         aoi_id="a1",
@@ -83,8 +136,8 @@ def test_generate_summary_caches(tmp_path, monkeypatch):
 
     metrics = Path("metrics.csv")
     timeseries = Path("ts.csv")
-    _write(storage, metrics, "m")
-    _write(storage, timeseries, "t")
+    _write_metrics(storage, metrics)
+    _write_timeseries(storage, timeseries)
 
     req = AiReportRequest(
         aoi_id="a1",
@@ -96,6 +149,8 @@ def test_generate_summary_caches(tmp_path, monkeypatch):
     res1 = svc.generate_summary(req)
     assert llm.calls == 1
     assert res1.uri and Path(res1.uri).exists()
+    assert res1.summary["executive_summary"] == "exec"
+    assert res1.narrative == "exec"
 
     res2 = svc.generate_summary(req)
     assert llm.calls == 1  # cache hit
