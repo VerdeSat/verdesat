@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Storage adapter abstractions."""
+
+from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
@@ -20,6 +20,10 @@ class StorageAdapter(ABC):
         """Write bytes to the destination and return the URI."""
 
     @abstractmethod
+    def read_bytes(self, uri: str) -> bytes:
+        """Return bytes stored at *uri*."""
+
+    @abstractmethod
     def open_raster(self, uri: str, **kwargs):
         """Open *uri* for reading with rasterio."""
 
@@ -31,10 +35,15 @@ class LocalFS(StorageAdapter):
         return os.path.join(*parts)
 
     def write_bytes(self, uri: str, data: bytes) -> str:
-        os.makedirs(os.path.dirname(uri), exist_ok=True)
+        dirpath = os.path.dirname(uri) or "."
+        os.makedirs(dirpath, exist_ok=True)
         with open(uri, "wb") as fh:
             fh.write(data)
         return uri
+
+    def read_bytes(self, uri: str) -> bytes:
+        with open(uri, "rb") as fh:
+            return fh.read()
 
     def open_raster(self, uri: str, **kwargs):
         """Open a local raster file using rasterio."""
@@ -66,6 +75,13 @@ class S3Bucket(StorageAdapter):
         key = parsed.path.lstrip("/")
         self.client.put_object(Bucket=parsed.netloc or self.bucket, Key=key, Body=data)
         return uri
+
+    def read_bytes(self, uri: str) -> bytes:
+        parsed = urlparse(uri)
+        key = parsed.path.lstrip("/")
+        obj = self.client.get_object(Bucket=parsed.netloc or self.bucket, Key=key)
+        body = obj["Body"].read()
+        return body
 
     def open_raster(self, uri: str, **kwargs):
         """Open an S3 object for reading via rasterio."""
