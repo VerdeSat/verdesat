@@ -51,7 +51,10 @@ verdesat landcover aoi.geojson --year 2024 -o lc_2024.tif
 verdesat bscore-from-geojson aoi.geojson --year 2024 -o metrics.json
 
 # Build a one-page HTML/PDF report
-verdesat report aoi.geojson --index ndvi -o report.html
+verdesat report html aoi.geojson ndvi.csv ndvi.html -d decompositions/ -c chips/ -o report.html
+
+# Generate an AI executive summary
+verdesat report ai --project P1 --aoi A1 --metrics metrics.csv --timeseries ndvi.csv
 ```
 Run `verdesat --help` for the full set of commands.
 
