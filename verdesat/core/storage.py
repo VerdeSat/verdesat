@@ -27,6 +27,14 @@ class StorageAdapter(ABC):
     def open_raster(self, uri: str, **kwargs):
         """Open *uri* for reading with rasterio."""
 
+    # Optional interface for generating presigned URLs. Subclasses can
+    # override this if they support HTTP access to stored objects.
+    def presign(
+        self, uri: str, *, expires: int = 3_600
+    ) -> str:  # pragma: no cover - default
+        """Return a presigned URL for *uri* valid for ``expires`` seconds."""
+        raise NotImplementedError("presign not implemented for this adapter")
+
 
 class LocalFS(StorageAdapter):
     """Store files on the local filesystem."""
@@ -52,6 +60,10 @@ class LocalFS(StorageAdapter):
         except ImportError as exc:  # pragma: no cover - optional
             raise ImportError("rasterio is required for open_raster") from exc
         return rasterio.open(uri, **kwargs)
+
+    def presign(self, uri: str, *, expires: int = 3_600) -> str:
+        """Return a ``file://`` URL for local paths."""
+        return f"file://{os.path.abspath(uri)}"
 
 
 class S3Bucket(StorageAdapter):
@@ -94,3 +106,14 @@ class S3Bucket(StorageAdapter):
         # Using the original URI lets rasterio handle credentials and session
         # management without constructing a VSI path ourselves.
         return rasterio.open(uri, **kwargs)
+
+    def presign(self, uri: str, *, expires: int = 3_600) -> str:
+        """Generate a presigned HTTPS URL for an ``s3://`` object."""
+        parsed = urlparse(uri)
+        bucket = parsed.netloc or self.bucket
+        key = parsed.path.lstrip("/")
+        return self.client.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=expires,
+        )

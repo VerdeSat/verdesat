@@ -71,6 +71,22 @@ class AiReportService:
         self.config = config
 
     # ------------------------------------------------------------------
+    def _check_numbers(self, metrics: Dict[str, Any], numbers: Dict[str, Any]) -> None:
+        """Verify numeric echoes from the LLM against original metrics."""
+        for key, val in numbers.items():
+            if key not in metrics:
+                raise ValueError(f"unexpected number: {key}")
+            try:
+                metric_val = float(metrics[key])
+                llm_val = float(val)
+            except (TypeError, ValueError) as exc:  # pragma: no cover - defensive
+                raise ValueError(f"non-numeric value for {key}") from exc
+            if abs(metric_val - llm_val) > 1e-6:
+                raise ValueError(
+                    f"numeric mismatch for {key}: {llm_val} != {metric_val}"
+                )
+
+    # ------------------------------------------------------------------
     def _compute_hash(
         self, request: AiReportRequest, model: str, prompt_version: str
     ) -> str:
@@ -126,6 +142,11 @@ class AiReportService:
                         "input_hash": input_hash,
                     },
                 )
+                url: str | None
+                try:
+                    url = self.storage.presign(uri)
+                except Exception:  # pragma: no cover - optional
+                    url = None
                 return AiReportResult(
                     aoi_id=request.aoi_id,
                     project_id=request.project_id,
@@ -134,6 +155,7 @@ class AiReportService:
                     summary=obj,
                     narrative=obj.get("executive_summary", ""),
                     uri=uri,
+                    url=url,
                 )
             except FileNotFoundError:
                 self.logger.info(
@@ -215,9 +237,15 @@ class AiReportService:
         if isinstance(payload, str):
             payload = json.loads(payload)
 
+        self._check_numbers(metrics_row, payload.get("numbers", {}))
+
         artifact = json.dumps(payload, sort_keys=True).encode("utf-8")
         self.storage.write_bytes(uri, artifact)
         self.logger.debug("stored AI report at %s", uri)
+        try:
+            url = self.storage.presign(uri)
+        except Exception:  # pragma: no cover - optional
+            url = None
         return AiReportResult(
             aoi_id=request.aoi_id,
             project_id=request.project_id,
@@ -226,4 +254,5 @@ class AiReportService:
             summary=payload,
             narrative=payload.get("executive_summary", ""),
             uri=uri,
+            url=url,
         )
