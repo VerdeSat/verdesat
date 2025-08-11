@@ -7,7 +7,7 @@ import os
 import sys
 import json
 from pathlib import Path
-from datetime import datetime
+from typing import cast
 
 import pandas as pd
 import geopandas as gpd
@@ -28,7 +28,6 @@ from verdesat.services.report import build_report as svc_build_report
 from verdesat.services.landcover import LandcoverService
 from verdesat.core.storage import LocalFS
 from verdesat.visualization._chips_config import ChipsConfig
-from verdesat.visualization.chips import ChipService
 from verdesat.visualization.visualizer import Visualizer
 from verdesat.core.pipeline import ReportPipeline
 from verdesat.biodiv.bscore import BScoreCalculator, WeightsConfig
@@ -38,6 +37,9 @@ from verdesat.services import (
     compute_bscores as svc_compute_bscores,
     compute_msa_means as svc_compute_msa_means,
 )
+from verdesat.services.ai_report import AiReportService, LlmClient
+from verdesat.schemas.ai_report import AiReportRequest
+from verdesat.adapters.llm_openai import OpenAiLlmClient
 
 logger = Logger.get_logger(__name__)
 viz = Visualizer()
@@ -840,7 +842,12 @@ def gallery(chips_dir, template, output, title):
         sys.exit(1)
 
 
-@cli.command(name="report")
+@cli.group()
+def report() -> None:
+    """Report generation commands."""
+
+
+@report.command(name="html")
 @click.argument("geojson", type=click.Path(exists=True))
 @click.argument("timeseries_csv", type=click.Path(exists=True))
 @click.argument("timeseries_html", type=click.Path(exists=True))
@@ -884,7 +891,7 @@ def gallery(chips_dir, template, output, title):
     default="report.html",
     help="Output HTML report path",
 )
-def report(
+def report_html(
     geojson: str,
     timeseries_csv: str,
     timeseries_html: str,
@@ -894,10 +901,8 @@ def report(
     map_png: str,
     title: str,
     output: str,
-):
-    """
-    Generate a one‑page HTML report summarizing statistics, time‑series, decomposition, and image gallery.
-    """
+) -> None:
+    """Generate an HTML report with charts and image chips."""
     echo(f"Building report '{output}'...")
 
     try:
@@ -913,10 +918,83 @@ def report(
             title=title,
         )
         echo(f"✅  Report saved to {output}")
-    # pylint: disable=broad-exception-caught
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         echo(f"❌  Failed to build report: {e}")
         sys.exit(1)
+
+
+@report.command(name="ai")
+@click.option("--project", "project_id", required=True, help="Project ID")
+@click.option("--aoi", "aoi_id", required=True, help="AOI ID")
+@click.option(
+    "--metrics",
+    "metrics_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to metrics CSV/Parquet",
+)
+@click.option(
+    "--timeseries",
+    "timeseries_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to time-series CSV/Parquet",
+)
+@click.option(
+    "--lineage",
+    "lineage_path",
+    type=click.Path(exists=True),
+    default=None,
+    help="Optional lineage JSON",
+)
+@click.option("--model", default=None, help="LLM model name")
+@click.option(
+    "--prompt",
+    "prompt_version",
+    default=None,
+    help="Prompt template version",
+)
+@click.option("--force", is_flag=True, help="Regenerate even if cached")
+def report_ai(
+    project_id: str,
+    aoi_id: str,
+    metrics_path: str,
+    timeseries_path: str,
+    lineage_path: str | None,
+    model: str | None,
+    prompt_version: str | None,
+    force: bool,
+) -> None:
+    """Generate AI executive summary for AOI metrics."""
+    config = ConfigManager()
+    storage = LocalFS()
+    llm = OpenAiLlmClient(seed=int(config.get("ai_report_seed", 42)), logger=logger)
+    svc = AiReportService(
+        llm=cast(LlmClient, llm), storage=storage, logger=logger, config=config
+    )
+    req = AiReportRequest(
+        aoi_id=aoi_id,
+        project_id=project_id,
+        metrics_path=metrics_path,
+        timeseries_path=timeseries_path,
+        lineage_path=lineage_path,
+        model=model,
+        prompt_version=prompt_version,
+        force=force,
+    )
+
+    try:
+        result = svc.generate_summary(req)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("AI report failed", exc_info=True)
+        echo(f"❌  AI report failed: {e}", err=True)
+        sys.exit(1)
+
+    echo(f"Artifact: {result.uri}")
+    if result.url:
+        echo(f"URL: {result.url}")
+    echo(result.narrative)
+    echo(json.dumps(result.summary, indent=2))
 
 
 @cli.group()
@@ -964,7 +1042,10 @@ def pipeline_report(geojson, start, end, out_dir, map_png, title, collection):
 @cli.command()
 def webapp():
     """Run local Streamlit dashboard."""
-    import subprocess, sys, pathlib, importlib
+    import importlib
+    import pathlib
+    import subprocess
+    import sys
 
     app_path = pathlib.Path(importlib.import_module("verdesat.webapp.app").__file__)
     subprocess.run(
