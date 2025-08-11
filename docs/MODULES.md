@@ -1,8 +1,24 @@
 # MODULES — Auto-generated overview
 
-_Generated: 2025-08-08T11:41:26Z_
+_Generated: 2025-08-11T17:01:49Z_
 
 ## `verdesat`
+
+## `verdesat.adapters`
+> Adapters for external services (APIs, storage, etc.).
+
+## `verdesat.adapters.llm_openai`
+> OpenAI client adapter implementing :class:`~verdesat.services.ai_report.LlmClient`.
+**Classes**
+- `OpenAiLlmClient` — LLM client using the OpenAI Responses API.
+
+## `verdesat.adapters.prompt_store`
+> Central store for versioned prompts used by :mod:`ai_report` services.
+**Classes**
+- `PromptBundle` — Container for the different prompt roles.
+
+**Functions**
+- `get_prompts` — Return prompts for *version*.
 
 ## `verdesat.analytics`
 > Analytics helpers and result data types.
@@ -183,8 +199,22 @@ _Generated: 2025-08-08T11:41:26Z_
 **Classes**
 - `Project` — Lightweight project model holding AOIs and related artefacts.
 
+## `verdesat.schemas`
+
+## `verdesat.schemas.ai_report`
+**Classes**
+- `MetricsSummary` — Aggregated AOI metrics passed to the language model.
+- `TimeseriesRow` — Single observation from the VI time series.
+- `AiReportRequest` — Parameters for :class:`AiReportService.generate_summary`.
+- `AiReportResult` — Result returned by the AI report service.
+
 ## `verdesat.services`
 > Lightweight service-layer helpers used by the CLI and tests.
+
+## `verdesat.services.ai_report`
+**Classes**
+- `LlmClient` — Minimal interface for language model clients.
+- `AiReportService` — Create AI-generated summaries for project AOIs.
 
 ## `verdesat.services.base`
 **Classes**
