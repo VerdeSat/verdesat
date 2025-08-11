@@ -23,6 +23,32 @@ class JSONFormatter(logging.Formatter):
             "name": record.name,
             "message": record.getMessage(),
         }
+        # Include any extra attributes on the LogRecord for structured logging
+        standard = {
+            "name",
+            "msg",
+            "args",
+            "levelname",
+            "levelno",
+            "pathname",
+            "filename",
+            "module",
+            "exc_info",
+            "exc_text",
+            "stack_info",
+            "lineno",
+            "funcName",
+            "created",
+            "msecs",
+            "relativeCreated",
+            "thread",
+            "threadName",
+            "processName",
+            "process",
+            "message",
+        }
+        extras = {k: v for k, v in record.__dict__.items() if k not in standard}
+        record_dict.update(extras)
         return json.dumps(record_dict)
 
 

@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from verdesat.adapters.llm_openai import OpenAiLlmClient
 from verdesat.adapters.prompt_store import get_prompts
 from verdesat.core.config import ConfigManager
+from verdesat.core.logger import Logger
 from verdesat.core.storage import StorageAdapter, LocalFS
 from verdesat.schemas.ai_report import AiReportRequest
 from verdesat.services.ai_report import AiReportService
@@ -80,7 +81,7 @@ def _service(llm: RecordingLlm, storage: StorageAdapter) -> AiReportService:
     return AiReportService(
         llm=llm,
         storage=storage,
-        logger=logging.getLogger("test"),
+        logger=Logger.get_logger("test"),
         config=ConfigManager(),
     )
 
@@ -286,6 +287,50 @@ def test_generate_summary_caches():
     assert res2.summary == res1.summary
 
 
+def test_generate_summary_logs_cache(caplog):
+    storage = FakeStorage()
+    payload = {
+        "executive_summary": "exec",
+        "kpi_sentences": {
+            "bscore": "bscore sent",
+            "intactness": "intact sent",
+            "fragmentation": "frag sent",
+            "ndvi_trend": "ndvi sent",
+        },
+        "esrs_e4": {
+            "extent_condition": "extent",
+            "pressures": "press",
+            "targets": "targets",
+            "actions": "actions",
+            "financial_effects": "effects",
+        },
+        "flags": [],
+        "numbers": {},
+        "meta": {},
+    }
+    llm = RecordingLlm(payload)
+    svc = _service(llm, storage)
+
+    metrics = _write_metrics(storage, "metrics.csv")
+    timeseries = _write_timeseries(storage, "ts.csv")
+
+    req = AiReportRequest(
+        aoi_id="a1",
+        project_id="p1",
+        metrics_path=metrics,
+        timeseries_path=timeseries,
+    )
+
+    with caplog.at_level(logging.INFO):
+        svc.generate_summary(req)
+        svc.generate_summary(req)
+
+    statuses = [
+        r.status for r in caplog.records if getattr(r, "event", "") == "ai_report.cache"
+    ]
+    assert statuses == ["miss", "hit"]
+
+
 @pytest.mark.slow
 @pytest.mark.skipif(
     not os.environ.get("OPENAI_API_KEY"),
@@ -294,7 +339,7 @@ def test_generate_summary_caches():
 def test_openai_smoke(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     storage = LocalFS()
-    llm = OpenAiLlmClient(seed=0)
+    llm = OpenAiLlmClient(seed=0, logger=Logger.get_logger("test"))
     svc = _service(llm, storage)
 
     metrics = _write_metrics(storage, str(tmp_path / "metrics.csv"))
