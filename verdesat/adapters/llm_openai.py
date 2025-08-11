@@ -10,9 +10,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, Type
 
+import logging
+import time
 from openai import OpenAI
 from openai._exceptions import OpenAIError
 from pydantic import BaseModel, ValidationError
+
+from verdesat.core.logger import Logger
 
 
 class OpenAiLlmClient:
@@ -24,10 +28,12 @@ class OpenAiLlmClient:
         client: OpenAI | None = None,
         seed: int = 42,
         max_retries: int = 1,
+        logger: logging.Logger | None = None,
     ) -> None:
         self._client = client or OpenAI()
         self._seed = seed
         self._max_retries = max_retries
+        self.logger = logger or Logger.get_logger(__name__)
 
     def generate(
         self,
@@ -56,6 +62,7 @@ class OpenAiLlmClient:
         attempt = 0
         while True:
             attempt += 1
+            start = time.perf_counter()
             try:
                 response = self._client.responses.create(
                     model=model,
@@ -76,10 +83,37 @@ class OpenAiLlmClient:
             except OpenAIError as exc:  # pragma: no cover - network errors
                 raise RuntimeError("OpenAI request failed") from exc
 
+            latency_ms = (time.perf_counter() - start) * 1000
+            usage = getattr(response, "usage", {}) or {}
+            input_tokens = getattr(usage, "input_tokens", None)
+            output_tokens = getattr(usage, "output_tokens", None)
+            if isinstance(usage, dict):
+                input_tokens = usage.get("input_tokens")
+                output_tokens = usage.get("output_tokens")
+
             try:
                 parsed = response_model.model_validate_json(content)
+                self.logger.info(
+                    "openai.response",
+                    extra={
+                        "event": "openai.response",
+                        "model": model,
+                        "latency_ms": round(latency_ms, 3),
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "retries": attempt - 1,
+                    },
+                )
                 return parsed.model_dump()
             except ValidationError:
+                self.logger.warning(
+                    "openai.validation_failed",
+                    extra={
+                        "event": "openai.validation_failed",
+                        "model": model,
+                        "attempt": attempt,
+                    },
+                )
                 if attempt > self._max_retries:
                     raise
                 continue

@@ -117,7 +117,15 @@ class AiReportService:
             try:
                 cached = self.storage.read_bytes(uri)
                 obj = json.loads(cached.decode("utf-8"))
-                self.logger.debug("loaded cached AI report %s", uri)
+                self.logger.info(
+                    "ai_report cache",
+                    extra={
+                        "event": "ai_report.cache",
+                        "status": "hit",
+                        "model": model,
+                        "input_hash": input_hash,
+                    },
+                )
                 return AiReportResult(
                     aoi_id=request.aoi_id,
                     project_id=request.project_id,
@@ -128,9 +136,26 @@ class AiReportService:
                     uri=uri,
                 )
             except FileNotFoundError:
-                pass
+                self.logger.info(
+                    "ai_report cache",
+                    extra={
+                        "event": "ai_report.cache",
+                        "status": "miss",
+                        "model": model,
+                        "input_hash": input_hash,
+                    },
+                )
             except Exception:  # pragma: no cover - defensive
                 self.logger.exception("failed to read cached report %s", uri)
+                self.logger.info(
+                    "ai_report cache",
+                    extra={
+                        "event": "ai_report.cache",
+                        "status": "error",
+                        "model": model,
+                        "input_hash": input_hash,
+                    },
+                )
 
         metrics_df = self._read_table(request.metrics_path)
         if metrics_df.shape[0] != 1:
