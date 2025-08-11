@@ -195,9 +195,11 @@ def test_prompt_assembly_golden():
 
     svc.generate_summary(req)
     prompts = get_prompts("v1")
-    metrics_csv = pd.read_csv(pd.io.common.BytesIO(storage.files[metrics])).to_csv(
-        index=False
-    ).strip()
+    metrics_csv = (
+        pd.read_csv(pd.io.common.BytesIO(storage.files[metrics]))
+        .to_csv(index=False)
+        .strip()
+    )
     ts_df = pd.read_csv(pd.io.common.BytesIO(storage.files[timeseries]))
     ts_df["date"] = pd.to_datetime(ts_df["date"]).dt.to_period("M").astype(str)
     timeseries_str = "\n".join(
@@ -307,4 +309,3 @@ def test_openai_smoke(tmp_path, monkeypatch):
 
     res = svc.generate_summary(req)
     assert "executive_summary" in res.summary
-
