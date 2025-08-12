@@ -8,7 +8,7 @@ from typing import List, Optional
 import pandas as pd
 
 from verdesat.geo.aoi import AOI
-from verdesat.analytics.timeseries import TimeSeries
+from verdesat.analytics.timeseries import TimeSeries, decomp_to_long
 from verdesat.ingestion.base import BaseDataIngestor
 from verdesat.visualization.visualizer import Visualizer
 from verdesat.visualization._chips_config import ChipsConfig
@@ -77,13 +77,20 @@ class ReportPipeline:
         monthly_csv = os.path.join(out_dir, "timeseries_monthly.csv")
         ts.aggregate("ME").to_csv(monthly_csv)
         filled_ts = ts.aggregate("ME").fill_gaps()
-        filled_csv = os.path.join(out_dir, "timeseries_filled.csv")
-        filled_ts.to_csv(filled_csv)
+        filled_csv = os.path.join(out_dir, "timeseries_long.csv")
+
+        source = (
+            "S2"
+            if "S2" in self.ingestor.sensor.collection_id
+            else self.ingestor.sensor.collection_id
+        )
+        ts_long = filled_ts.to_long(freq="monthly", source=source)
 
         # 3. Decompose seasonality
         decomp_dir = os.path.join(out_dir, "decomp")
         os.makedirs(decomp_dir, exist_ok=True)
         results = filled_ts.decompose()
+        long_parts = [ts_long]
         for pid, res in results.items():
             df_out = pd.DataFrame(
                 {
@@ -94,12 +101,19 @@ class ReportPipeline:
                     "resid": res.resid.values,
                 }
             )
-            df_out.to_csv(
-                os.path.join(decomp_dir, f"{pid}_decomposition.csv"), index=False
+            long_parts.append(
+                decomp_to_long(
+                    df_out,
+                    aoi_id=str(pid),
+                    var=index_name,
+                    freq="monthly",
+                    source=source,
+                )
             )
             self.visualizer.plot_decomposition(
                 res, os.path.join(decomp_dir, f"{pid}_decomposition.png")
             )
+        pd.concat(long_parts, ignore_index=True).to_csv(filled_csv, index=False)
 
         # 4. Export image chips
         chips_dir = os.path.join(out_dir, "chips")
