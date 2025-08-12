@@ -61,8 +61,8 @@ def test_build_aoi_evidence_pack(tmp_path) -> None:
             "report.pdf",
             "metrics.csv",
             "lineage.json",
-            "map.png",
-            "timeseries.png",
+            "figures/map.png",
+            "figures/timeseries.png",
         } <= names
         with zf.open("report.pdf") as fh:
             assert fh.read(4) == b"%PDF"
