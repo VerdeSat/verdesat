@@ -1,6 +1,6 @@
 # MODULES — Auto-generated overview
 
-_Generated: 2025-08-11T17:01:49Z_
+_Generated: 2025-08-12T17:03:51Z_
 
 ## `verdesat`
 
@@ -105,7 +105,9 @@ _Generated: 2025-08-11T17:01:49Z_
 - `plot` — Plot time-series from CSV: interactive HTML or static PNG.
 - `animate` — Generate one animated GIF per site by scanning IMAGES_DIR for files matching PATTERN.
 - `gallery` — Build a static HTML image gallery from a directory of chips.
-- `report` — Generate a one‑page HTML report summarizing statistics, time‑series, decomposition, and image gallery.
+- `report` — Report generation commands.
+- `report_html` — Generate an HTML report with charts and image chips.
+- `report_ai` — Generate AI executive summary for AOI metrics.
 - `pipeline` — High-level workflows that glue together multiple commands.
 - `pipeline_report` — Run full NDVI → report pipeline in one go.
 - `webapp` — Run local Streamlit dashboard.
@@ -127,6 +129,7 @@ _Generated: 2025-08-11T17:01:49Z_
 - `ReportPipeline` — Encapsulate the NDVI report workflow.
 
 ## `verdesat.core.storage`
+> Storage adapter abstractions.
 **Classes**
 - `StorageAdapter` — Abstract interface for persisting binary data.
 - `LocalFS` — Store files on the local filesystem.
@@ -202,7 +205,7 @@ _Generated: 2025-08-11T17:01:49Z_
 ## `verdesat.schemas`
 
 ## `verdesat.schemas.ai_report`
-> Dataclass-based schemas for AI report requests/results.
+> Data models for AI report generation.
 **Classes**
 - `MetricsSummary` — Aggregated AOI metrics passed to the language model.
 - `TimeseriesRow` — Single observation from the VI time series.
@@ -213,6 +216,7 @@ _Generated: 2025-08-11T17:01:49Z_
 > Lightweight service-layer helpers used by the CLI and tests.
 
 ## `verdesat.services.ai_report`
+> Service for LLM-based report summaries with caching.
 **Classes**
 - `LlmClient` — Minimal interface for language model clients.
 - `AiReportService` — Create AI-generated summaries for project AOIs.
@@ -248,6 +252,7 @@ _Generated: 2025-08-11T17:01:49Z_
 - `convert_to_cog` — Convert *path* GeoTIFF to Cloud Optimized GeoTIFF.
 
 ## `verdesat.services.report`
+> Service layer wrapping report generation utilities.
 **Functions**
 - `build_report` — Generate an HTML report and return the output path.
 
