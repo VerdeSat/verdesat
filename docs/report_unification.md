@@ -277,8 +277,8 @@ verdesat pack project \
 ---
 
 ## 10) Task List (1–2 sprints)
-- [ ] Implement DTOs (`schemas/reporting.py`) + `LABELS` mapping.
-- [ ] Implement `services/reporting.py` with WeasyPrint renderer and StorageAdapter use.
+- [x] Implement DTOs (`schemas/reporting.py`) + `LABELS` mapping.
+- [x] Implement `services/reporting.py` with WeasyPrint renderer and StorageAdapter use.
 - [x] Add `figures/` helpers for map/timeseries.
 - [ ] Refactor timeseries/decomposition emitters to **TimeseriesLong**.
 - [ ] Refactor KPI builder to output **MetricsRow**.
