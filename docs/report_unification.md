@@ -90,7 +90,7 @@ class MetricsRow:
 columns: [date, var, stat, value, aoi_id, freq, source]
   - date: ISO date (UTC)
   - var: e.g., ndvi | msavi | t2m | precip
-  - stat: raw | trend | seasonal | anomaly | rolling_90d
+  - stat: raw | mean | median | std | trend | seasonal | anomaly | rolling_90d
   - value: float
   - aoi_id: str
   - freq: monthly | 10day | daily | annual
@@ -125,6 +125,7 @@ LABELS = {
   "intactness_pct": "Intactness %",
   "frag_norm": "Frag‑Norm",
   "shannon": "Shannon H′",
+  "msa": "MSA",
   "bscore": "B‑Score",
   "bscore_band": "B‑Score band",
   "valid_obs_pct": "% valid obs"
@@ -197,7 +198,7 @@ def build_project_pack(
 - Return `PackResult` (including presigned URL when R2).
 
 **Optional AI summary:**
-- If `include_ai=True`, call `verdesat/services/ai_report.generate_summary(...)` and embed the narrative in the Executive Summary; save the full JSON to `ai_summary.json` (future).
+- If `include_ai=True`, call `verdesat/services/ai_report.generate_summary(...)` and embed the narrative in the Executive Summary; save the full JSON to `ai_summary.json`.
 
 ---
 
@@ -238,7 +239,7 @@ verdesat pack project \
    - Implement `ui_metrics_to_dto(mapping)` helper to absorb legacy UI‑style dicts if any linger.
 
 3) **Images/Plots**
-   - Centralize in `verdesat/figures/` with two functions: `make_map_png(aoi_ctx, layers)` and `make_timeseries_png(ts_long)` returning `bytes`.
+   - Centralize in `verdesat/visualization/` with two functions: `make_map_png(aoi_ctx, layers)` and `make_timeseries_png(ts_long)` returning `bytes`.
 
 4) **Project/AOI classes**
    - **Adopt** existing `Project` and `AOI` but extend with optional static fields:
