@@ -44,6 +44,7 @@ watchdog = "^6.0.0"
 distlib = "^0.4.0"
 openai = "^1.99.7"
 python-dotenv = "^1.1.1"
+weasyprint = "^66.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
