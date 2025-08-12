@@ -8,7 +8,7 @@
 
 ## 1) Decisions (non‑negotiable)
 - **Single render engine:** HTML/Jinja2 → **WeasyPrint PDF**. (ReportLab remains an optional fallback only.)
-- **One pack format:** **Evidence Pack (AOI)** and **Project Pack** as **ZIPs** with `report.pdf`, `metrics.csv`, `lineage.json`, and figures.
+- **One pack format:** **Evidence Pack (AOI)** and **Project Pack** as **ZIPs** with `report.pdf`, `metrics.csv`, `lineage.json`, and a `figures/` directory.
 - **Canonical schema:** all inputs to the renderer use **snake_case**.
 - **Label mapping:** templates map `snake_case → UI label` for human‑readable captions.
 - **Storage abstraction:** use **StorageAdapter** (LocalFS or R2) selected by config.
@@ -152,7 +152,9 @@ results/projects/{project_id}/aoi_{aoi_id}/evidence_pack_{ts}.zip
 results/projects/{project_id}/project_pack_{ts}.zip
   ├─ project.pdf
   ├─ metrics.csv                 # many AOIs (one row each)
-  └─ lineage.json
+  ├─ lineage.json
+  └─ figures/
+       └─ timeseries.png         # aggregate trend
 ```
 
 ### 3.3 CSV Schemas
@@ -192,7 +194,7 @@ def build_project_pack(
 
 **Responsibilities:**
 - Validate inputs against schemas.
-- Generate figures (`map.png`, `timeseries.png`).
+  - Generate figures (`figures/map.png`, `figures/timeseries.png`).
 - Render PDF via Jinja2 + WeasyPrint.
 - Compose ZIP + upload via `StorageAdapter` (LocalFS/R2).
 - Return `PackResult` (including presigned URL when R2).
@@ -275,9 +277,9 @@ verdesat pack project \
 ---
 
 ## 10) Task List (1–2 sprints)
-- [ ] Implement DTOs (`schemas/reporting.py`) + `LABELS` mapping.
-- [ ] Implement `services/reporting.py` with WeasyPrint renderer and StorageAdapter use.
-- [ ] Add `figures/` helpers for map/timeseries.
+- [x] Implement DTOs (`schemas/reporting.py`) + `LABELS` mapping.
+- [x] Implement `services/reporting.py` with WeasyPrint renderer and StorageAdapter use.
+- [x] Add `figures/` helpers for map/timeseries.
 - [ ] Refactor timeseries/decomposition emitters to **TimeseriesLong**.
 - [ ] Refactor KPI builder to output **MetricsRow**.
 - [ ] Implement CLI `verdesat pack aoi|project`.

@@ -21,10 +21,10 @@ import zipfile
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
-import matplotlib.pyplot as plt
 
 from verdesat.core.storage import LocalFS, StorageAdapter
 from verdesat.schemas.reporting import AoiContext, MetricsRow, ProjectContext
+from verdesat.visualization import make_map_png, make_timeseries_png
 
 
 @dataclass
@@ -43,35 +43,6 @@ class PackResult:
 def _bytes_to_data_uri(data: bytes, mime: str = "image/png") -> str:
     encoded = base64.b64encode(data).decode("ascii")
     return f"data:{mime};base64,{encoded}"
-
-
-def _make_map_png() -> bytes:
-    """Return a placeholder map image as PNG bytes."""
-
-    fig, ax = plt.subplots(figsize=(4, 3))
-    ax.text(0.5, 0.5, "map", ha="center", va="center")
-    ax.set_axis_off()
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight")
-    plt.close(fig)
-    return buf.getvalue()
-
-
-def _make_timeseries_png(ts_long: pd.DataFrame) -> bytes:
-    """Plot simple timeseries line chart and return PNG bytes."""
-
-    df = ts_long.copy()
-    df["date"] = pd.to_datetime(df["date"])
-    pivot = df.pivot_table(index="date", columns="var", values="value")
-    pivot.sort_index(inplace=True)
-    fig, ax = plt.subplots(figsize=(4, 3))
-    pivot.plot(ax=ax)
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Value")
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight")
-    plt.close(fig)
-    return buf.getvalue()
 
 
 def _render_pdf(template: str, context: dict[str, Any]) -> bytes:
@@ -103,8 +74,8 @@ def _write_pack(
         zf.writestr("report.pdf", pdf_bytes)
         zf.writestr("metrics.csv", metrics_csv)
         zf.writestr("lineage.json", json.dumps(lineage, indent=2).encode("utf-8"))
-        zf.writestr("map.png", map_png)
-        zf.writestr("timeseries.png", ts_png)
+        zf.writestr("figures/map.png", map_png)
+        zf.writestr("figures/timeseries.png", ts_png)
         if ai_summary is not None:
             zf.writestr(
                 "ai_summary.json",
@@ -146,8 +117,8 @@ def build_aoi_evidence_pack(
     if missing:
         raise ValueError(f"ts_long missing columns: {sorted(missing)}")
 
-    map_png = _make_map_png()
-    ts_png = _make_timeseries_png(ts_long)
+    map_png = make_map_png(aoi)
+    ts_png = make_timeseries_png(ts_long)
 
     ai_summary: dict[str, Any] | None = None
     narrative = ""
@@ -244,7 +215,11 @@ def build_project_pack(
     """
 
     storage = storage or LocalFS()
-    ts_png = _make_timeseries_png(ts_long) if ts_long is not None else _make_map_png()
+    ts_png = (
+        make_timeseries_png(ts_long)
+        if ts_long is not None
+        else make_map_png(AoiContext(aoi_id=""))
+    )
     context = {
         "report_title": "VerdeSat Project Pack",
         "report_date": date.today().isoformat(),
@@ -273,7 +248,7 @@ def build_project_pack(
         pdf_bytes=pdf_bytes,
         metrics_csv=metrics_csv,
         lineage=lineage,
-        map_png=_make_map_png(),
+        map_png=make_map_png(AoiContext(aoi_id="")),
         ts_png=ts_png,
         storage=storage,
         path_parts=path,
