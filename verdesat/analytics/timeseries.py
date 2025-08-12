@@ -5,10 +5,11 @@ a pandas DataFrame of spectral index time series and supports aggregation.
 
 from dataclasses import dataclass
 from typing import Dict, Literal
-from verdesat.core.config import ConfigManager
 
 import pandas as pd
 from statsmodels.tsa.seasonal import DecomposeResult, seasonal_decompose
+
+from verdesat.core.config import ConfigManager
 
 
 @dataclass
@@ -89,3 +90,70 @@ class TimeSeries:
         """Write the underlying DataFrame to CSV."""
 
         self.df.to_csv(path, index=False)
+
+    def to_long(self, *, freq: str, source: str) -> pd.DataFrame:
+        """Return the time series in the ``TimeseriesLong`` format.
+
+        Parameters
+        ----------
+        freq:
+            Frequency label (e.g., ``"monthly"``).
+        source:
+            Data source identifier (e.g., ``"S2"``).
+
+        Returns
+        -------
+        pandas.DataFrame
+            DataFrame with columns ``date, var, stat, value, aoi_id, freq, source``.
+        """
+
+        value_col = f"mean_{self.index}"
+        df_long = self.df.rename(columns={"id": "aoi_id", value_col: "value"}).assign(
+            var=self.index, stat="raw", freq=freq, source=source
+        )[["date", "var", "stat", "value", "aoi_id", "freq", "source"]]
+        return df_long
+
+
+def decomp_to_long(
+    df: pd.DataFrame,
+    *,
+    aoi_id: str,
+    var: str,
+    freq: str,
+    source: str,
+) -> pd.DataFrame:
+    """Convert decomposition components to ``TimeseriesLong`` format.
+
+    Parameters
+    ----------
+    df:
+        DataFrame with columns ``['date', 'observed', 'trend', 'seasonal', 'resid']``.
+    aoi_id:
+        Identifier of the AOI.
+    var:
+        Variable name (e.g., ``"ndvi"``).
+    freq:
+        Frequency label (e.g., ``"monthly"``).
+    source:
+        Data source identifier.
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame with columns ``date, var, stat, value, aoi_id, freq, source``.
+    """
+
+    long_df = df.melt(id_vars="date", var_name="stat", value_name="value")
+    long_df["stat"] = long_df["stat"].map(
+        {
+            "observed": "raw",
+            "trend": "trend",
+            "seasonal": "seasonal",
+            "resid": "anomaly",
+        }
+    )
+    long_df["var"] = var
+    long_df["aoi_id"] = aoi_id
+    long_df["freq"] = freq
+    long_df["source"] = source
+    return long_df[["date", "var", "stat", "value", "aoi_id", "freq", "source"]]

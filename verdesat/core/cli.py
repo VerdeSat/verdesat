@@ -17,7 +17,7 @@ from verdesat.ingestion.vector_preprocessor import VectorPreprocessor
 from verdesat.ingestion.sensorspec import SensorSpec
 from verdesat.ingestion import create_ingestor
 from verdesat.ingestion.indices import INDEX_REGISTRY
-from verdesat.analytics.timeseries import TimeSeries
+from verdesat.analytics.timeseries import TimeSeries, decomp_to_long
 from verdesat.analytics.trend import compute_trend
 from verdesat.core.logger import Logger
 from verdesat.core.config import ConfigManager
@@ -503,8 +503,8 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
 
     results = ts.decompose(period=period, model=model)
     os.makedirs(output_dir, exist_ok=True)
+    long_parts = []
 
-    # Save decomposition components for each polygon
     for pid, res in results.items():
         df_out = pd.DataFrame(
             {
@@ -515,14 +515,24 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
                 "resid": res.resid.values,
             }
         )
-        csv_path = os.path.join(output_dir, f"{pid}_decomposition.csv")
-        df_out.to_csv(csv_path, index=False)
-        echo(f"✅  Decomposition data saved to {csv_path}")
+        long_parts.append(
+            decomp_to_long(
+                df_out,
+                aoi_id=str(pid),
+                var=index_name,
+                freq="monthly",
+                source="S2",
+            )
+        )
 
         if plot:
             plot_path = os.path.join(output_dir, f"{pid}_decomposition.png")
             viz.plot_decomposition(res, plot_path)
             echo(f"✅  Decomposition plot saved to {plot_path}")
+
+    out_path = os.path.join(output_dir, "timeseries_long.csv")
+    pd.concat(long_parts, ignore_index=True).to_csv(out_path, index=False)
+    echo(f"✅  TimeseriesLong saved to {out_path}")
 
 
 @stats.command(name="trend")
