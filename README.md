@@ -70,13 +70,20 @@ verdesat bscore from-geojson $AOI --year 2024 --project-id P1 --project-name Dem
 # 2. Fetch NDVI time series
 verdesat download timeseries $AOI --index ndvi --start 2024-01-01 --end 2024-12-31 -o ts.csv
 
-# 3. Record processing lineage (minimal example)
+# 3. Aggregate and decompose to build TimeseriesLong
+verdesat stats aggregate ts.csv --freq ME --index ndvi -o monthly.csv
+verdesat stats decompose monthly.csv --no-plot
+
+# 4. Append NDVI/MSAVI stats to metrics
+verdesat stats summary monthly.csv --aoi-id A1 --decomp decomposition --metrics metrics.csv
+
+# 5. Record processing lineage (minimal example)
 cat > lineage.json <<'EOF'
 { "metrics": "metrics.csv", "timeseries": "ts.csv" }
 EOF
 
-# 4. Package everything and let the AI summarise
-verdesat pack aoi --aoi-id A1 --metrics metrics.csv --ts ts.csv --lineage lineage.json --include-ai
+# 6. Package everything and let the AI summarise
+verdesat pack aoi --aoi-id A1 --metrics metrics.csv --ts decomposition/timeseries_long.csv --lineage lineage.json --include-ai
 ```
 The command emits a ZIP archive (e.g. `A1_evidence_pack.zip`) containing `report.pdf`, data files and figures. Using `--out r2` stores it in Cloudflare R2 and prints a presigned URL.
 

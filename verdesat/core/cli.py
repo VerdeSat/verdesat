@@ -19,6 +19,7 @@ from verdesat.ingestion import create_ingestor
 from verdesat.ingestion.indices import INDEX_REGISTRY
 from verdesat.analytics.timeseries import TimeSeries, decomp_to_long
 from verdesat.analytics.trend import compute_trend
+from verdesat.analytics.stats import compute_veg_metrics
 from verdesat.core.logger import Logger
 from verdesat.core.config import ConfigManager
 from verdesat.geo.aoi import AOI
@@ -588,6 +589,53 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
     pd.concat(long_parts, ignore_index=True).to_csv(out_path, index=False)
     logger.info("TimeseriesLong saved to %s", out_path)
     echo(f"✅  TimeseriesLong saved to {out_path}")
+
+
+@stats.command(name="summary")
+@click.argument("timeseries_csv", type=click.Path(exists=True))
+@click.option("--aoi-id", required=True, help="AOI identifier for metrics row")
+@click.option(
+    "--decomp-dir",
+    "--decomp",
+    type=click.Path(exists=True),
+    default=None,
+    help="Directory containing decomposition outputs",
+)
+@click.option(
+    "--metrics",
+    type=click.Path(exists=True),
+    default=None,
+    help="Existing metrics CSV to append to",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default=None,
+    help="Output path (defaults to --metrics)",
+)
+def summary(timeseries_csv, aoi_id, decomp_dir, metrics, output):
+    """Compute NDVI/MSAVI summary stats and optionally append to metrics."""
+
+    logger.info("Computing summary stats from %s", timeseries_csv)
+    row = compute_veg_metrics(timeseries_csv, decomp_dir=decomp_dir, aoi_id=aoi_id)
+    df = pd.DataFrame([row])
+
+    if metrics:
+        logger.info("Appending summary stats to %s", metrics)
+        existing = pd.read_csv(metrics)
+        if "aoi_id" in existing.columns:
+            merged = existing.merge(df, on="aoi_id", how="left")
+        else:
+            merged = pd.concat([existing, df], axis=1)
+        out_path = output or metrics
+        merged.to_csv(out_path, index=False)
+        echo(f"✅  Metrics updated at {out_path}")
+    else:
+        out_path = output or "stats_metrics.csv"
+        logger.info("Writing summary stats to %s", out_path)
+        df.to_csv(out_path, index=False)
+        echo(f"✅  Stats metrics saved to {out_path}")
 
 
 @stats.command(name="trend")

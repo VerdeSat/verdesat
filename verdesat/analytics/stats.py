@@ -10,7 +10,11 @@ from pandas import Timestamp
 from scipy.stats import kendalltau, theilslopes
 
 from verdesat.core.config import ConfigManager
+from verdesat.core.logger import Logger
 from .results import StatsResult
+
+
+logger = Logger.get_logger(__name__)
 
 
 def compute_summary_stats(
@@ -121,3 +125,58 @@ def compute_summary_stats(
         )
 
     return StatsResult(stats)
+
+
+def compute_veg_metrics(
+    timeseries_csv: str | IO[bytes] | pd.DataFrame,
+    *,
+    decomp_dir: Optional[str | Mapping[int, IO[bytes] | pd.DataFrame]] = None,
+    aoi_id: str | None = None,
+) -> dict[str, float | str | None]:
+    """Compute vegetation metrics in canonical field names.
+
+    Parameters
+    ----------
+    timeseries_csv:
+        Path or buffer to a pivoted time-series CSV with at least ``mean_ndvi``
+        and ``id`` columns.
+    decomp_dir:
+        Optional directory containing decomposition outputs produced by
+        ``stats decompose``. Enables trend statistics.
+    aoi_id:
+        AOI identifier to include in the resulting metrics row.
+    """
+
+    logger.info("Loading %s for vegetation metrics", timeseries_csv)
+    if isinstance(timeseries_csv, pd.DataFrame):
+        df = timeseries_csv.copy()
+    else:
+        df = pd.read_csv(timeseries_csv, parse_dates=["date"])
+
+    stats_df = compute_summary_stats(df, decomp_dir=decomp_dir).to_dataframe()
+    if stats_df.empty:
+        logger.warning("No rows produced for vegetation metrics")
+        stats_df = pd.DataFrame(
+            [
+                {
+                    "Mean NDVI": np.nan,
+                    "Sen's Slope (NDVI/yr)": np.nan,
+                    "Trend ΔNDVI": np.nan,
+                    "Mann–Kendall p-value": np.nan,
+                }
+            ]
+        )
+
+    row = stats_df.iloc[0]
+    metrics: dict[str, float | str | None] = {
+        "aoi_id": aoi_id,
+        "ndvi_mean": float(row.get("Mean NDVI", np.nan)),
+        "ndvi_slope": float(row.get("Sen's Slope (NDVI/yr)", np.nan)),
+        "ndvi_delta": float(row.get("Trend ΔNDVI", np.nan)),
+        "ndvi_p_value": float(row.get("Mann–Kendall p-value", np.nan)),
+    }
+
+    if "mean_msavi" in df.columns:
+        metrics["msavi_mean"] = float(df["mean_msavi"].mean())
+
+    return metrics
