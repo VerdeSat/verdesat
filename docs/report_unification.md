@@ -63,11 +63,13 @@ class MetricsRow:
     ndvi_mean: float | None = None
     ndvi_slope: float | None = None       # per year
     ndvi_delta: float | None = None       # last_year - prev_year
+    ndvi_p_value: float | None = None     # Mann-Kendall p-value
     msavi_mean: float | None = None
     # Biodiversity proxies
     intactness_pct: float | None = None
     frag_norm: float | None = None
     shannon: float | None = None
+    msa: float | None = None
     # Composite
     bscore: float | None = None           # 0..100
     bscore_band: str | None = None        # "low|moderate|high"
@@ -121,6 +123,7 @@ LABELS = {
   "ndvi_mean": "NDVI μ",
   "ndvi_slope": "NDVI slope/yr",
   "ndvi_delta": "ΔNDVI (YoY)",
+  "ndvi_p_value": "NDVI p-value",
   "msavi_mean": "MSAVI μ",
   "intactness_pct": "Intactness %",
   "frag_norm": "Frag‑Norm",

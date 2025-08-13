@@ -24,7 +24,6 @@ from verdesat.webapp.components.charts import (
     ndvi_component_chart,
 )
 from verdesat.webapp.components.kpi_cards import (
-    Metrics,
     aggregate_metrics,
     bscore_gauge,
     display_metrics,

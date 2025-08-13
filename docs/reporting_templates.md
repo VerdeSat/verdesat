@@ -48,8 +48,10 @@ This file contains **production-ready HTML/Jinja2 templates** and **print CSS** 
         <div class="kpi-strip">
           <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(1) }}%</strong></div>
           <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|round(2) }}</strong></div>
+          <div class="kpi"><span>MSA</span><strong>{{ msa|round(2) }}</strong></div>
           <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(3) }}</strong></div>
           <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(3) }}</strong></div>
+          <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|round(3) }}</strong></div>
           <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(3) }}</strong></div>
           <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(0) }}%</strong></div>
         </div>
@@ -239,7 +241,7 @@ h3 { font-size: 12pt; margin: 10px 0 4px; }
 .summary-grid { display: grid; grid-template-columns: 1.1fr 1.5fr; grid-template-rows: auto auto; gap: 10px; margin-top: 8px; }
 .summary-grid .panel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
 .summary-grid .map img { width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; }
-.kpi-strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.kpi-strip { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
 .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; font-size: 10.5pt; }
 .kpi span { color: #475569; display: block; font-size: 9.5pt; }
 
@@ -289,7 +291,8 @@ context = dict(
     report_hash="{{computed_sha256}}",
     bscore=54, bscore_band="Moderate", bscore_band_label="Moderate risk",
     weights=dict(intactness=0.4, shannon=0.3, fragmentation=0.3),
-    intactness_pct=62.1, frag_norm=0.44, ndvi_mean=0.72, ndvi_slope=0.012, ndvi_delta=0.021,
+    intactness_pct=62.1, frag_norm=0.44, msa=0.78,
+    ndvi_mean=0.72, ndvi_slope=0.012, ndvi_p_value=0.045, ndvi_delta=0.021,
     valid_obs_pct=87.0,
     acquisition_from="2024-01-01", acquisition_to="2024-12-31",
     executive_summary="Moderate condition; fragmentation elevated; greenness improving (0.012/yr).",

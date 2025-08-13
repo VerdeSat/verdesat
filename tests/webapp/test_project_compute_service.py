@@ -79,7 +79,7 @@ def test_compute_invokes_chip_service_and_aggregates(monkeypatch):
                 "ndvi_delta": 0.0,
                 "ndvi_p_value": 0.5,
                 "ndvi_peak": "Jan",
-                "ndvi_pct_fill": 0.0,
+                "valid_obs_pct": 100.0,
             },
             pd.DataFrame(
                 {
@@ -154,7 +154,7 @@ def test_compute_uses_cache(monkeypatch):
                 "ndvi_delta": [0.0],
                 "ndvi_p_value": [0.5],
                 "ndvi_peak": ["Jan"],
-                "ndvi_pct_fill": [0.0],
+                "valid_obs_pct": [100.0],
                 "msavi_mean": [2.0],
                 "msavi_median": [2.0],
                 "msavi_min": [2.0],
@@ -178,7 +178,7 @@ def test_compute_uses_cache(monkeypatch):
                 "ndvi_delta": 0.0,
                 "ndvi_p_value": 0.5,
                 "ndvi_peak": "Jan",
-                "ndvi_pct_fill": 0.0,
+                "valid_obs_pct": 100.0,
                 "msavi_mean": 2.0,
                 "msavi_median": 2.0,
                 "msavi_min": 2.0,
@@ -235,7 +235,7 @@ def test_compute_recomputes_legacy_cache(monkeypatch):
                 "ndvi_delta": 0.0,
                 "ndvi_p_value": 0.5,
                 "ndvi_peak": "Jan",
-                "ndvi_pct_fill": 0.0,
+                "valid_obs_pct": 100.0,
             },
             pd.DataFrame(
                 {
@@ -275,7 +275,7 @@ def test_compute_recomputes_legacy_cache(monkeypatch):
         "ndvi_delta",
         "ndvi_p_value",
         "ndvi_peak",
-        "ndvi_pct_fill",
+        "valid_obs_pct",
         "msavi_mean",
         "msavi_median",
         "msavi_min",
@@ -344,7 +344,7 @@ def test_ndvi_stats_returns_required_metrics(monkeypatch):
         "ndvi_delta",
         "ndvi_p_value",
         "ndvi_peak",
-        "ndvi_pct_fill",
+        "valid_obs_pct",
     }
     assert list(df_out.columns) == ["date", "observed", "trend", "seasonal"]
 
@@ -448,7 +448,7 @@ def test_ndvi_stats_handles_missing_decomposition(monkeypatch):
         "ndvi_delta",
         "ndvi_p_value",
         "ndvi_peak",
-        "ndvi_pct_fill",
+        "valid_obs_pct",
     } == set(stats.keys())
     assert list(df_out.columns) == ["date", "observed", "trend", "seasonal"]
 
