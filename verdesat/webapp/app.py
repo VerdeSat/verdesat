@@ -345,7 +345,8 @@ elif st.session_state.get("run_requested"):
         with map_container:
             display_map(gdf, project.rasters, project.metrics, info_fields=_map_fields)
     with col2:
-        bscore_gauge(metrics.bscore)
+        bscore_value = metrics.bscore if metrics.bscore is not None else float("nan")
+        bscore_gauge(bscore_value)
 
     st.markdown("---")
     display_metrics(metrics)
@@ -379,7 +380,8 @@ elif "results" in st.session_state:
         with map_container:
             display_map(gdf, project.rasters, project.metrics, info_fields=_map_fields)
     with col2:
-        bscore_gauge(metrics.bscore)
+        bscore_value = metrics.bscore if metrics.bscore is not None else float("nan")
+        bscore_gauge(bscore_value)
 
     st.markdown("---")
     display_metrics(metrics)

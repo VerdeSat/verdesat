@@ -284,7 +284,7 @@ verdesat pack project \
 - [x] Implement `services/reporting.py` with WeasyPrint renderer and StorageAdapter use.
 - [x] Add `figures/` helpers for map/timeseries.
 - [x] Refactor timeseries/decomposition emitters to **TimeseriesLong**.
-- [ ] Refactor KPI builder to output **MetricsRow**.
+- [x] Refactor KPI builder to output **MetricsRow**.
 - [ ] Implement CLI `verdesat pack aoi|project`.
 - [ ] Implement Web bridge and button.
 - [ ] Remove/deprecate legacy exporters.
