@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Computation of basic biodiversity metrics."""
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,14 +33,14 @@ class FragmentStats:
     """Edge density statistics."""
 
     edge_density: float
-    normalised_density: float
+    frag_norm: float
 
 
 @dataclass
 class MetricsResult:
     """Container for all computed metrics."""
 
-    intactness: float
+    intactness_pct: float
     shannon: float
     fragmentation: FragmentStats
     msa: float = 0.0
@@ -77,10 +77,11 @@ class MetricEngine(BaseService):
             res = float(src.res[0]) if src.res else 10.0
         return LandcoverResult(arr, res)
 
-    def calc_intactness(self, result: LandcoverResult) -> float:
-        """Return fraction of natural pixels."""
+    def calc_intactness_pct(self, result: LandcoverResult) -> float:
+        """Return percentage of natural pixels (0-100)."""
         mask = np.isin(result.array, list(self.NATURAL_CLASSES))
-        return float(mask.sum() / result.array.size)
+        frac = float(mask.sum() / result.array.size)
+        return frac * 100.0
 
     def calc_shannon(self, result: LandcoverResult) -> float:
         """Return Shannon diversity index for the raster."""
@@ -106,7 +107,7 @@ class MetricEngine(BaseService):
         else:
             norm = edge_density
         norm = float(np.clip(norm, 0.0, 1.0))
-        return FragmentStats(edge_density=float(edge_density), normalised_density=norm)
+        return FragmentStats(edge_density=float(edge_density), frag_norm=norm)
 
     def run_all(
         self, aoi, year: int, *, landcover_path: str | None = None
@@ -122,12 +123,12 @@ class MetricEngine(BaseService):
                 lc = self._read_raster(path)
         else:
             lc = self._read_raster(landcover_path)
-        intact = self.calc_intactness(lc)
+        intact = self.calc_intactness_pct(lc)
         shannon = self.calc_shannon(lc)
         biome_id = int(aoi.static_props.get("biome_id", 0))
         frag = self.calc_fragmentation(lc, biome_id)
         return MetricsResult(
-            intactness=intact,
+            intactness_pct=intact,
             shannon=shannon,
             fragmentation=frag,
             msa=0.0,

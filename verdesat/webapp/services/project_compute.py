@@ -449,9 +449,9 @@ class ProjectComputeService:
 
             record: dict[str, float | str] = {
                 "id": aoi_id,
-                "intactness": metrics.intactness,
+                "intactness_pct": metrics.intactness_pct,
                 "shannon": metrics.shannon,
-                "fragmentation": metrics.fragmentation.normalised_density,
+                "frag_norm": metrics.fragmentation.frag_norm,
                 "msa": metrics.msa,
                 "bscore": bscore,
             }

@@ -624,11 +624,11 @@ def compute_bscore(metrics_json, weights):
     with open(metrics_json, "r", encoding="utf-8") as fh:
         data = json.load(fh)
     metrics = MetricsResult(
-        intactness=float(data["intactness"]),
+        intactness_pct=float(data["intactness_pct"]),
         shannon=float(data["shannon"]),
         fragmentation=FragmentStats(
             edge_density=float(data["fragmentation"]["edge_density"]),
-            normalised_density=float(data["fragmentation"]["normalised_density"]),
+            frag_norm=float(data["fragmentation"]["frag_norm"]),
         ),
         msa=float(data.get("msa", 0.0)),
     )
@@ -663,7 +663,18 @@ def compute_bscore(metrics_json, weights):
     default=50_000_000,
     help="Maximum bytes to read from the dataset",
 )
-def bscore_from_geojson(geojson, year, weights, output, dataset_uri, budget_bytes):
+@click.option("--project-id", default=None, help="Project identifier")
+@click.option("--project-name", default=None, help="Project name")
+def bscore_from_geojson(
+    geojson,
+    year,
+    weights,
+    output,
+    dataset_uri,
+    budget_bytes,
+    project_id,
+    project_name,
+):
     """Compute B-Score for polygons in GEOJSON."""
     df = svc_compute_bscores(
         geojson,
@@ -673,6 +684,8 @@ def bscore_from_geojson(geojson, year, weights, output, dataset_uri, budget_byte
         budget_bytes=budget_bytes,
         output=output,
         logger=logger,
+        project_id=project_id,
+        project_name=project_name,
     )
     if output is None:
         echo(df.to_csv(index=False))

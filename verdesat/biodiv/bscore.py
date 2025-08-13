@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Composite biodiversity score calculator."""
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,9 +49,9 @@ class BScoreCalculator:
         if total_w == 0:
             return 0.0
         value = (
-            w.intactness * metrics.intactness
+            w.intactness * (metrics.intactness_pct / 100.0)
             + w.shannon * metrics.shannon
-            + w.fragmentation * (1 - metrics.fragmentation.normalised_density)
+            + w.fragmentation * (1 - metrics.fragmentation.frag_norm)
             + w.msa * metrics.msa
         )
         return float(100.0 * value / total_w)

@@ -133,9 +133,9 @@ def test_landcover_cli_multiple_polygons(monkeypatch, tmp_path):
 
 def test_bscore_cli(tmp_path):
     metrics = {
-        "intactness": 0.6,
+        "intactness_pct": 60.0,
         "shannon": 0.4,
-        "fragmentation": {"edge_density": 0.1, "normalised_density": 0.1},
+        "fragmentation": {"edge_density": 0.1, "frag_norm": 0.1},
         "msa": 0.5,
     }
     metrics_path = tmp_path / "metrics.json"
@@ -164,12 +164,16 @@ def test_bscore_geojson_cli(monkeypatch, tmp_path):
         output=None,
         logger=None,
         storage=None,
+        project_id=None,
+        project_name=None,
     ):
         called["geojson"] = geojson
         called["year"] = year
         called["dataset_uri"] = dataset_uri
         called["budget_bytes"] = budget_bytes
-        return pd.DataFrame({"id": [1], "bscore": [42.0]})
+        called["project_id"] = project_id
+        called["project_name"] = project_name
+        return pd.DataFrame({"aoi_id": [1], "bscore": [42.0]})
 
     monkeypatch.setattr("verdesat.core.cli.svc_compute_bscores", fake_compute_bscores)
 
@@ -195,6 +199,10 @@ def test_bscore_geojson_cli(monkeypatch, tmp_path):
             "s3://msafile.tif",
             "--budget-bytes",
             "123",
+            "--project-id",
+            "P1",
+            "--project-name",
+            "Proj",
         ],
     )
 
@@ -202,6 +210,8 @@ def test_bscore_geojson_cli(monkeypatch, tmp_path):
     assert called["year"] == 2021
     assert called["dataset_uri"] == "s3://msafile.tif"
     assert called["budget_bytes"] == 123
+    assert called["project_id"] == "P1"
+    assert called["project_name"] == "Proj"
 
 
 def test_validate_occurrence_density_cli(monkeypatch, tmp_path, dummy_aoi):

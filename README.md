@@ -41,14 +41,14 @@ export R2_SECRET=...
 verdesat prepare ./input_dir -o aoi.geojson
 
 # Download spectral index time series
-verdesat timeseries aoi.geojson --index ndvi --start 2024-01-01 --end 2024-12-31 -o ndvi.csv
+verdesat download timeseries aoi.geojson --index ndvi --start 2024-01-01 --end 2024-12-31 -o ndvi.csv
 
 # Export yearly chips / land-cover
 verdesat chips aoi.geojson --year 2024 -o chips/
 verdesat landcover aoi.geojson --year 2024 -o lc_2024.tif
 
 # Compute biodiversity scores
-verdesat bscore-from-geojson aoi.geojson --year 2024 -o metrics.csv
+verdesat bscore from-geojson aoi.geojson --year 2024 --project-id P1 --project-name Demo -o metrics.csv
 
 # Build a one-page HTML/PDF report
 verdesat report html aoi.geojson ndvi.csv ndvi.html -d decompositions/ -c chips/ -o report.html
@@ -65,10 +65,10 @@ Run `verdesat --help` for the full set of commands.
 export AOI=aoi.geojson
 
 # 1. Compute project metrics (single-row CSV)
-verdesat bscore-from-geojson $AOI --year 2024 -o metrics.csv
+verdesat bscore from-geojson $AOI --year 2024 --project-id P1 --project-name Demo -o metrics.csv
 
 # 2. Fetch NDVI time series
-verdesat timeseries $AOI --index ndvi --start 2024-01-01 --end 2024-12-31 -o ts.csv
+verdesat download timeseries $AOI --index ndvi --start 2024-01-01 --end 2024-12-31 -o ts.csv
 
 # 3. Record processing lineage (minimal example)
 cat > lineage.json <<'EOF'
