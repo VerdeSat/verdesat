@@ -453,14 +453,14 @@ def aggregate(input_csv, index, freq, output):
     Aggregate a raw daily time-series CSV to the specified frequency.
     """
 
-    echo(f"Loading {input_csv}...")
+    logger.info("Loading %s", input_csv)
     df = pd.read_csv(input_csv, parse_dates=["date"])
-    echo(f"Aggregating by frequency '{freq}' for index '{index}'...")
+    logger.info("Aggregating by frequency '%s' for index '%s'", freq, index)
     ts = TimeSeries.from_dataframe(df, index=index)
     df_agg = ts.aggregate(freq).df
-    echo(f"Saving aggregated data to {output}...")
+    logger.info("Saving aggregated data to %s", output)
     df_agg.to_csv(output, index=False)
-    echo("Done.")
+    echo(f"✅  Aggregated data saved to {output}")
 
 
 @cli.group()
@@ -534,15 +534,25 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
     """
     Perform seasonal decomposition on a pivoted CSV and save plot.
     """
-    echo(f"Loading {input_csv}...")
+    logger.info("Loading %s", input_csv)
     df = pd.read_csv(input_csv, parse_dates=["date"])
     index_name = index_col.replace("mean_", "")
     ts = TimeSeries.from_dataframe(df, index=index_name)
-    echo("Decomposing time series...")
+    logger.info("Decomposing time series")
 
     results = ts.decompose(period=period, model=model)
     os.makedirs(output_dir, exist_ok=True)
-    long_parts = []
+
+    def _freq_label(dates: pd.Series) -> str:
+        freq = pd.infer_freq(dates.sort_values())
+        if freq and freq.upper().startswith("M"):
+            return "monthly"
+        if freq and freq.upper().startswith("Y"):
+            return "annual"
+        return "daily"
+
+    freq_label = _freq_label(ts.df["date"])
+    long_parts = [ts.to_long(freq=freq_label, source="S2")]
 
     for pid, res in results.items():
         df_out = pd.DataFrame(
@@ -559,7 +569,7 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
                 df_out,
                 aoi_id=str(pid),
                 var=index_name,
-                freq="monthly",
+                freq=freq_label,
                 source="S2",
             )
         )
@@ -567,10 +577,16 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
         if plot:
             plot_path = os.path.join(output_dir, f"{pid}_decomposition.png")
             viz.plot_decomposition(res, plot_path)
-            echo(f"✅  Decomposition plot saved to {plot_path}")
+            logger.info("Decomposition plot saved to %s", plot_path)
+
+    if len(long_parts) == 1:
+        logger.warning(
+            "No decomposition components generated; output will contain raw values only"
+        )
 
     out_path = os.path.join(output_dir, "timeseries_long.csv")
     pd.concat(long_parts, ignore_index=True).to_csv(out_path, index=False)
+    logger.info("TimeseriesLong saved to %s", out_path)
     echo(f"✅  TimeseriesLong saved to {out_path}")
 
 

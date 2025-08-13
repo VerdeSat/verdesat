@@ -10,6 +10,9 @@ import pandas as pd
 from statsmodels.tsa.seasonal import DecomposeResult, seasonal_decompose
 
 from verdesat.core.config import ConfigManager
+from verdesat.core.logger import Logger
+
+log = Logger.get_logger(__name__)
 
 
 @dataclass
@@ -37,6 +40,7 @@ class TimeSeries:
           'D' = daily (no-op), 'ME' = monthly mean, 'YE' = yearly mean.
         Returns a new TimeSeries.
         """
+        log.debug("Aggregating TimeSeries to freq %s", freq)
         col_name = f"mean_{self.index}"
         df_indexed = self.df.set_index(["id", "date"])
         aggregated = (
@@ -73,13 +77,14 @@ class TimeSeries:
         model: Literal["additive", "multiplicative"] = "additive",
     ) -> Dict[str, DecomposeResult]:
         """Perform seasonal decomposition for each polygon."""
-
+        log.debug("Decomposing TimeSeries with period %s and model %s", period, model)
         value_col = f"mean_{self.index}"
         df_pivot = self.df.pivot(index="date", columns="id", values=value_col)
-        results = {}
+        results: Dict[str, DecomposeResult] = {}
         for pid in df_pivot.columns:
             series = df_pivot[pid].dropna()
             if len(series) < period * 2:
+                log.debug("Skipping decomposition for %s due to insufficient data", pid)
                 continue
             res = seasonal_decompose(series, model=model, period=period)
             results[pid] = res
