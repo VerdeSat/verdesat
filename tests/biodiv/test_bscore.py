@@ -43,6 +43,9 @@ def test_compute_bscores(monkeypatch, tmp_path):
     assert df.loc[0, "bscore"] > 0
     assert df.loc[0, "intactness_pct"] == 50.0
     assert df.loc[0, "shannon"] == 0.5
-    assert df.loc[0, "edge_density"] == 0.2
     assert df.loc[0, "frag_norm"] == 0.2
     assert df.loc[0, "msa"] == 0.5
+    assert df.loc[0, "method_version"] == "0.2.0"
+    assert df.loc[0, "window_start"] == "2021-01-01"
+    assert df.loc[0, "window_end"] == "2021-12-31"
+    assert df.loc[0, "bscore_band"] in {"low", "moderate", "high"}

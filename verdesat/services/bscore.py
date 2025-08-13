@@ -76,14 +76,25 @@ def compute_bscores(
         metrics = engine.run_all(aoi, year)
         metrics.msa = msa_svc.mean_msa(aoi.geometry)
         score = calc.score(metrics)
+
+        if score < 33.3:
+            band = "low"
+        elif score < 66.6:
+            band = "moderate"
+        else:
+            band = "high"
+
         rec = {
             "aoi_id": aoi.static_props.get("id"),
             "intactness_pct": metrics.intactness_pct,
             "shannon": metrics.shannon,
-            "edge_density": metrics.fragmentation.edge_density,
             "frag_norm": metrics.fragmentation.frag_norm,
             "msa": metrics.msa,
             "bscore": score,
+            "bscore_band": band,
+            "window_start": f"{year}-01-01",
+            "window_end": f"{year}-12-31",
+            "method_version": "0.2.0",
         }
         rec["project_id"] = project_id or aoi.static_props.get("project_id")
         rec["project_name"] = project_name or aoi.static_props.get("project_name")
