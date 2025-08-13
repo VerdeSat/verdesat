@@ -26,7 +26,7 @@ from verdesat.ingestion.eemanager import ee_manager
 from verdesat.services.timeseries import download_timeseries as svc_download_timeseries
 from verdesat.services.report import build_report as svc_build_report
 from verdesat.services.landcover import LandcoverService
-from verdesat.core.storage import LocalFS
+from verdesat.core.storage import LocalFS, S3Bucket, StorageAdapter
 from verdesat.visualization._chips_config import ChipsConfig
 from verdesat.visualization.visualizer import Visualizer
 from verdesat.core.pipeline import ReportPipeline
@@ -40,9 +40,48 @@ from verdesat.services import (
 from verdesat.services.ai_report import AiReportService, LlmClient
 from verdesat.schemas.ai_report import AiReportRequest
 from verdesat.adapters.llm_openai import OpenAiLlmClient
+from verdesat.services.reporting import (
+    build_aoi_evidence_pack,
+    build_project_pack,
+)
+from verdesat.schemas.reporting import AoiContext, MetricsRow, ProjectContext
 
 logger = Logger.get_logger(__name__)
 viz = Visualizer()
+
+
+def _read_table(path: str) -> pd.DataFrame:
+    """Return a DataFrame loaded from CSV or Parquet at *path*."""
+
+    return (
+        pd.read_parquet(path)
+        if Path(path).suffix.lower() == ".parquet"
+        else pd.read_csv(path)
+    )
+
+
+def _select_storage(kind: str) -> StorageAdapter:
+    """Instantiate a storage adapter for ``kind`` ('local' or 'r2')."""
+
+    if kind == "r2":
+        import boto3  # type: ignore
+
+        endpoint = os.getenv("R2_ENDPOINT")
+        bucket = os.getenv("R2_BUCKET", "verdesat-data")
+        key = os.getenv("R2_KEY")
+        secret = os.getenv("R2_SECRET")
+        if not (endpoint and key and secret):
+            raise click.BadParameter(
+                "Missing R2 configuration: R2_ENDPOINT, R2_KEY, R2_SECRET"
+            )
+        client = boto3.client(
+            "s3",
+            endpoint_url=endpoint,
+            aws_access_key_id=key,
+            aws_secret_access_key=secret,
+        )
+        return S3Bucket(bucket=bucket, client=client)
+    return LocalFS()
 
 
 @click.group()
@@ -1005,6 +1044,189 @@ def report_ai(
         echo(f"URL: {result.url}")
     echo(result.narrative)
     echo(json.dumps(result.summary, indent=2))
+
+
+@cli.group()
+def pack() -> None:
+    """Build evidence packs for AOIs or projects."""
+
+
+@pack.command("aoi")
+@click.option("--aoi-id", required=True, help="AOI identifier")
+@click.option(
+    "--metrics",
+    "metrics_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to metrics CSV/Parquet",
+)
+@click.option(
+    "--ts",
+    "ts_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to time-series CSV/Parquet",
+)
+@click.option(
+    "--lineage",
+    "lineage_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to lineage JSON",
+)
+@click.option(
+    "--out",
+    "out_store",
+    type=click.Choice(["local", "r2"]),
+    default="local",
+    help="Storage backend",
+)
+@click.option("--include-ai", is_flag=True, help="Include AI summary")
+def pack_aoi(
+    aoi_id: str,
+    metrics_path: str,
+    ts_path: str,
+    lineage_path: str,
+    out_store: str,
+    include_ai: bool,
+) -> None:
+    """Create an Evidence Pack for a single AOI."""
+
+    storage = _select_storage(out_store)
+    metrics_df = _read_table(metrics_path)
+    if metrics_df.shape[0] != 1:
+        echo("❌  metrics file must contain exactly one row", err=True)
+        sys.exit(1)
+    row = metrics_df.iloc[0].to_dict()
+    try:
+        project = ProjectContext(
+            project_id=str(row["project_id"]),
+            project_name=str(row.get("project_name", "")),
+        )
+    except KeyError as exc:  # pragma: no cover - defensive
+        echo(f"❌  metrics missing field: {exc}", err=True)
+        sys.exit(1)
+    aoi_ctx = AoiContext(
+        aoi_id=aoi_id,
+        project_id=row.get("project_id"),
+        aoi_name=row.get("aoi_name"),
+    )
+    metrics = MetricsRow(**{k: row.get(k) for k in MetricsRow.__dataclass_fields__})
+    ts_df = _read_table(ts_path)
+    with open(lineage_path, "r", encoding="utf-8") as fh:
+        lineage = json.load(fh)
+
+    ai_service = None
+    ai_request = None
+    if include_ai:
+        config = ConfigManager()
+        llm = OpenAiLlmClient(seed=int(config.get("ai_report_seed", 42)), logger=logger)
+        ai_service = AiReportService(
+            llm=cast(LlmClient, llm),
+            storage=storage,
+            logger=logger,
+            config=config,
+        )
+        ai_request = AiReportRequest(
+            aoi_id=aoi_id,
+            project_id=project.project_id,
+            metrics_path=metrics_path,
+            timeseries_path=ts_path,
+            lineage_path=lineage_path,
+        )
+
+    try:
+        result = build_aoi_evidence_pack(
+            aoi=aoi_ctx,
+            project=project,
+            metrics=metrics,
+            ts_long=ts_df,
+            lineage=lineage,
+            include_ai=include_ai,
+            storage=storage,
+            ai_service=ai_service,
+            ai_request=ai_request,
+        )
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("pack aoi failed", exc_info=True)
+        echo(f"❌  Pack failed: {e}", err=True)
+        sys.exit(1)
+
+    echo(f"Artifact: {result.uri}")
+    if result.url:
+        echo(f"URL: {result.url}")
+
+
+@pack.command("project")
+@click.option(
+    "--metrics",
+    "metrics_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to metrics CSV/Parquet",
+)
+@click.option(
+    "--ts",
+    "ts_path",
+    type=click.Path(exists=True),
+    default=None,
+    help="Optional time-series CSV/Parquet",
+)
+@click.option(
+    "--lineage",
+    "lineage_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to lineage JSON",
+)
+@click.option(
+    "--out",
+    "out_store",
+    type=click.Choice(["local", "r2"]),
+    default="local",
+    help="Storage backend",
+)
+def pack_project(
+    metrics_path: str,
+    ts_path: str | None,
+    lineage_path: str,
+    out_store: str,
+) -> None:
+    """Create a Project Pack from metrics and optional time series."""
+
+    storage = _select_storage(out_store)
+    metrics_df = _read_table(metrics_path)
+    if metrics_df.empty:
+        echo("❌  metrics file is empty", err=True)
+        sys.exit(1)
+    row = metrics_df.iloc[0].to_dict()
+    try:
+        project = ProjectContext(
+            project_id=str(row["project_id"]),
+            project_name=str(row.get("project_name", "")),
+        )
+    except KeyError as exc:  # pragma: no cover - defensive
+        echo(f"❌  metrics missing field: {exc}", err=True)
+        sys.exit(1)
+    ts_df = _read_table(ts_path) if ts_path else None
+    with open(lineage_path, "r", encoding="utf-8") as fh:
+        lineage = json.load(fh)
+    try:
+        result = build_project_pack(
+            project=project,
+            metrics_df=metrics_df,
+            ts_long=ts_df,
+            lineage=lineage,
+            storage=storage,
+        )
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("pack project failed", exc_info=True)
+        echo(f"❌  Pack failed: {e}", err=True)
+        sys.exit(1)
+
+    echo(f"Artifact: {result.uri}")
+    if result.url:
+        echo(f"URL: {result.url}")
 
 
 @cli.group()
