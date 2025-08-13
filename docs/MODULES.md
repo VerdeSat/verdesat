@@ -297,11 +297,8 @@ _Generated: 2025-08-12T17:03:51Z_
 - `msavi_bar_chart_all` — Render annual mean MSAVI for all AOIs as grouped bars.
 
 ## `verdesat.webapp.components.kpi_cards`
-**Classes**
-- `Metrics` — Container for biodiversity metrics.
-
 **Functions**
-- `aggregate_metrics` — Return mean values for ``df`` as a :class:`Metrics` instance.
+- `aggregate_metrics` — Return mean values for ``df`` as a :class:`MetricsRow` instance.
 - `display_metrics` — Render KPI cards for the provided metrics.
 - `bscore_gauge` — Display a gauge chart for the B-Score, with risk band and formula explanation.
 

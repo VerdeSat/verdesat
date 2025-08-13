@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Project-level computation of metrics for the web application."""
+
+from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -200,7 +200,7 @@ def _stats_row_to_dict(row: pd.Series, index: str) -> dict[str, float | str]:
                 f"{index}_peak": (
                     row["Peak Month"] if pd.notna(row["Peak Month"]) else ""
                 ),
-                f"{index}_pct_fill": float(row["% Gapfilled"]),
+                "valid_obs_pct": 100.0 - float(row["% Gapfilled"]),
             }
         )
     return stats
@@ -385,7 +385,7 @@ class ProjectComputeService:
                     "ndvi_delta",
                     "ndvi_p_value",
                     "ndvi_peak",
-                    "ndvi_pct_fill",
+                    "valid_obs_pct",
                     "msavi_mean",
                     "msavi_median",
                     "msavi_min",

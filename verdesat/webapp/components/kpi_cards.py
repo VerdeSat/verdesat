@@ -1,80 +1,66 @@
-from __future__ import annotations
-
 """Reusable KPI card components for the Streamlit dashboard."""
 
-from dataclasses import dataclass, fields
-from typing import Any, cast, Optional, Mapping
+from __future__ import annotations
+
+from dataclasses import fields
+from typing import Any, Optional, cast
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-
-@dataclass
-class Metrics:
-    """Container for biodiversity metrics."""
-
-    intactness: float
-    shannon: float
-    fragmentation: float
-    msa: float
-    ndvi_mean: float
-    ndvi_std: float
-    ndvi_slope: float
-    ndvi_delta: float
-    ndvi_p_value: float
-    ndvi_pct_fill: float
-    msavi_mean: float
-    msavi_std: float
-    bscore: float
+from verdesat.schemas.reporting import MetricsRow
 
 
-def aggregate_metrics(df: pd.DataFrame) -> Metrics:
-    """Return mean values for ``df`` as a :class:`Metrics` instance.
+def aggregate_metrics(df: pd.DataFrame) -> MetricsRow:
+    """Return mean values for ``df`` as a :class:`MetricsRow` instance."""
 
-    The mean is computed column-wise for all metric fields present in the DataFrame.
-    Any missing fields are defaulted to 0.0.
-    """
-    metric_fields = {f.name for f in fields(Metrics)}
-    numeric_fields = [field for field in metric_fields if field in df.columns]
-    data: dict[str, float | str] = df[numeric_fields].mean(numeric_only=True).to_dict()
-    # Ensure defaults for any missing numeric fields
-    for name in metric_fields:
-        if name not in data:
-            data[name] = 0.0
-    return Metrics(**cast(dict[str, Any], data))
+    field_names = {f.name for f in fields(MetricsRow)}
+    data: dict[str, Any] = {}
+
+    for name in field_names:
+        if name in df.columns:
+            data[name] = float(df[name].mean(numeric_only=True))
+
+    bscore = data.get("bscore")
+    if bscore is not None and "bscore_band" not in data:
+        if bscore < 40:
+            data["bscore_band"] = "low"
+        elif bscore < 70:
+            data["bscore_band"] = "moderate"
+        else:
+            data["bscore_band"] = "high"
+
+    return MetricsRow(**cast(dict[str, Any], data))
 
 
-def display_metrics(metrics: Metrics) -> None:
+def display_metrics(metrics: MetricsRow) -> None:
     """Render KPI cards for the provided metrics."""
 
     top = st.columns(5)
     top[0].metric(
         "Intactness %",
-        f"{metrics.intactness * 100:.1f}",
+        f"{(metrics.intactness_pct or 0.0) * 100:.1f}",
         help="Share of AOI area classified as natural or semi-natural habitat.",
     )
     top[1].metric(
         "Shannon",
-        f"{metrics.shannon:.2f}",
+        f"{(metrics.shannon or 0.0):.2f}",
         help="Shannon diversity index of land-cover classes; higher means more varied habitat.",
     )
     top[2].metric(
         "Frag-Norm",
-        f"{metrics.fragmentation:.2f}",
+        f"{(metrics.frag_norm or 0.0):.2f}",
         help="Normalized fragmentation index; higher = more fragmented.",
     )
     top[3].metric(
-        "MSA %",
-        f"{metrics.msa * 100:.1f}",
-        help=(
-            "Mean Species Abundance (0–100%). 100% = near‑pristine reference conditions; lower values indicate human pressure."
-        ),
+        "MSA",
+        f"{(metrics.msa or 0.0):.2f}",
+        help="Mean Species Abundance (2015 GLOBIO baseline).",
     )
-
     top[4].metric(
         "B-Score",
-        f"{metrics.bscore:.1f}",
+        f"{(metrics.bscore or 0.0):.1f}",
         help="Composite biodiversity score (0–100) based on structural and diversity metrics.",
     )
 
@@ -82,35 +68,34 @@ def display_metrics(metrics: Metrics) -> None:
 
     bottom[0].metric(
         "NDVI μ",
-        f"{metrics.ndvi_mean:.2f}",
+        f"{(metrics.ndvi_mean or 0.0):.2f}",
         help="Average NDVI value; higher indicates denser/healthier vegetation.",
     )
     bottom[1].metric(
         "MSAVI μ",
-        f"{metrics.msavi_mean:.2f}",
+        f"{(metrics.msavi_mean or 0.0):.2f}",
         help="Average MSAVI value; soil-adjusted vegetation index useful for sparse vegetation.",
     )
 
     bottom[2].metric(
         "NDVI slope",
-        f"{metrics.ndvi_slope:.3f}",
+        f"{(metrics.ndvi_slope or 0.0):.3f}",
         help="Annual NDVI trend; positive = increasing greenness.",
     )
     bottom[3].metric(
         "ΔNDVI",
-        f"{metrics.ndvi_delta:.3f}",
+        f"{(metrics.ndvi_delta or 0.0):.3f}",
         help="Change in NDVI between baseline and last year.",
     )
     bottom[4].metric(
-        "p-value",
-        f"{metrics.ndvi_p_value:.3f}",
-        help="Statistical significance of NDVI trend - lower is better (0.05 = 95% confidence).",
+        "NDVI p-value",
+        f"{(metrics.ndvi_p_value or 0.0):.3f}",
+        help="Mann–Kendall p-value for NDVI trend.",
     )
-
     bottom[5].metric(
-        "% Fill",
-        f"{metrics.ndvi_pct_fill:.1f}",
-        help="Percentage of interpolated (cloudy) observations in NDVI time series.",
+        "% valid obs",
+        f"{(metrics.valid_obs_pct or 0.0):.1f}",
+        help="Percentage of valid observations in NDVI time series.",
     )
 
 
