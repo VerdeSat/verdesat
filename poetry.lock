@@ -632,6 +632,49 @@ files = [
 ]
 
 [[package]]
+name = "cartopy"
+version = "0.25.0"
+description = "A Python library for cartographic visualizations with Matplotlib"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "cartopy-0.25.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:59c85c83816fa4ba5109726d7d80737bc3871c28c1e25f7b577123d80209e8f2"},
+    {file = "cartopy-0.25.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:4ea8d992c21896c498b01258ead30d3c6e9c05466ecf46db55d11d4d96cd24f2"},
+    {file = "cartopy-0.25.0-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:59155296fc440ad209768115e11dbabf220703b31586ce485a4792895ffd5bad"},
+    {file = "cartopy-0.25.0-cp310-cp310-win_amd64.whl", hash = "sha256:b67227290347b8220501d5c1cc828605365c0e58fd88321979a59d7bd5c9cbaf"},
+    {file = "cartopy-0.25.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:0e41d52160548a7ab7774423911db3bfb5a8bc0929580958b1945d3a004da872"},
+    {file = "cartopy-0.25.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:432e2a2688fc58af43b9b6bf1d343bb08e2d6ef298efa91e55445f1d308b5ef3"},
+    {file = "cartopy-0.25.0-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:999e44021db07dcf895b115934fb0816aef39985fbaca6ded61d2536355531de"},
+    {file = "cartopy-0.25.0-cp311-cp311-win_amd64.whl", hash = "sha256:4139e5ca9faaa037e0576cdcf625b9461a0b404d60e9d20ea24c4d8dbe6f689d"},
+    {file = "cartopy-0.25.0-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:060a7b835c0c4222c1067b6ffb2f9c18458abaa35b6624573a3aa37ecf55f4bf"},
+    {file = "cartopy-0.25.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:57717cb603aecff03ecfee1bc153bb4022c054fcd51a4214a1bb53e5a6f74465"},
+    {file = "cartopy-0.25.0-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:53c256351433155ef51dde976557212f4e230b8cca4e5d0d9b9a2737ad92959d"},
+    {file = "cartopy-0.25.0-cp312-cp312-win_amd64.whl", hash = "sha256:efedb82f38409b72becdfee02231126952816d33a68b1c584bd2136713036bfb"},
+    {file = "cartopy-0.25.0-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:a6fcd2df8039293096f957fc9c76e969b1a9715d12ab8cee1a6bdae0c6773b8b"},
+    {file = "cartopy-0.25.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:e4def451617e6957169447fe6ecdad0f63ef2d2007e7d451dd7b9656ada57382"},
+    {file = "cartopy-0.25.0-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1c388824cb13e4fa9c2901dc4fbb2dbe9547acd2f4a6a3440983d4e6c6973ae3"},
+    {file = "cartopy-0.25.0-cp313-cp313-win_amd64.whl", hash = "sha256:60bad14c072d16e3c96967638cd66eb5a62cf24bc70087bcbfc6b30a3872ed26"},
+    {file = "cartopy-0.25.0.tar.gz", hash = "sha256:55f1a390e5f3f075b221c7d91fb10258ad978db786c7930eba06eb45d28753fe"},
+]
+
+[package.dependencies]
+matplotlib = ">=3.6"
+numpy = ">=1.23"
+packaging = ">=21"
+pyproj = ">=3.3.1"
+pyshp = ">=2.3"
+shapely = ">=2.0"
+
+[package.extras]
+doc = ["pydata-sphinx-theme", "sphinx", "sphinx-gallery"]
+ows = ["OWSLib (>=0.27.0)", "pillow (>=9.1)"]
+plotting = ["pillow (>=9.1)", "scipy (>=1.9)"]
+speedups = ["fiona", "pykdtree"]
+srtm = ["beautifulsoup4"]
+test = ["coveralls", "pytest (>=5.1.2)", "pytest-cov", "pytest-mpl (>=0.11)", "pytest-xdist"]
+
+[[package]]
 name = "cattrs"
 version = "25.1.1"
 description = "Composable complex class support for attrs and dataclasses."
@@ -956,6 +999,28 @@ traitlets = ">=4"
 
 [package.extras]
 test = ["pytest"]
+
+[[package]]
+name = "contextily"
+version = "1.6.2"
+description = "Context geo-tiles in Python"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "contextily-1.6.2-py3-none-any.whl", hash = "sha256:b06ead7258b34e73db2e318e33554f54a22d207b3c272b74d8b64801773b3fc3"},
+    {file = "contextily-1.6.2.tar.gz", hash = "sha256:3c747925269be248a9b1a761859e05d1681286e04d5d0796bdaf1de3409474bb"},
+]
+
+[package.dependencies]
+geopy = "*"
+joblib = "*"
+matplotlib = "*"
+mercantile = "*"
+pillow = "*"
+rasterio = "*"
+requests = "*"
+xyzservices = "*"
 
 [[package]]
 name = "contourpy"
@@ -1543,6 +1608,18 @@ files = [
 ]
 
 [[package]]
+name = "geographiclib"
+version = "2.0"
+description = "The geodesic routines from GeographicLib"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "geographiclib-2.0-py3-none-any.whl", hash = "sha256:6b7225248e45ff7edcee32becc4e0a1504c606ac5ee163a5656d482e0cd38734"},
+    {file = "geographiclib-2.0.tar.gz", hash = "sha256:f7f41c85dc3e1c2d3d935ec86660dc3b2c848c83e17f9a9e51ba9d5146a15859"},
+]
+
+[[package]]
 name = "geojson-rewind"
 version = "1.1.0"
 description = "A Python library for enforcing polygon ring winding order in GeoJSON"
@@ -1592,6 +1669,30 @@ shapely = ">=2.0.0"
 [package.extras]
 all = ["GeoAlchemy2", "SQLAlchemy (>=1.3)", "folium", "geopy", "mapclassify", "matplotlib (>=3.5.0)", "psycopg-binary (>=3.1.0)", "pyarrow (>=8.0.0)", "xyzservices"]
 dev = ["black", "codecov", "pre-commit", "pytest (>=3.1.0)", "pytest-cov", "pytest-xdist"]
+
+[[package]]
+name = "geopy"
+version = "2.4.1"
+description = "Python Geocoding Toolbox"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "geopy-2.4.1-py3-none-any.whl", hash = "sha256:ae8b4bc5c1131820f4d75fce9d4aaaca0c85189b3aa5d64c3dcaf5e3b7b882a7"},
+    {file = "geopy-2.4.1.tar.gz", hash = "sha256:50283d8e7ad07d89be5cb027338c6365a32044df3ae2556ad3f52f4840b3d0d1"},
+]
+
+[package.dependencies]
+geographiclib = ">=1.52,<3"
+
+[package.extras]
+aiohttp = ["aiohttp"]
+dev = ["coverage", "flake8 (>=5.0,<5.1)", "isort (>=5.10.0,<5.11.0)", "pytest (>=3.10)", "pytest-asyncio (>=0.17)", "readme-renderer", "sphinx (<=4.3.2)", "sphinx-issues", "sphinx-rtd-theme (>=0.5.0)"]
+dev-docs = ["readme-renderer", "sphinx (<=4.3.2)", "sphinx-issues", "sphinx-rtd-theme (>=0.5.0)"]
+dev-lint = ["flake8 (>=5.0,<5.1)", "isort (>=5.10.0,<5.11.0)"]
+dev-test = ["coverage", "pytest (>=3.10)", "pytest-asyncio (>=0.17)", "sphinx (<=4.3.2)"]
+requests = ["requests (>=2.16.2)", "urllib3 (>=1.24.2)"]
+timezone = ["pytz"]
 
 [[package]]
 name = "gitdb"
@@ -1840,6 +1941,18 @@ protobuf = ">=3.20.2,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4
 
 [package.extras]
 grpc = ["grpcio (>=1.44.0,<2.0.0)"]
+
+[[package]]
+name = "great-circle-calculator"
+version = "1.3.1"
+description = "A collection of functions to calculate attributes of the great circle"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "great_circle_calculator-1.3.1-py3-none-any.whl", hash = "sha256:f165d9adbedeb608b357a28c205b4de8179a3e5e9d9b1960994b051bc17213a1"},
+    {file = "great_circle_calculator-1.3.1.tar.gz", hash = "sha256:376a027ffe2cf8e2aa7784156f36be1b7d67ff2b21b04e5d17edb9d997aafbb0"},
+]
 
 [[package]]
 name = "h11"
@@ -2359,6 +2472,18 @@ groups = ["main", "dev"]
 files = [
     {file = "jmespath-1.0.1-py3-none-any.whl", hash = "sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980"},
     {file = "jmespath-1.0.1.tar.gz", hash = "sha256:90261b206d6defd58fdd5e85f478bf633a2901798906be2ad389150c5c60edbe"},
+]
+
+[[package]]
+name = "joblib"
+version = "1.5.1"
+description = "Lightweight pipelining with Python functions"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "joblib-1.5.1-py3-none-any.whl", hash = "sha256:4719a31f054c7d766948dcd83e9613686b27114f190f717cec7eaa2084f8a74a"},
+    {file = "joblib-1.5.1.tar.gz", hash = "sha256:f4f86e351f39fe3d0d32a9f2c3d8af1ee4cec285aafcb27003dda5205576b444"},
 ]
 
 [[package]]
@@ -3142,6 +3267,23 @@ files = [
 traitlets = "*"
 
 [[package]]
+name = "matplotlib-map-utils"
+version = "3.1.0"
+description = "A suite of tools for creating maps in matplotlib"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "matplotlib_map_utils-3.1.0-py3-none-any.whl", hash = "sha256:50385ac59fe0afbd8d64cb3f6770fd54b0924eb10d2e180dc45868352a792972"},
+    {file = "matplotlib_map_utils-3.1.0.tar.gz", hash = "sha256:ce0cd2baea7132596457f87146617b3c113bdb7574e666dfcfa3afa51c50fb57"},
+]
+
+[package.dependencies]
+cartopy = ">=0.23.0"
+great-circle-calculator = ">=1.3.1"
+matplotlib = ">=3.9.0"
+
+[[package]]
 name = "mccabe"
 version = "0.7.0"
 description = "McCabe checker, plugin for flake8"
@@ -3164,6 +3306,25 @@ files = [
     {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
     {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
 ]
+
+[[package]]
+name = "mercantile"
+version = "1.2.1"
+description = "Web mercator XYZ tile utilities"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "mercantile-1.2.1-py3-none-any.whl", hash = "sha256:30f457a73ee88261aab787b7069d85961a5703bb09dc57a170190bc042cd023f"},
+    {file = "mercantile-1.2.1.tar.gz", hash = "sha256:fa3c6db15daffd58454ac198b31887519a19caccee3f9d63d17ae7ff61b3b56b"},
+]
+
+[package.dependencies]
+click = ">=3.0"
+
+[package.extras]
+dev = ["check-manifest"]
+test = ["hypothesis", "pytest"]
 
 [[package]]
 name = "mistune"
@@ -4535,6 +4696,18 @@ files = [
 [package.extras]
 all = ["filelock (>=3.0)", "redis (>=3.3,<4.0)", "redis-py-cluster (>=2.1.3,<3.0.0)"]
 docs = ["furo (>=2022.3.4,<2023.0.0)", "myst-parser (>=0.17)", "sphinx (>=4.3.0,<5.0.0)", "sphinx-autodoc-typehints (>=1.17,<2.0)", "sphinx-copybutton (>=0.5)", "sphinxcontrib-apidoc (>=0.3,<0.4)"]
+
+[[package]]
+name = "pyshp"
+version = "2.3.1"
+description = "Pure Python read/write support for ESRI Shapefile format"
+optional = false
+python-versions = ">=2.7"
+groups = ["main"]
+files = [
+    {file = "pyshp-2.3.1-py2.py3-none-any.whl", hash = "sha256:67024c0ccdc352ba5db777c4e968483782dfa78f8e200672a90d2d30fd8b7b49"},
+    {file = "pyshp-2.3.1.tar.gz", hash = "sha256:4caec82fd8dd096feba8217858068bacb2a3b5950f43c048c6dc32a3489d5af1"},
+]
 
 [[package]]
 name = "pytest"
@@ -6564,4 +6737,4 @@ test = ["pytest"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "85b77a3aca30a2947c165055429c6ff1fd9058449c50f0d17d0bd7c8ca105ab0"
+content-hash = "d4369e2e904a15dce81217699a3004c3d914659c0b319a0164af8438b377d56c"

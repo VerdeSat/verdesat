@@ -8,10 +8,11 @@ from typing import Iterable
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
+from matplotlib_map_utils.core.north_arrow import NorthArrow, north_arrow
 import numpy as np
 import pandas as pd
 
-from verdesat.core.logging import Logger
+from verdesat.core.logger import Logger
 from verdesat.schemas.reporting import AoiContext
 
 try:  # pragma: no cover - optional dependency
@@ -50,13 +51,19 @@ def make_map_png(aoi_ctx: AoiContext, layers: Iterable[str] | None = None) -> by
             ax.set_aspect("equal")
             if ctx is not None:
                 try:  # pragma: no cover - contextily network usage
-                    ctx.add_basemap(ax, crs=gdf.crs.to_string())
+                    ctx.add_basemap(ax, source=ctx.providers.CartoDB.PositronNoLabels)
+                    ctx.add_basemap(ax, source=ctx.providers.CartoDB.PositronOnlyLabels)
                 except Exception:  # pragma: no cover - tile fetch failed
                     logger.warning("Failed to add basemap", exc_info=True)
             _add_scale_bar(ax)
-            _add_north_arrow(ax)
+            NorthArrow.set_size("small")
+            north_arrow(
+                ax,
+                location="upper right",
+                rotation={"crs": gdf.crs, "reference": "center"},
+            )
             ax.legend(loc="lower right")
-            ax.set_axis_off()
+            #ax.set_axis_off()
         else:
             logger.warning("Geometry filtered by id yielded no features")
             ax.text(0.5, 0.5, "map", ha="center", va="center")
