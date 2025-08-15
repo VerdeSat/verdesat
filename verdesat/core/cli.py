@@ -624,11 +624,13 @@ def summary(timeseries_csv, aoi_id, metrics, output):
     logger.info("Computing summary stats from %s", timeseries_csv)
     row = compute_veg_metrics(timeseries_csv, aoi_id=aoi_id)
     df = pd.DataFrame([row])
+    df["aoi_id"] = df["aoi_id"].astype(str)
 
     if metrics:
         logger.info("Appending summary stats to %s", metrics)
         existing = pd.read_csv(metrics)
         if "aoi_id" in existing.columns:
+            existing["aoi_id"] = existing["aoi_id"].astype(str)
             merged = existing.merge(df, on="aoi_id", how="left")
         else:
             merged = pd.concat([existing, df], axis=1)
