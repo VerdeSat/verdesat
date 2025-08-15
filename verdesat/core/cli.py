@@ -527,11 +527,18 @@ def fill_gaps_cmd(input_csv, value_col, method, output):
     help="Directory to save outputs",
 )
 @click.option(
+    "--timeseries-long",
+    "-t",
+    type=click.Path(),
+    default=None,
+    help="Existing TimeseriesLong CSV to append to",
+)
+@click.option(
     "--plot/--no-plot",
     default=True,
     help="Whether to generate PNG plots for each polygon (default: True)",
 )
-def decompose(input_csv, index_col, model, period, output_dir, plot):
+def decompose(input_csv, index_col, model, period, output_dir, timeseries_long, plot):
     """
     Perform seasonal decomposition on a pivoted CSV and save plot.
     """
@@ -553,7 +560,10 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
         return "daily"
 
     freq_label = _freq_label(ts.df["date"])
-    long_parts = [ts.to_long(freq=freq_label, source="S2")]
+    existing_long = None
+    if timeseries_long and os.path.exists(timeseries_long):
+        existing_long = pd.read_csv(timeseries_long)
+    long_parts = [ts.to_long(freq=freq_label, source="S2", existing=existing_long)]
 
     for pid, res in results.items():
         df_out = pd.DataFrame(
@@ -585,8 +595,9 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
             "No decomposition components generated; output will contain raw values only"
         )
 
-    out_path = os.path.join(output_dir, "timeseries_long.csv")
-    pd.concat(long_parts, ignore_index=True).to_csv(out_path, index=False)
+    out_path = timeseries_long or os.path.join(output_dir, "timeseries_long.csv")
+    combined = pd.concat(long_parts, ignore_index=True)
+    combined.to_csv(out_path, index=False)
     logger.info("TimeseriesLong saved to %s", out_path)
     echo(f"✅  TimeseriesLong saved to {out_path}")
 
@@ -594,13 +605,6 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
 @stats.command(name="summary")
 @click.argument("timeseries_csv", type=click.Path(exists=True))
 @click.option("--aoi-id", required=True, help="AOI identifier for metrics row")
-@click.option(
-    "--decomp-dir",
-    "--decomp",
-    type=click.Path(exists=True),
-    default=None,
-    help="Directory containing decomposition outputs",
-)
 @click.option(
     "--metrics",
     type=click.Path(exists=True),
@@ -614,11 +618,11 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
     default=None,
     help="Output path (defaults to --metrics)",
 )
-def summary(timeseries_csv, aoi_id, decomp_dir, metrics, output):
+def summary(timeseries_csv, aoi_id, metrics, output):
     """Compute NDVI/MSAVI summary stats and optionally append to metrics."""
 
     logger.info("Computing summary stats from %s", timeseries_csv)
-    row = compute_veg_metrics(timeseries_csv, decomp_dir=decomp_dir, aoi_id=aoi_id)
+    row = compute_veg_metrics(timeseries_csv, aoi_id=aoi_id)
     df = pd.DataFrame([row])
 
     if metrics:

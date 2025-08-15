@@ -26,7 +26,7 @@ except Exception:  # pragma: no cover - optional dependency
     redis = None
 
 from verdesat.analytics.stats import compute_summary_stats
-from verdesat.analytics.timeseries import TimeSeries
+from verdesat.analytics.timeseries import TimeSeries, decomp_to_long
 from verdesat.services.timeseries import download_timeseries
 from verdesat.biodiv.bscore import BScoreCalculator
 from verdesat.biodiv.metrics import MetricEngine
@@ -238,8 +238,6 @@ def _ndvi_stats(
                 "resid": res.resid.values,
             }
         )
-        decomp_bytes = _df_to_bytes(decomp_df)
-        decomp_dir: dict[int, io.BytesIO] | None = {pid: decomp_bytes}
     else:
         decomp_df = pd.DataFrame(
             {
@@ -249,15 +247,18 @@ def _ndvi_stats(
                 "seasonal": float("nan"),
             }
         )
-        decomp_dir = None
 
-    ts_bytes = _df_to_bytes(ts.df)
-    stats_df = compute_summary_stats(
-        ts_bytes,
-        decomp_dir=decomp_dir,
-        value_col="mean_ndvi",
-        period=12,
-    ).to_dataframe()
+    freq_label = "monthly"
+    ts_long = ts.to_long(freq=freq_label, source="S2")
+    ts_long = decomp_to_long(
+        decomp_df,
+        aoi_id=str(pid),
+        var="ndvi",
+        freq=freq_label,
+        source="S2",
+        existing=ts_long,
+    )
+    stats_df = compute_summary_stats(ts_long, var="ndvi", period=12).to_dataframe()
     row = stats_df.iloc[0]
     stats = _stats_row_to_dict(row, "ndvi")
     return stats, decomp_df[["date", "observed", "trend", "seasonal"]]
@@ -279,11 +280,16 @@ def _msavi_stats(
             agg="ME",
         )
     ts = TimeSeries.from_dataframe(ts_df, index="msavi").fill_gaps()
-    ts_bytes = _df_to_bytes(ts.df)
-    stats_df = compute_summary_stats(ts_bytes, value_col="mean_msavi").to_dataframe()
+    ts_long = ts.to_long(freq="monthly", source="S2")
+    stats_df = compute_summary_stats(ts_long, var="msavi", period=12).to_dataframe()
     row = stats_df.iloc[0]
     stats = _stats_row_to_dict(row, "msavi")
-    return stats, ts.df
+    return (
+        stats,
+        ts_long[ts_long["stat"] == "raw"].rename(
+            columns={"aoi_id": "id", "value": "mean_msavi"}
+        )[["id", "date", "mean_msavi"]],
+    )
 
 
 class ChipService(Protocol):

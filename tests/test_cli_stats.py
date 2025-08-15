@@ -2,6 +2,7 @@ import pandas as pd
 from click.testing import CliRunner
 
 from verdesat.core.cli import cli
+from verdesat.analytics.timeseries import TimeSeries
 
 
 def _write_csv(path, df):
@@ -48,16 +49,20 @@ def test_decompose_outputs_timeseries_long_when_insufficient_data(tmp_path):
 
 
 def test_summary_appends_metrics(tmp_path):
-    ts_path = tmp_path / "monthly.csv"
-    df = pd.DataFrame(
+    ts_path = tmp_path / "timeseries_long.csv"
+    dates = pd.date_range("2024-01-01", periods=3, freq="ME")
+    df_long = pd.DataFrame(
         {
-            "id": [1] * 3,
-            "date": pd.date_range("2024-01-01", periods=3, freq="ME"),
-            "mean_ndvi": [0.1, 0.2, 0.3],
-            "mean_msavi": [0.2, 0.3, 0.4],
+            "date": list(dates) * 2,
+            "var": ["ndvi"] * 3 + ["msavi"] * 3,
+            "stat": ["raw"] * 6,
+            "value": [0.1, 0.2, 0.3, 0.2, 0.3, 0.4],
+            "aoi_id": ["A1"] * 6,
+            "freq": ["monthly"] * 6,
+            "source": ["S2"] * 6,
         }
     )
-    _write_csv(ts_path, df)
+    _write_csv(ts_path, df_long)
     metrics_path = tmp_path / "metrics.csv"
     _write_csv(metrics_path, pd.DataFrame({"aoi_id": ["A1"], "intactness_pct": [50.0]}))
 
@@ -83,3 +88,23 @@ def test_summary_appends_metrics(tmp_path):
         "ndvi_p_value",
         "msavi_mean",
     }.issubset(out_df.columns)
+
+
+def test_to_long_appends_existing():
+    base = pd.DataFrame(
+        {"id": [1], "date": [pd.Timestamp("2024-01-01")], "mean_ndvi": [0.1]}
+    )
+    ts = TimeSeries.from_dataframe(base, index="ndvi")
+    existing = pd.DataFrame(
+        {
+            "date": [pd.Timestamp("2024-01-01")],
+            "var": ["msavi"],
+            "stat": ["raw"],
+            "value": [0.2],
+            "aoi_id": [1],
+            "freq": ["monthly"],
+            "source": ["S2"],
+        }
+    )
+    long_df = ts.to_long(freq="monthly", source="S2", existing=existing)
+    assert set(long_df["var"]) == {"ndvi", "msavi"}

@@ -96,7 +96,13 @@ class TimeSeries:
 
         self.df.to_csv(path, index=False)
 
-    def to_long(self, *, freq: str, source: str) -> pd.DataFrame:
+    def to_long(
+        self,
+        *,
+        freq: str,
+        source: str,
+        existing: pd.DataFrame | None = None,
+    ) -> pd.DataFrame:
         """Return the time series in the ``TimeseriesLong`` format.
 
         Parameters
@@ -110,12 +116,17 @@ class TimeSeries:
         -------
         pandas.DataFrame
             DataFrame with columns ``date, var, stat, value, aoi_id, freq, source``.
+            If *existing* is provided, the new rows are appended to it.
         """
 
         value_col = f"mean_{self.index}"
         df_long = self.df.rename(columns={"id": "aoi_id", value_col: "value"}).assign(
             var=self.index, stat="raw", freq=freq, source=source
         )[["date", "var", "stat", "value", "aoi_id", "freq", "source"]]
+
+        if existing is not None:
+            df_long = pd.concat([existing, df_long], ignore_index=True)
+
         return df_long
 
 
@@ -126,6 +137,7 @@ def decomp_to_long(
     var: str,
     freq: str,
     source: str,
+    existing: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Convert decomposition components to ``TimeseriesLong`` format.
 
@@ -146,6 +158,7 @@ def decomp_to_long(
     -------
     pandas.DataFrame
         DataFrame with columns ``date, var, stat, value, aoi_id, freq, source``.
+        If *existing* is provided, the new rows are appended to it.
     """
 
     long_df = df.melt(id_vars="date", var_name="stat", value_name="value")
@@ -161,4 +174,9 @@ def decomp_to_long(
     long_df["aoi_id"] = aoi_id
     long_df["freq"] = freq
     long_df["source"] = source
-    return long_df[["date", "var", "stat", "value", "aoi_id", "freq", "source"]]
+    long_df = long_df[["date", "var", "stat", "value", "aoi_id", "freq", "source"]]
+
+    if existing is not None:
+        long_df = pd.concat([existing, long_df], ignore_index=True)
+
+    return long_df

@@ -75,7 +75,7 @@ verdesat stats aggregate ts.csv --freq ME --index ndvi -o monthly.csv
 verdesat stats decompose monthly.csv --no-plot
 
 # 4. Append NDVI/MSAVI stats to metrics
-verdesat stats summary monthly.csv --aoi-id A1 --decomp decomposition --metrics metrics.csv
+verdesat stats summary decomposition/timeseries_long.csv --aoi-id A1 --metrics metrics.csv
 
 # 5. Record processing lineage (minimal example)
 cat > lineage.json <<'EOF'
