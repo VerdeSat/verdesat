@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -44,16 +45,50 @@ def build_report(
             loader=FileSystemLoader(Path(__file__).parent.parent / "templates")
         )
         tmpl = env.get_template("evidence_pack_report.html.j2")
-        html = tmpl.render(
-            executive_summary=summary.get("executive_summary", ""),
-            kpi_sentences=kpi,
-            esrs_extent_condition=esrs.get("extent_condition", ""),
-            esrs_pressures=esrs.get("pressures", ""),
-            esrs_targets=esrs.get("targets", ""),
-            esrs_actions=esrs.get("actions", ""),
-            esrs_financial_effects=esrs.get("financial_effects", ""),
-            report_title=title,
-        )
+        context = {
+            "executive_summary": summary.get("executive_summary", ""),
+            "kpi_sentences": kpi,
+            "esrs_extent_condition": esrs.get("extent_condition", ""),
+            "esrs_pressures": esrs.get("pressures", ""),
+            "esrs_targets": esrs.get("targets", ""),
+            "esrs_actions": esrs.get("actions", ""),
+            "esrs_financial_effects": esrs.get("financial_effects", ""),
+            "report_title": title,
+            "report_date": date.today().isoformat(),
+            "aoi_name": "",
+            "aoi_id": ai_request.aoi_id,
+            "method_version": "",
+            "report_hash": "",
+            "bscore": 0,
+            "bscore_band": "",
+            "bscore_band_label": "",
+            "weights": {"intactness": "", "shannon": "", "fragmentation": ""},
+            "map_png": "",
+            "acquisition_from": "",
+            "acquisition_to": "",
+            "intactness_pct": 0,
+            "frag_norm": 0,
+            "msa": 0,
+            "ndvi_mean": 0,
+            "ndvi_slope": 0,
+            "ndvi_p_value": 0,
+            "ndvi_delta": 0,
+            "valid_obs_pct": 0,
+            "inside_pa": False,
+            "nearest_pa_name": "",
+            "nearest_pa_distance_km": 0,
+            "nearest_kba_name": "",
+            "nearest_kba_distance_km": 0,
+            "timeseries_png": "",
+            "print_css": (
+                Path(__file__).parent.parent / "templates" / "print.css"
+            ).read_text(encoding="utf-8"),
+            "methods_text": "",
+            "lineage_json": {},
+            "sources": [],
+            "year": date.today().year,
+        }
+        html = tmpl.render(**context)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(html)
         return output_path

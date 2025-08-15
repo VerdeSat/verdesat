@@ -1,0 +1,43 @@
+@page { size: A4; margin: 18mm 16mm; }
+body { font: 11.5pt/1.45 "Inter", Arial, sans-serif; color: #0f172a; }
+
+.vs-header, .vs-footer { display: flex; justify-content: space-between; align-items: center; font-size: 9.5pt; color: #475569; }
+.vs-header { border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 12px; }
+.vs-footer { border-top: 1px solid #e2e8f0; padding-top: 6px; margin-top: 12px; }
+.vs-header .brand { font-weight: 700; color: #065f46; }
+
+h1 { font-size: 19pt; margin: 8px 0 2px; }
+h2 { font-size: 14pt; margin: 14px 0 6px; color: #0b4f3f; }
+h3 { font-size: 12pt; margin: 10px 0 4px; }
+.subhead { color: #475569; margin-top: 2px; }
+.disclaimer { color: #64748b; font-size: 10pt; }
+.foot { color: #64748b; font-size: 9.5pt; }
+
+.summary-grid { display: grid; grid-template-columns: 1.1fr 1.5fr; grid-template-rows: auto auto; gap: 10px; margin-top: 8px; }
+.summary-grid .panel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
+.summary-grid .map img { width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; }
+.kpi-strip { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; font-size: 10.5pt; }
+.kpi span { color: #475569; display: block; font-size: 9.5pt; }
+
+.bscore { font-size: 26pt; font-weight: 800; color: #0b4f3f; }
+.band { font-size: 10.5pt; margin-top: 4px; display: inline-block; padding: 2px 6px; border-radius: 5px; }
+.band.low { background: #dcfce7; color: #166534; }
+.band.moderate { background: #fef9c3; color: #92400e; }
+.band.high { background: #fee2e2; color: #991b1b; }
+
+.simple { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
+.simple th, .simple td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; }
+.simple thead th { background: #f1f5f9; }
+
+.kv { width: 100%; border-collapse: collapse; }
+.kv th { width: 34%; vertical-align: top; text-align: left; color: #334155; }
+.kv td, .kv th { border-top: 1px solid #e2e8f0; padding: 6px 8px; }
+
+.bullets { margin: 0; padding-left: 18px; }
+.code { background: #0b1020; color: #e5e7eb; border-radius: 6px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9.5pt; white-space: pre-wrap; }
+
+.page-num { }
+
+/* WeasyPrint page counters */
+@page { @bottom-right { content: "Page " counter(page) " / " counter(pages); } }

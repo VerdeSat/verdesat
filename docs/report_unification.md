@@ -285,6 +285,6 @@ verdesat pack project \
 - [x] Add `figures/` helpers for map/timeseries.
 - [x] Refactor timeseries/decomposition emitters to **TimeseriesLong**.
 - [x] Refactor KPI builder to output **MetricsRow**.
-- [ ] Implement CLI `verdesat pack aoi|project`.
+ - [x] Implement CLI `verdesat pack aoi|project`.
 - [ ] Implement Web bridge and button.
 - [ ] Remove/deprecate legacy exporters.

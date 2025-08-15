@@ -1,9 +1,7 @@
-import json
 import os
-import re
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Optional
 from jinja2 import Environment, FileSystemLoader
 from verdesat.analytics.stats import compute_summary_stats
 from verdesat.visualization._collect import collect_assets
@@ -25,17 +23,10 @@ def build_report(
 
     html_dir = Path(output_path).parent
 
-    # 1. Load data
-    with open(geojson_path) as f:
-        gj = json.load(f)
     run_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    # 2. compute summary stats
-    stats_table = compute_summary_stats(
-        timeseries_csv,
-        decomp_dir=decomposition_dir,
-        value_col=f"mean_{index_name}",
-    ).rows
-    # 3. Discover decomposition images: files named like "1_decomposition.png"
+    # 1. compute summary stats
+    stats_table = compute_summary_stats(timeseries_csv, var=index_name).rows
+    # 2. Discover decomposition images: files named like "1_decomposition.png"
     decomp_pattern = r"(?P<id>\d+)_decomposition\.png"
     decomp_images = {}
     if decomposition_dir:

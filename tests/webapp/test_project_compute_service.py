@@ -310,6 +310,21 @@ def test_ndvi_stats_returns_required_metrics(monkeypatch):
                 )
             }
 
+        def to_long(
+            self, *, freq: str, source: str, existing: pd.DataFrame | None = None
+        ):
+            df_long = self.df.rename(columns={"id": "aoi_id", "mean_ndvi": "value"})
+            df_long["var"] = "ndvi"
+            df_long["stat"] = "raw"
+            df_long["freq"] = freq
+            df_long["source"] = source
+            df_long = df_long[
+                ["date", "var", "stat", "value", "aoi_id", "freq", "source"]
+            ]
+            if existing is not None:
+                df_long = pd.concat([existing, df_long], ignore_index=True)
+            return df_long
+
     monkeypatch.setattr(project_compute, "TimeSeries", DummyTS)
 
     stats_df = pd.DataFrame(
@@ -327,8 +342,8 @@ def test_ndvi_stats_returns_required_metrics(monkeypatch):
         }
     )
 
-    def fake_compute(timeseries_csv, decomp_dir, value_col, period):
-        assert list(decomp_dir.keys()) == [1]
+    def fake_compute(timeseries_csv, *, var, period):
+        assert var == "ndvi"
         return SimpleNamespace(to_dataframe=lambda: stats_df)
 
     monkeypatch.setattr(project_compute, "compute_summary_stats", fake_compute)
@@ -365,6 +380,21 @@ def test_msavi_stats_returns_required_metrics(monkeypatch):
 
         def fill_gaps(self):
             return self
+
+        def to_long(
+            self, *, freq: str, source: str, existing: pd.DataFrame | None = None
+        ):
+            df_long = self.df.rename(columns={"id": "aoi_id", "mean_msavi": "value"})
+            df_long["var"] = "msavi"
+            df_long["stat"] = "raw"
+            df_long["freq"] = freq
+            df_long["source"] = source
+            df_long = df_long[
+                ["date", "var", "stat", "value", "aoi_id", "freq", "source"]
+            ]
+            if existing is not None:
+                df_long = pd.concat([existing, df_long], ignore_index=True)
+            return df_long
 
     monkeypatch.setattr(project_compute, "TimeSeries", DummyTS)
 
@@ -413,6 +443,21 @@ def test_ndvi_stats_handles_missing_decomposition(monkeypatch):
 
         def decompose(self, period: int):
             return {}
+
+        def to_long(
+            self, *, freq: str, source: str, existing: pd.DataFrame | None = None
+        ):
+            df_long = self.df.rename(columns={"id": "aoi_id", "mean_ndvi": "value"})
+            df_long["var"] = "ndvi"
+            df_long["stat"] = "raw"
+            df_long["freq"] = freq
+            df_long["source"] = source
+            df_long = df_long[
+                ["date", "var", "stat", "value", "aoi_id", "freq", "source"]
+            ]
+            if existing is not None:
+                df_long = pd.concat([existing, df_long], ignore_index=True)
+            return df_long
 
     monkeypatch.setattr(project_compute, "TimeSeries", DummyTS)
 

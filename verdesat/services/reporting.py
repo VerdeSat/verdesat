@@ -148,8 +148,10 @@ def build_aoi_evidence_pack(
         "acquisition_to": metrics.window_end or "",
         "intactness_pct": _num(metrics.intactness_pct),
         "frag_norm": _num(metrics.frag_norm),
+        "msa": _num(metrics.msa),
         "ndvi_mean": _num(metrics.ndvi_mean),
         "ndvi_slope": _num(metrics.ndvi_slope),
+        "ndvi_p_value": _num(metrics.ndvi_p_value),
         "ndvi_delta": _num(metrics.ndvi_delta),
         "valid_obs_pct": _num(metrics.valid_obs_pct),
         "executive_summary": narrative,
@@ -165,6 +167,9 @@ def build_aoi_evidence_pack(
         "nearest_kba_name": metrics.nearest_kba_name or "",
         "nearest_kba_distance_km": _num(metrics.nearest_kba_distance_km),
         "timeseries_png": _bytes_to_data_uri(ts_png),
+        "print_css": (
+            Path(__file__).parent.parent / "templates" / "print.css"
+        ).read_text(encoding="utf-8"),
         "esrs_extent_condition": "",
         "esrs_pressures": "",
         "esrs_targets": "",

@@ -72,6 +72,14 @@ def test_generate_passes_deterministic_params() -> None:
     assert params["response_format"]["json_schema"]["schema"] == schema
 
 
+def test_generate_can_override_seed() -> None:
+    fake = FakeOpenAI(['{"answer": "ok"}'])
+    client = OpenAiLlmClient(client=fake, seed=1, logger=Logger.get_logger("test"))
+    client.generate("hi", response_model=OutputModel, model="gpt-4o-mini", seed=123)
+    params = client._client.calls[0]  # type: ignore[attr-defined]
+    assert params["seed"] == 123
+
+
 def test_generate_retries_on_validation_error() -> None:
     texts = ["not json", '{"answer": "ok"}']
     fake = FakeOpenAI(texts)

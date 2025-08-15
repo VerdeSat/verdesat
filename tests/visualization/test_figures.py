@@ -13,6 +13,17 @@ def test_make_map_png_returns_png() -> None:
     assert im.format == "PNG"
 
 
+def test_make_map_png_with_geojson(tmp_path) -> None:
+    geojson = tmp_path / "aoi.geojson"
+    geojson.write_text(
+        '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"id":1},"geometry":{"type":"Polygon","coordinates":[[[0,0],[0,1],[1,1],[1,0],[0,0]]]}}]}'
+    )
+    ctx = AoiContext(aoi_id="1", geometry_path=str(geojson))
+    data = make_map_png(ctx)
+    im = Image.open(io.BytesIO(data))
+    assert im.format == "PNG"
+
+
 def test_make_timeseries_png_returns_png() -> None:
     df = pd.DataFrame(
         {

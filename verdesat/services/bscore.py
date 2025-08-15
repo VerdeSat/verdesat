@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 """Service for computing biodiversity scores from AOI collections."""
 
-from typing import Optional
+from __future__ import annotations
+
 import logging
 import pandas as pd
 
@@ -24,6 +23,8 @@ def compute_bscores(
     output: str | None = None,
     logger: logging.Logger | None = None,
     storage: StorageAdapter | None = None,
+    project_id: str | None = None,
+    project_name: str | None = None,
 ) -> pd.DataFrame:
     """Compute biodiversity scores for AOIs in ``geojson``.
 
@@ -47,12 +48,14 @@ def compute_bscores(
         Optional logger for progress messages.
     storage:
         Storage backend used by ``MetricEngine``. Defaults to ``LocalFS``.
+    project_id, project_name:
+        Optional project metadata to add to each record.
 
     Returns
     -------
     pandas.DataFrame
-        A dataframe containing ``id`` and all metric values alongside the
-        computed ``bscore`` for each AOI.
+        A dataframe containing ``aoi_id`` and canonical metric columns
+        alongside the computed ``bscore`` for each AOI.
     """
 
     log = logger or Logger.get_logger(__name__)
@@ -73,17 +76,32 @@ def compute_bscores(
         metrics = engine.run_all(aoi, year)
         metrics.msa = msa_svc.mean_msa(aoi.geometry)
         score = calc.score(metrics)
-        records.append(
-            {
-                "id": aoi.static_props.get("id"),
-                "intactness": metrics.intactness,
-                "shannon": metrics.shannon,
-                "edge_density": metrics.fragmentation.edge_density,
-                "fragmentation": metrics.fragmentation.normalised_density,
-                "msa": metrics.msa,
-                "bscore": score,
-            }
-        )
+
+        if score < 33.3:
+            band = "low"
+        elif score < 66.6:
+            band = "moderate"
+        else:
+            band = "high"
+
+        rec = {
+            "aoi_id": aoi.static_props.get("id"),
+            "intactness_pct": metrics.intactness_pct,
+            "shannon": metrics.shannon,
+            "frag_norm": metrics.fragmentation.frag_norm,
+            "msa": metrics.msa,
+            "bscore": score,
+            "bscore_band": band,
+            "window_start": f"{year}-01-01",
+            "window_end": f"{year}-12-31",
+            "method_version": "0.2.0",
+            "geometry_path": geojson,
+        }
+        rec["project_id"] = project_id or aoi.static_props.get("project_id")
+        rec["project_name"] = project_name or aoi.static_props.get("project_name")
+        if "aoi_name" in aoi.static_props:
+            rec["aoi_name"] = aoi.static_props.get("aoi_name")
+        records.append(rec)
 
     df = pd.DataFrame.from_records(records)
     if output:

@@ -41,14 +41,14 @@ export R2_SECRET=...
 verdesat prepare ./input_dir -o aoi.geojson
 
 # Download spectral index time series
-verdesat timeseries aoi.geojson --index ndvi --start 2024-01-01 --end 2024-12-31 -o ndvi.csv
+verdesat download timeseries aoi.geojson --index ndvi --start 2024-01-01 --end 2024-12-31 -o ndvi.csv
 
 # Export yearly chips / land-cover
 verdesat chips aoi.geojson --year 2024 -o chips/
 verdesat landcover aoi.geojson --year 2024 -o lc_2024.tif
 
 # Compute biodiversity scores
-verdesat bscore-from-geojson aoi.geojson --year 2024 -o metrics.json
+verdesat bscore from-geojson aoi.geojson --year 2024 --project-id P1 --project-name Demo -o metrics.csv
 
 # Build a one-page HTML/PDF report
 verdesat report html aoi.geojson ndvi.csv ndvi.html -d decompositions/ -c chips/ -o report.html
@@ -57,6 +57,35 @@ verdesat report html aoi.geojson ndvi.csv ndvi.html -d decompositions/ -c chips/
 verdesat report ai --project P1 --aoi A1 --metrics metrics.csv --timeseries ndvi.csv
 ```
 Run `verdesat --help` for the full set of commands.
+
+### 4) Build an evidence pack with AI summary
+
+```bash
+# Start from a GeoJSON AOI
+export AOI=aoi.geojson
+
+# 1. Compute project metrics (single-row CSV)
+verdesat bscore from-geojson $AOI --year 2024 --project-id P1 --project-name Demo -o metrics.csv
+
+# 2. Fetch NDVI time series
+verdesat download timeseries $AOI --index ndvi --start 2024-01-01 --end 2024-12-31 -o ts.csv
+
+# 3. Aggregate and decompose to build TimeseriesLong
+verdesat stats aggregate ts.csv --freq ME --index ndvi -o monthly.csv
+verdesat stats decompose monthly.csv --no-plot
+
+# 4. Append NDVI/MSAVI stats to metrics
+verdesat stats summary decomposition/timeseries_long.csv --aoi-id A1 --metrics metrics.csv
+
+# 5. Record processing lineage (minimal example)
+cat > lineage.json <<'EOF'
+{ "metrics": "metrics.csv", "timeseries": "ts.csv" }
+EOF
+
+# 6. Package everything and let the AI summarise
+verdesat pack aoi --aoi-id A1 --metrics metrics.csv --ts decomposition/timeseries_long.csv --lineage lineage.json --include-ai
+```
+The command emits a ZIP archive (e.g. `A1_evidence_pack.zip`) containing `report.pdf`, data files and figures. Using `--out r2` stores it in Cloudflare R2 and prints a presigned URL.
 
 ---
 

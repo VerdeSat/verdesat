@@ -28,8 +28,12 @@ def sample_timeseries_csv(tmp_path):
     data = pd.DataFrame(
         {
             "date": ["2020-01-01", "2020-02-01"],
-            "id": [1, 1],
-            "mean_ndvi": [0.5, 0.6],
+            "var": ["ndvi", "ndvi"],
+            "stat": ["raw", "raw"],
+            "value": [0.5, 0.6],
+            "aoi_id": [1, 1],
+            "freq": ["monthly", "monthly"],
+            "source": ["S2", "S2"],
         }
     )
     path = tmp_path / "timeseries.csv"
@@ -57,9 +61,17 @@ def sample_chips_dir(tmp_path):
 
 def test_build_report_custom_index(sample_geojson, tmp_path):
     ts_csv = tmp_path / "ts.csv"
-    pd.DataFrame({"date": ["2020-01-01"], "id": [1], "mean_evi": [0.4]}).to_csv(
-        ts_csv, index=False
-    )
+    pd.DataFrame(
+        {
+            "date": ["2020-01-01"],
+            "var": ["evi"],
+            "stat": ["raw"],
+            "value": [0.4],
+            "aoi_id": [1],
+            "freq": ["monthly"],
+            "source": ["S2"],
+        }
+    ).to_csv(ts_csv, index=False)
     chips_dir = tmp_path / "chips"
     chips_dir.mkdir()
     (chips_dir / "EVI_1_2020-01-01.png").write_bytes(b"")

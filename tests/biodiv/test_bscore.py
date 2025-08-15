@@ -9,9 +9,9 @@ def test_bscore_calculation(tmp_path):
     weights = WeightsConfig.from_yaml(weights_path)
     calc = BScoreCalculator(weights)
     metrics = MetricsResult(
-        intactness=0.5,
+        intactness_pct=50.0,
         shannon=0.5,
-        fragmentation=FragmentStats(edge_density=0.2, normalised_density=0.2),
+        fragmentation=FragmentStats(edge_density=0.2, frag_norm=0.2),
         msa=0.5,
     )
     score = calc.score(metrics)
@@ -22,9 +22,9 @@ def test_bscore_calculation(tmp_path):
 def test_compute_bscores(monkeypatch, tmp_path):
     def fake_run_all(self, aoi, year, landcover_path=None):
         return MetricsResult(
-            intactness=0.5,
+            intactness_pct=50.0,
             shannon=0.5,
-            fragmentation=FragmentStats(edge_density=0.2, normalised_density=0.2),
+            fragmentation=FragmentStats(edge_density=0.2, frag_norm=0.2),
         )
 
     monkeypatch.setattr("verdesat.services.bscore.MetricEngine.run_all", fake_run_all)
@@ -39,9 +39,14 @@ def test_compute_bscores(monkeypatch, tmp_path):
     )
     df = compute_bscores(str(geojson), year=2021, weights=WeightsConfig())
 
+    assert df.loc[0, "aoi_id"] == 1
     assert df.loc[0, "bscore"] > 0
-    assert df.loc[0, "intactness"] == 0.5
+    assert df.loc[0, "intactness_pct"] == 50.0
     assert df.loc[0, "shannon"] == 0.5
-    assert df.loc[0, "edge_density"] == 0.2
-    assert df.loc[0, "fragmentation"] == 0.2
+    assert df.loc[0, "frag_norm"] == 0.2
     assert df.loc[0, "msa"] == 0.5
+    assert df.loc[0, "method_version"] == "0.2.0"
+    assert df.loc[0, "window_start"] == "2021-01-01"
+    assert df.loc[0, "window_end"] == "2021-12-31"
+    assert df.loc[0, "bscore_band"] in {"low", "moderate", "high"}
+    assert df.loc[0, "geometry_path"] == str(geojson)

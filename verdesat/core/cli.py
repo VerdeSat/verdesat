@@ -19,6 +19,7 @@ from verdesat.ingestion import create_ingestor
 from verdesat.ingestion.indices import INDEX_REGISTRY
 from verdesat.analytics.timeseries import TimeSeries, decomp_to_long
 from verdesat.analytics.trend import compute_trend
+from verdesat.analytics.stats import compute_veg_metrics
 from verdesat.core.logger import Logger
 from verdesat.core.config import ConfigManager
 from verdesat.geo.aoi import AOI
@@ -26,7 +27,7 @@ from verdesat.ingestion.eemanager import ee_manager
 from verdesat.services.timeseries import download_timeseries as svc_download_timeseries
 from verdesat.services.report import build_report as svc_build_report
 from verdesat.services.landcover import LandcoverService
-from verdesat.core.storage import LocalFS
+from verdesat.core.storage import LocalFS, S3Bucket, StorageAdapter
 from verdesat.visualization._chips_config import ChipsConfig
 from verdesat.visualization.visualizer import Visualizer
 from verdesat.core.pipeline import ReportPipeline
@@ -40,9 +41,48 @@ from verdesat.services import (
 from verdesat.services.ai_report import AiReportService, LlmClient
 from verdesat.schemas.ai_report import AiReportRequest
 from verdesat.adapters.llm_openai import OpenAiLlmClient
+from verdesat.services.reporting import (
+    build_aoi_evidence_pack,
+    build_project_pack,
+)
+from verdesat.schemas.reporting import AoiContext, MetricsRow, ProjectContext
 
 logger = Logger.get_logger(__name__)
 viz = Visualizer()
+
+
+def _read_table(path: str) -> pd.DataFrame:
+    """Return a DataFrame loaded from CSV or Parquet at *path*."""
+
+    return (
+        pd.read_parquet(path)
+        if Path(path).suffix.lower() == ".parquet"
+        else pd.read_csv(path)
+    )
+
+
+def _select_storage(kind: str) -> StorageAdapter:
+    """Instantiate a storage adapter for ``kind`` ('local' or 'r2')."""
+
+    if kind == "r2":
+        import boto3  # type: ignore
+
+        endpoint = os.getenv("R2_ENDPOINT")
+        bucket = os.getenv("R2_BUCKET", "verdesat-data")
+        key = os.getenv("R2_KEY")
+        secret = os.getenv("R2_SECRET")
+        if not (endpoint and key and secret):
+            raise click.BadParameter(
+                "Missing R2 configuration: R2_ENDPOINT, R2_KEY, R2_SECRET"
+            )
+        client = boto3.client(
+            "s3",
+            endpoint_url=endpoint,
+            aws_access_key_id=key,
+            aws_secret_access_key=secret,
+        )
+        return S3Bucket(bucket=bucket, client=client)
+    return LocalFS()
 
 
 @click.group()
@@ -414,14 +454,14 @@ def aggregate(input_csv, index, freq, output):
     Aggregate a raw daily time-series CSV to the specified frequency.
     """
 
-    echo(f"Loading {input_csv}...")
+    logger.info("Loading %s", input_csv)
     df = pd.read_csv(input_csv, parse_dates=["date"])
-    echo(f"Aggregating by frequency '{freq}' for index '{index}'...")
+    logger.info("Aggregating by frequency '%s' for index '%s'", freq, index)
     ts = TimeSeries.from_dataframe(df, index=index)
     df_agg = ts.aggregate(freq).df
-    echo(f"Saving aggregated data to {output}...")
+    logger.info("Saving aggregated data to %s", output)
     df_agg.to_csv(output, index=False)
-    echo("Done.")
+    echo(f"✅  Aggregated data saved to {output}")
 
 
 @cli.group()
@@ -487,23 +527,43 @@ def fill_gaps_cmd(input_csv, value_col, method, output):
     help="Directory to save outputs",
 )
 @click.option(
+    "--timeseries-long",
+    "-t",
+    type=click.Path(),
+    default=None,
+    help="Existing TimeseriesLong CSV to append to",
+)
+@click.option(
     "--plot/--no-plot",
     default=True,
     help="Whether to generate PNG plots for each polygon (default: True)",
 )
-def decompose(input_csv, index_col, model, period, output_dir, plot):
+def decompose(input_csv, index_col, model, period, output_dir, timeseries_long, plot):
     """
     Perform seasonal decomposition on a pivoted CSV and save plot.
     """
-    echo(f"Loading {input_csv}...")
+    logger.info("Loading %s", input_csv)
     df = pd.read_csv(input_csv, parse_dates=["date"])
     index_name = index_col.replace("mean_", "")
     ts = TimeSeries.from_dataframe(df, index=index_name)
-    echo("Decomposing time series...")
+    logger.info("Decomposing time series")
 
     results = ts.decompose(period=period, model=model)
     os.makedirs(output_dir, exist_ok=True)
-    long_parts = []
+
+    def _freq_label(dates: pd.Series) -> str:
+        freq = pd.infer_freq(dates.sort_values())
+        if freq and freq.upper().startswith("M"):
+            return "monthly"
+        if freq and freq.upper().startswith("Y"):
+            return "annual"
+        return "daily"
+
+    freq_label = _freq_label(ts.df["date"])
+    existing_long = None
+    if timeseries_long and os.path.exists(timeseries_long):
+        existing_long = pd.read_csv(timeseries_long)
+    long_parts = [ts.to_long(freq=freq_label, source="S2", existing=existing_long)]
 
     for pid, res in results.items():
         df_out = pd.DataFrame(
@@ -520,7 +580,7 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
                 df_out,
                 aoi_id=str(pid),
                 var=index_name,
-                freq="monthly",
+                freq=freq_label,
                 source="S2",
             )
         )
@@ -528,11 +588,60 @@ def decompose(input_csv, index_col, model, period, output_dir, plot):
         if plot:
             plot_path = os.path.join(output_dir, f"{pid}_decomposition.png")
             viz.plot_decomposition(res, plot_path)
-            echo(f"✅  Decomposition plot saved to {plot_path}")
+            logger.info("Decomposition plot saved to %s", plot_path)
 
-    out_path = os.path.join(output_dir, "timeseries_long.csv")
-    pd.concat(long_parts, ignore_index=True).to_csv(out_path, index=False)
+    if len(long_parts) == 1:
+        logger.warning(
+            "No decomposition components generated; output will contain raw values only"
+        )
+
+    out_path = timeseries_long or os.path.join(output_dir, "timeseries_long.csv")
+    combined = pd.concat(long_parts, ignore_index=True)
+    combined.to_csv(out_path, index=False)
+    logger.info("TimeseriesLong saved to %s", out_path)
     echo(f"✅  TimeseriesLong saved to {out_path}")
+
+
+@stats.command(name="summary")
+@click.argument("timeseries_csv", type=click.Path(exists=True))
+@click.option("--aoi-id", required=True, help="AOI identifier for metrics row")
+@click.option(
+    "--metrics",
+    type=click.Path(exists=True),
+    default=None,
+    help="Existing metrics CSV to append to",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default=None,
+    help="Output path (defaults to --metrics)",
+)
+def summary(timeseries_csv, aoi_id, metrics, output):
+    """Compute NDVI/MSAVI summary stats and optionally append to metrics."""
+
+    logger.info("Computing summary stats from %s", timeseries_csv)
+    row = compute_veg_metrics(timeseries_csv, aoi_id=aoi_id)
+    df = pd.DataFrame([row])
+    df["aoi_id"] = df["aoi_id"].astype(str)
+
+    if metrics:
+        logger.info("Appending summary stats to %s", metrics)
+        existing = pd.read_csv(metrics)
+        if "aoi_id" in existing.columns:
+            existing["aoi_id"] = existing["aoi_id"].astype(str)
+            merged = existing.merge(df, on="aoi_id", how="left")
+        else:
+            merged = pd.concat([existing, df], axis=1)
+        out_path = output or metrics
+        merged.to_csv(out_path, index=False)
+        echo(f"✅  Metrics updated at {out_path}")
+    else:
+        out_path = output or "stats_metrics.csv"
+        logger.info("Writing summary stats to %s", out_path)
+        df.to_csv(out_path, index=False)
+        echo(f"✅  Stats metrics saved to {out_path}")
 
 
 @stats.command(name="trend")
@@ -585,11 +694,11 @@ def compute_bscore(metrics_json, weights):
     with open(metrics_json, "r", encoding="utf-8") as fh:
         data = json.load(fh)
     metrics = MetricsResult(
-        intactness=float(data["intactness"]),
+        intactness_pct=float(data["intactness_pct"]),
         shannon=float(data["shannon"]),
         fragmentation=FragmentStats(
             edge_density=float(data["fragmentation"]["edge_density"]),
-            normalised_density=float(data["fragmentation"]["normalised_density"]),
+            frag_norm=float(data["fragmentation"]["frag_norm"]),
         ),
         msa=float(data.get("msa", 0.0)),
     )
@@ -624,7 +733,18 @@ def compute_bscore(metrics_json, weights):
     default=50_000_000,
     help="Maximum bytes to read from the dataset",
 )
-def bscore_from_geojson(geojson, year, weights, output, dataset_uri, budget_bytes):
+@click.option("--project-id", default=None, help="Project identifier")
+@click.option("--project-name", default=None, help="Project name")
+def bscore_from_geojson(
+    geojson,
+    year,
+    weights,
+    output,
+    dataset_uri,
+    budget_bytes,
+    project_id,
+    project_name,
+):
     """Compute B-Score for polygons in GEOJSON."""
     df = svc_compute_bscores(
         geojson,
@@ -634,6 +754,8 @@ def bscore_from_geojson(geojson, year, weights, output, dataset_uri, budget_byte
         budget_bytes=budget_bytes,
         output=output,
         logger=logger,
+        project_id=project_id,
+        project_name=project_name,
     )
     if output is None:
         echo(df.to_csv(index=False))
@@ -1005,6 +1127,190 @@ def report_ai(
         echo(f"URL: {result.url}")
     echo(result.narrative)
     echo(json.dumps(result.summary, indent=2))
+
+
+@cli.group()
+def pack() -> None:
+    """Build evidence packs for AOIs or projects."""
+
+
+@pack.command("aoi")
+@click.option("--aoi-id", required=True, help="AOI identifier")
+@click.option(
+    "--metrics",
+    "metrics_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to metrics CSV/Parquet",
+)
+@click.option(
+    "--ts",
+    "ts_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to time-series CSV/Parquet",
+)
+@click.option(
+    "--lineage",
+    "lineage_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to lineage JSON",
+)
+@click.option(
+    "--out",
+    "out_store",
+    type=click.Choice(["local", "r2"]),
+    default="local",
+    help="Storage backend",
+)
+@click.option("--include-ai", is_flag=True, help="Include AI summary")
+def pack_aoi(
+    aoi_id: str,
+    metrics_path: str,
+    ts_path: str,
+    lineage_path: str,
+    out_store: str,
+    include_ai: bool,
+) -> None:
+    """Create an Evidence Pack for a single AOI."""
+
+    storage = _select_storage(out_store)
+    metrics_df = _read_table(metrics_path)
+    if metrics_df.shape[0] != 1:
+        echo("❌  metrics file must contain exactly one row", err=True)
+        sys.exit(1)
+    row = metrics_df.iloc[0].to_dict()
+    try:
+        project = ProjectContext(
+            project_id=str(row["project_id"]),
+            project_name=str(row.get("project_name", "")),
+        )
+    except KeyError as exc:  # pragma: no cover - defensive
+        echo(f"❌  metrics missing field: {exc}", err=True)
+        sys.exit(1)
+    aoi_ctx = AoiContext(
+        aoi_id=aoi_id,
+        project_id=row.get("project_id"),
+        aoi_name=row.get("aoi_name"),
+        geometry_path=row.get("geometry_path"),
+    )
+    metrics = MetricsRow(**{k: row.get(k) for k in MetricsRow.__dataclass_fields__})
+    ts_df = _read_table(ts_path)
+    with open(lineage_path, "r", encoding="utf-8") as fh:
+        lineage = json.load(fh)
+
+    ai_service = None
+    ai_request = None
+    if include_ai:
+        config = ConfigManager()
+        llm = OpenAiLlmClient(seed=int(config.get("ai_report_seed", 42)), logger=logger)
+        ai_service = AiReportService(
+            llm=cast(LlmClient, llm),
+            storage=storage,
+            logger=logger,
+            config=config,
+        )
+        ai_request = AiReportRequest(
+            aoi_id=aoi_id,
+            project_id=project.project_id,
+            metrics_path=metrics_path,
+            timeseries_path=ts_path,
+            lineage_path=lineage_path,
+        )
+
+    try:
+        result = build_aoi_evidence_pack(
+            aoi=aoi_ctx,
+            project=project,
+            metrics=metrics,
+            ts_long=ts_df,
+            lineage=lineage,
+            include_ai=include_ai,
+            storage=storage,
+            ai_service=ai_service,
+            ai_request=ai_request,
+        )
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("pack aoi failed", exc_info=True)
+        echo(f"❌  Pack failed: {e}", err=True)
+        sys.exit(1)
+
+    echo(f"Artifact: {result.uri}")
+    if result.url:
+        echo(f"URL: {result.url}")
+
+
+@pack.command("project")
+@click.option(
+    "--metrics",
+    "metrics_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to metrics CSV/Parquet",
+)
+@click.option(
+    "--ts",
+    "ts_path",
+    type=click.Path(exists=True),
+    default=None,
+    help="Optional time-series CSV/Parquet",
+)
+@click.option(
+    "--lineage",
+    "lineage_path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to lineage JSON",
+)
+@click.option(
+    "--out",
+    "out_store",
+    type=click.Choice(["local", "r2"]),
+    default="local",
+    help="Storage backend",
+)
+def pack_project(
+    metrics_path: str,
+    ts_path: str | None,
+    lineage_path: str,
+    out_store: str,
+) -> None:
+    """Create a Project Pack from metrics and optional time series."""
+
+    storage = _select_storage(out_store)
+    metrics_df = _read_table(metrics_path)
+    if metrics_df.empty:
+        echo("❌  metrics file is empty", err=True)
+        sys.exit(1)
+    row = metrics_df.iloc[0].to_dict()
+    try:
+        project = ProjectContext(
+            project_id=str(row["project_id"]),
+            project_name=str(row.get("project_name", "")),
+        )
+    except KeyError as exc:  # pragma: no cover - defensive
+        echo(f"❌  metrics missing field: {exc}", err=True)
+        sys.exit(1)
+    ts_df = _read_table(ts_path) if ts_path else None
+    with open(lineage_path, "r", encoding="utf-8") as fh:
+        lineage = json.load(fh)
+    try:
+        result = build_project_pack(
+            project=project,
+            metrics_df=metrics_df,
+            ts_long=ts_df,
+            lineage=lineage,
+            storage=storage,
+        )
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("pack project failed", exc_info=True)
+        echo(f"❌  Pack failed: {e}", err=True)
+        sys.exit(1)
+
+    echo(f"Artifact: {result.uri}")
+    if result.url:
+        echo(f"URL: {result.url}")
 
 
 @cli.group()
