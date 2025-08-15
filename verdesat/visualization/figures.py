@@ -63,7 +63,6 @@ def make_map_png(aoi_ctx: AoiContext, layers: Iterable[str] | None = None) -> by
                 rotation={"crs": gdf.crs, "reference": "center"},
             )
             ax.legend(loc="lower right")
-            #ax.set_axis_off()
         else:
             logger.warning("Geometry filtered by id yielded no features")
             ax.text(0.5, 0.5, "map", ha="center", va="center")
