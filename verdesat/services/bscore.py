@@ -95,6 +95,7 @@ def compute_bscores(
             "window_start": f"{year}-01-01",
             "window_end": f"{year}-12-31",
             "method_version": "0.2.0",
+            "geometry_path": geojson,
         }
         rec["project_id"] = project_id or aoi.static_props.get("project_id")
         rec["project_name"] = project_name or aoi.static_props.get("project_name")

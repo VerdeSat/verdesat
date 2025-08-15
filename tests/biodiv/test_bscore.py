@@ -49,3 +49,4 @@ def test_compute_bscores(monkeypatch, tmp_path):
     assert df.loc[0, "window_start"] == "2021-01-01"
     assert df.loc[0, "window_end"] == "2021-12-31"
     assert df.loc[0, "bscore_band"] in {"low", "moderate", "high"}
+    assert df.loc[0, "geometry_path"] == str(geojson)

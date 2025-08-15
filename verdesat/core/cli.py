@@ -1193,6 +1193,7 @@ def pack_aoi(
         aoi_id=aoi_id,
         project_id=row.get("project_id"),
         aoi_name=row.get("aoi_name"),
+        geometry_path=row.get("geometry_path"),
     )
     metrics = MetricsRow(**{k: row.get(k) for k in MetricsRow.__dataclass_fields__})
     ts_df = _read_table(ts_path)

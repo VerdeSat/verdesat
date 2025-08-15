@@ -29,6 +29,8 @@ def test_pack_aoi_calls_service(monkeypatch, tmp_path):
     metrics_path = tmp_path / "m.csv"
     ts_path = tmp_path / "ts.csv"
     lineage_path = tmp_path / "lin.json"
+    aoi_geojson = tmp_path / "aoi.geojson"
+    aoi_geojson.write_text("{}")
     _write_csv(
         metrics_path,
         pd.DataFrame(
@@ -37,6 +39,7 @@ def test_pack_aoi_calls_service(monkeypatch, tmp_path):
                 "project_name": ["Demo"],
                 "aoi_name": ["Area"],
                 "ndvi_mean": [0.5],
+                "geometry_path": [str(aoi_geojson)],
             }
         ),
     )
@@ -74,6 +77,7 @@ def test_pack_aoi_calls_service(monkeypatch, tmp_path):
     )
     assert result.exit_code == 0
     assert captured["aoi"].aoi_id == "a1"
+    assert captured["aoi"].geometry_path == str(aoi_geojson)
     assert captured["project"].project_id == "p1"
     assert isinstance(captured["storage"], LocalFS)
 

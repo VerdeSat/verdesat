@@ -35,7 +35,11 @@ def _sample_ts(aoi_id: str) -> pd.DataFrame:
 def test_build_aoi_evidence_pack(tmp_path) -> None:
     storage = TmpStorage(tmp_path)
     project = ProjectContext(project_id="p1", project_name="Demo")
-    aoi = AoiContext(aoi_id="a1", aoi_name="AOI 1")
+    geojson = tmp_path / "aoi.geojson"
+    geojson.write_text(
+        '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"id":"a1"},"geometry":{"type":"Polygon","coordinates":[[[0,0],[0,1],[1,1],[1,0],[0,0]]]}}]}'
+    )
+    aoi = AoiContext(aoi_id="a1", aoi_name="AOI 1", geometry_path=str(geojson))
     metrics = MetricsRow(ndvi_mean=0.2, bscore=42.0, bscore_band="moderate")
     ts_long = _sample_ts(aoi.aoi_id)
     lineage = {"method_version": "0.2.0"}
@@ -69,3 +73,5 @@ def test_build_aoi_evidence_pack(tmp_path) -> None:
         with zf.open("metrics.csv") as fh:
             text = fh.read().decode("utf-8")
             assert "ndvi_mean" in text
+        with zf.open("figures/map.png") as fh:
+            assert fh.read(8).startswith(b"\x89PNG")
