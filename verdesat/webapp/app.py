@@ -38,6 +38,7 @@ from verdesat.webapp.services.chip_service import EEChipServiceAdapter
 from verdesat.webapp.services.project_compute import ProjectComputeService
 from verdesat.webapp.services.r2 import signed_url
 from verdesat.webapp.services.exports import export_project_pdf
+from verdesat.webapp.services.reporting_bridge import build_evidence_pack
 
 # -------------------------------------------------------------------
 
@@ -130,9 +131,14 @@ def compute_project(project: Project, start_year: int, end_year: int) -> tuple[
 
 
 def report_controls(
-    metrics_df: pd.DataFrame, project: Project, start_year: int, end_year: int
+    metrics_df: pd.DataFrame,
+    project: Project,
+    start_year: int,
+    end_year: int,
+    ndvi_df: pd.DataFrame,
+    msavi_df: pd.DataFrame,
 ) -> None:
-    """Display controls for generating a project-wide PDF report."""
+    """Display controls for generating project and AOI reports."""
 
     if st.button("Generate PDF report"):
         st.session_state["report_url"] = export_project_pdf(
@@ -141,6 +147,18 @@ def report_controls(
     url = st.session_state.get("report_url")
     if url:
         st.markdown(f"[Download PDF report]({url})")
+
+    aoi_ids = metrics_df["id"].astype(str).tolist()
+    if not aoi_ids:
+        return
+
+    sel = st.selectbox("AOI for evidence pack", aoi_ids)
+    if st.button("Build AOI evidence pack"):
+        result = build_evidence_pack(metrics_df, ndvi_df, msavi_df, project, sel)
+        st.session_state["pack_url"] = result.url
+    pack_url = st.session_state.get("pack_url")
+    if pack_url:
+        st.markdown(f"[Download evidence pack]({pack_url})")
 
 
 # ---- Page config -----------------------------------------------------------
@@ -365,7 +383,7 @@ elif st.session_state.get("run_requested"):
         )
     with tab_msavi:
         msavi_bar_chart_all(msavi_df, start_year=start_year, end_year=end_year)
-    report_controls(metrics_df, project, start_year, end_year)
+    report_controls(metrics_df, project, start_year, end_year, ndvi_df, msavi_df)
     st.dataframe(metrics_df)
 elif "results" in st.session_state:
     res = st.session_state["results"]
@@ -400,7 +418,7 @@ elif "results" in st.session_state:
         )
     with tab_msavi:
         msavi_bar_chart_all(msavi_df, start_year=start_year, end_year=end_year)
-    report_controls(metrics_df, project, start_year, end_year)
+    report_controls(metrics_df, project, start_year, end_year, ndvi_df, msavi_df)
     st.dataframe(metrics_df)
 else:
     st.info("Adjust parameters, then press **Run analysis**.")
