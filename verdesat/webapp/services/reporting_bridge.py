@@ -134,18 +134,37 @@ def build_evidence_pack(
             logger=logger,
             config=config,
         )
+
+        metrics_ai = metrics_df[metrics_df[id_col].astype(str) == str(aoi_id)].copy()
+        metrics_ai["aoi_id"] = aoi_ctx.aoi_id
+        metrics_ai["project_id"] = project_ctx.project_id
+        metrics_ai["method_version"] = lineage["method_version"]
+        window_start = pd.to_datetime(ts_long["date"].min()).date().isoformat()
+        window_end = pd.to_datetime(ts_long["date"].max()).date().isoformat()
+        metrics_ai["window_start"] = window_start
+        metrics_ai["window_end"] = window_end
         tmp_metrics = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
-        metrics_df[metrics_df[id_col].astype(str) == str(aoi_id)].to_csv(
-            tmp_metrics.name, index=False
-        )
+        metrics_ai.to_csv(tmp_metrics.name, index=False)
         tmp_metrics_path = tmp_metrics.name
+
+        ndvi_ai = ndvi_long[ndvi_long["stat"] == "raw"][
+            ["date", "value", "aoi_id"]
+        ].assign(metric="ndvi_mean")
+        ndvi_ai["date"] = pd.to_datetime(ndvi_ai["date"]).dt.date
+        msavi_ai = msavi_long[["date", "value", "aoi_id"]].assign(metric="msavi_mean")
+        msavi_ai["date"] = pd.to_datetime(msavi_ai["date"]).dt.date
+        ts_ai = pd.concat([ndvi_ai, msavi_ai], ignore_index=True)[
+            ["date", "metric", "value", "aoi_id"]
+        ]
         tmp_ts = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
-        ts_long.to_csv(tmp_ts.name, index=False)
+        ts_ai.to_csv(tmp_ts.name, index=False)
         tmp_ts_path = tmp_ts.name
+
         tmp_lineage = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
         tmp_lineage.write(json.dumps(lineage).encode("utf-8"))
         tmp_lineage.flush()
         tmp_lineage_path = tmp_lineage.name
+
         ai_request = AiReportRequest(
             aoi_id=str(aoi_id),
             project_id=project_ctx.project_id,

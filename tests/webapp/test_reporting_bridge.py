@@ -96,6 +96,20 @@ def test_build_evidence_pack_defaults(monkeypatch):
 
     def fake_build(**kwargs):
         captured.update(kwargs)
+        ai_req = kwargs.get("ai_request")
+        assert ai_req is not None
+        metrics_df = pd.read_csv(ai_req.metrics_path)
+        required = {
+            "aoi_id",
+            "project_id",
+            "method_version",
+            "window_start",
+            "window_end",
+        }
+        assert required <= set(metrics_df.columns)
+        ts_df = pd.read_csv(ai_req.timeseries_path)
+        assert {"date", "metric", "value", "aoi_id"} <= set(ts_df.columns)
+        assert "ndvi_mean" in ts_df["metric"].values
         return PackResult(uri="u", url=None, sha256="0" * 64, bytesize=1)
 
     monkeypatch.setattr(
