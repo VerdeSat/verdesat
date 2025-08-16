@@ -4,7 +4,12 @@ import pandas as pd
 from PIL import Image
 
 from verdesat.schemas.reporting import AoiContext
-from verdesat.visualization import make_map_png, make_timeseries_png
+from verdesat.visualization import (
+    make_map_png,
+    make_timeseries_png,
+    make_ndvi_trend_png,
+    make_yearly_msavi_png,
+)
 
 
 def test_make_map_png_returns_png() -> None:
@@ -39,3 +44,26 @@ def test_make_timeseries_png_returns_png() -> None:
     data = make_timeseries_png(df)
     im = Image.open(io.BytesIO(data))
     assert im.format == "PNG"
+
+
+def test_ndvi_msavi_plots_return_pngs() -> None:
+    df = pd.DataFrame(
+        {
+            "date": [
+                "2024-01-01",
+                "2024-02-01",
+                "2024-01-01",
+                "2024-02-01",
+            ],
+            "var": ["ndvi", "ndvi", "msavi", "msavi"],
+            "stat": ["raw", "raw", "raw", "raw"],
+            "value": [0.1, 0.2, 0.3, 0.4],
+            "aoi_id": ["a1", "a1", "a1", "a1"],
+            "freq": ["monthly", "monthly", "monthly", "monthly"],
+            "source": ["S2", "S2", "S2", "S2"],
+        }
+    )
+    ndvi_png = make_ndvi_trend_png(df)
+    msavi_png = make_yearly_msavi_png(df)
+    assert Image.open(io.BytesIO(ndvi_png)).format == "PNG"
+    assert Image.open(io.BytesIO(msavi_png)).format == "PNG"

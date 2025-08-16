@@ -42,14 +42,14 @@
           <figcaption>AOI boundary and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
         </figure>
         <div class="kpi-strip">
-          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|default(0)|float|round(1) }}%</strong></div>
+          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|default(0)|float|round(2) }}%</strong></div>
           <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|default(0)|float|round(2) }}</strong></div>
           <div class="kpi"><span>MSA</span><strong>{{ msa|default(0)|float|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|default(0)|float|round(3) }}</strong></div>
-          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|default(0)|float|round(3) }}</strong></div>
+          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|default(0)|float|round(2) }}</strong></div>
+          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|default(0)|float|round(2) }}</strong></div>
           <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|default(0)|float|round(3) }}</strong></div>
-          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|default(0)|float|round(3) }}</strong></div>
-          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|default(0)|float|round(0) }}%</strong></div>
+          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|default(0)|float|round(2) }}</strong></div>
+          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|default(0)|float|round(2) }}%</strong></div>
         </div>
       </div>
       <p class="executive">{{ executive_summary }}</p>
@@ -75,9 +75,13 @@
     <!-- TRENDS -->
     <section>
       <h2>Vegetation Trends</h2>
-      <figure>
-        <img src="{{ timeseries_png }}" alt="NDVI/MSAVI time series and trend" />
-        <figcaption>Smoothed NDVI/MSAVI with seasonal decomposition and linear trend.</figcaption>
+      <figure class="plot">
+        <img src="{{ ndvi_png }}" alt="NDVI trend" />
+        <figcaption>NDVI trend for all AOIs.</figcaption>
+      </figure>
+      <figure class="plot">
+        <img src="{{ msavi_png }}" alt="Yearly MSAVI" />
+        <figcaption>Yearly mean MSAVI for all AOIs.</figcaption>
       </figure>
     </section>
 

@@ -23,8 +23,12 @@ from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 
 from verdesat.core.storage import LocalFS, StorageAdapter
-from verdesat.schemas.reporting import AoiContext, MetricsRow, ProjectContext
-from verdesat.visualization import make_map_png, make_timeseries_png
+from verdesat.schemas.reporting import AoiContext, MetricsRow, ProjectContext, LABELS
+from verdesat.visualization import (
+    make_map_png,
+    make_ndvi_trend_png,
+    make_yearly_msavi_png,
+)
 
 
 @dataclass
@@ -62,7 +66,7 @@ def _write_pack(
     metrics_csv: bytes,
     lineage: dict,
     map_png: bytes,
-    ts_png: bytes,
+    ts_pngs: dict[str, bytes],
     storage: StorageAdapter,
     path_parts: tuple[str, ...],
     ai_summary: dict | None = None,
@@ -76,7 +80,8 @@ def _write_pack(
         zf.writestr("metrics.csv", metrics_csv)
         zf.writestr("lineage.json", json.dumps(lineage, indent=2).encode("utf-8"))
         zf.writestr("figures/map.png", map_png)
-        zf.writestr("figures/timeseries.png", ts_png)
+        for name, png in ts_pngs.items():
+            zf.writestr(f"figures/{name}.png", png)
         if ai_summary is not None:
             zf.writestr(
                 "ai_summary.json",
@@ -121,7 +126,8 @@ def build_aoi_evidence_pack(
         raise ValueError(f"ts_long missing columns: {sorted(missing)}")
 
     map_png = make_map_png(aoi)
-    ts_png = make_timeseries_png(ts_long)
+    ndvi_png = make_ndvi_trend_png(ts_long)
+    msavi_png = make_yearly_msavi_png(ts_long)
     aoi_geojson: bytes | None = None
     if aoi.geometry_path and Path(aoi.geometry_path).exists():
         aoi_geojson = Path(aoi.geometry_path).read_bytes()
@@ -172,7 +178,8 @@ def build_aoi_evidence_pack(
         "nearest_pa_distance_km": _num(metrics.nearest_pa_distance_km),
         "nearest_kba_name": metrics.nearest_kba_name or "",
         "nearest_kba_distance_km": _num(metrics.nearest_kba_distance_km),
-        "timeseries_png": _bytes_to_data_uri(ts_png),
+        "ndvi_png": _bytes_to_data_uri(ndvi_png),
+        "msavi_png": _bytes_to_data_uri(msavi_png),
         "print_css": (
             Path(__file__).parent.parent / "templates" / "print.css"
         ).read_text(encoding="utf-8"),
@@ -200,7 +207,7 @@ def build_aoi_evidence_pack(
         metrics_csv=metrics_csv,
         lineage=lineage,
         map_png=map_png,
-        ts_png=ts_png,
+        ts_pngs={"ndvi": ndvi_png, "msavi": msavi_png},
         storage=storage,
         path_parts=path,
         ai_summary=ai_summary,
@@ -245,7 +252,13 @@ def build_project_pack(
     storage = storage or LocalFS()
     map_ctx = aoi or AoiContext(aoi_id="")
     map_png = make_map_png(map_ctx)
-    ts_png = make_timeseries_png(ts_long) if ts_long is not None else map_png
+    ts_long = (
+        ts_long
+        if ts_long is not None
+        else pd.DataFrame(columns=["date", "var", "value", "aoi_id"])
+    )
+    ndvi_png = make_ndvi_trend_png(ts_long)
+    msavi_png = make_yearly_msavi_png(ts_long)
 
     summary = metrics_df.mean(numeric_only=True).to_dict()
 
@@ -283,6 +296,39 @@ def build_project_pack(
             idx = distances.idxmin()
             nearest_kba_name = str(metrics_df.loc[idx, "nearest_kba_name"])
             nearest_kba_distance = _num(metrics_df.loc[idx, "nearest_kba_distance_km"])
+
+    biodiv_fields = ["bscore", "intactness_pct", "frag_norm", "shannon", "msa"]
+    veg_fields = [
+        "ndvi_mean",
+        "ndvi_slope",
+        "ndvi_delta",
+        "ndvi_p_value",
+        "msavi_mean",
+        "valid_obs_pct",
+    ]
+
+    def _fmt(val: Any, key: str) -> str:
+        if val is None or pd.isna(val):
+            return "–"
+        return f"{float(val):.3f}" if key == "ndvi_p_value" else f"{float(val):.2f}"
+
+    biodiv_columns = ["AOI"] + [
+        LABELS[f] for f in biodiv_fields if f in metrics_df.columns
+    ]
+    veg_columns = ["AOI"] + [LABELS[f] for f in veg_fields if f in metrics_df.columns]
+
+    biodiv_metrics: list[list[str]] = []
+    veg_metrics: list[list[str]] = []
+    for _, row in metrics_df.iterrows():
+        aoi_label = str(row.get("aoi_name") or row.get("aoi_id"))
+        biodiv_metrics.append(
+            [aoi_label]
+            + [_fmt(row.get(f), f) for f in biodiv_fields if f in metrics_df.columns]
+        )
+        veg_metrics.append(
+            [aoi_label]
+            + [_fmt(row.get(f), f) for f in veg_fields if f in metrics_df.columns]
+        )
 
     context = {
         "report_title": "VerdeSat Project Pack",
@@ -326,9 +372,12 @@ def build_project_pack(
         "nearest_pa_distance_km": nearest_pa_distance,
         "nearest_kba_name": nearest_kba_name,
         "nearest_kba_distance_km": nearest_kba_distance,
-        "timeseries_png": _bytes_to_data_uri(ts_png),
-        "metrics_columns": list(metrics_df.columns),
-        "metrics": metrics_df.to_dict(orient="records"),
+        "ndvi_png": _bytes_to_data_uri(ndvi_png),
+        "msavi_png": _bytes_to_data_uri(msavi_png),
+        "biodiv_columns": biodiv_columns,
+        "biodiv_metrics": biodiv_metrics,
+        "veg_columns": veg_columns,
+        "veg_metrics": veg_metrics,
         "print_css": (
             Path(__file__).parent.parent / "templates" / "print.css"
         ).read_text(encoding="utf-8"),
@@ -362,7 +411,7 @@ def build_project_pack(
         metrics_csv=metrics_csv,
         lineage=lineage,
         map_png=map_png,
-        ts_png=ts_png,
+        ts_pngs={"ndvi": ndvi_png, "msavi": msavi_png},
         storage=storage,
         path_parts=path,
     )

@@ -34,14 +34,14 @@
           <figcaption>AOI boundaries and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
         </figure>
         <div class="kpi-strip">
-          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(1) }}%</strong></div>
+          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(2) }}%</strong></div>
           <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|round(2) }}</strong></div>
           <div class="kpi"><span>MSA</span><strong>{{ msa|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(3) }}</strong></div>
-          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(3) }}</strong></div>
+          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(2) }}</strong></div>
+          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(2) }}</strong></div>
           <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|round(3) }}</strong></div>
-          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(3) }}</strong></div>
-          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(0) }}%</strong></div>
+          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(2) }}</strong></div>
+          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(2) }}%</strong></div>
         </div>
       </div>
       <p class="executive">{{ executive_summary }}</p>
@@ -67,9 +67,13 @@
     <!-- TRENDS -->
     <section>
       <h2>Vegetation Trends</h2>
-      <figure>
-        <img src="{{ timeseries_png }}" alt="NDVI/MSAVI time series and trend" />
-        <figcaption>Smoothed NDVI/MSAVI with seasonal decomposition and linear trend.</figcaption>
+      <figure class="plot">
+        <img src="{{ ndvi_png }}" alt="NDVI trend" />
+        <figcaption>NDVI trend for all AOIs.</figcaption>
+      </figure>
+      <figure class="plot">
+        <img src="{{ msavi_png }}" alt="Yearly MSAVI" />
+        <figcaption>Yearly mean MSAVI for all AOIs.</figcaption>
       </figure>
     </section>
 
@@ -89,13 +93,25 @@
     <!-- METRICS TABLE -->
     <section>
       <h2>AOI Metrics</h2>
+      <h3>Biodiversity</h3>
       <table class="simple">
         <thead>
-          <tr>{% for c in metrics_columns %}<th>{{ c }}</th>{% endfor %}</tr>
+          <tr>{% for c in biodiv_columns %}<th>{{ c }}</th>{% endfor %}</tr>
         </thead>
         <tbody>
-          {% for row in metrics %}
-          <tr>{% for c in metrics_columns %}<td>{{ row[c] }}</td>{% endfor %}</tr>
+          {% for row in biodiv_metrics %}
+          <tr>{% for v in row %}<td>{{ v }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <h3>Vegetation Health</h3>
+      <table class="simple">
+        <thead>
+          <tr>{% for c in veg_columns %}<th>{{ c }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for row in veg_metrics %}
+          <tr>{% for v in row %}<td>{{ v }}</td>{% endfor %}</tr>
           {% endfor %}
         </tbody>
       </table>

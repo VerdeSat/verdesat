@@ -46,14 +46,14 @@ This file contains **production-ready HTML/Jinja2 templates** and **print CSS** 
           <figcaption>AOI boundary and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
         </figure>
         <div class="kpi-strip">
-          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(1) }}%</strong></div>
+          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(2) }}%</strong></div>
           <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|round(2) }}</strong></div>
           <div class="kpi"><span>MSA</span><strong>{{ msa|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(3) }}</strong></div>
-          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(3) }}</strong></div>
+          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(2) }}</strong></div>
+          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(2) }}</strong></div>
           <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|round(3) }}</strong></div>
-          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(3) }}</strong></div>
-          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(0) }}%</strong></div>
+          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(2) }}</strong></div>
+          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(2) }}%</strong></div>
         </div>
       </div>
       <p class="executive">{{ executive_summary }}</p>
@@ -79,9 +79,13 @@ This file contains **production-ready HTML/Jinja2 templates** and **print CSS** 
     <!-- TRENDS -->
     <section>
       <h2>Vegetation Trends</h2>
-      <figure>
-        <img src="{{ timeseries_png }}" alt="NDVI/MSAVI time series and trend" />
-        <figcaption>Smoothed NDVI/MSAVI with seasonal decomposition and linear trend.</figcaption>
+      <figure class="plot">
+        <img src="{{ ndvi_png }}" alt="NDVI trend" />
+        <figcaption>NDVI trend for all AOIs.</figcaption>
+      </figure>
+      <figure class="plot">
+        <img src="{{ msavi_png }}" alt="Yearly MSAVI" />
+        <figcaption>Yearly mean MSAVI for all AOIs.</figcaption>
       </figure>
     </section>
 
@@ -176,14 +180,14 @@ This file contains **production-ready HTML/Jinja2 templates** and **print CSS** 
           <figcaption>AOI boundaries and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
         </figure>
         <div class="kpi-strip">
-          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(1) }}%</strong></div>
+          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(2) }}%</strong></div>
           <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|round(2) }}</strong></div>
           <div class="kpi"><span>MSA</span><strong>{{ msa|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(3) }}</strong></div>
-          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(3) }}</strong></div>
+          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(2) }}</strong></div>
+          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(2) }}</strong></div>
           <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|round(3) }}</strong></div>
-          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(3) }}</strong></div>
-          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(0) }}%</strong></div>
+          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(2) }}</strong></div>
+          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(2) }}%</strong></div>
         </div>
       </div>
       <p class="executive">{{ executive_summary }}</p>
@@ -209,9 +213,13 @@ This file contains **production-ready HTML/Jinja2 templates** and **print CSS** 
     <!-- TRENDS -->
     <section>
       <h2>Vegetation Trends</h2>
-      <figure>
-        <img src="{{ timeseries_png }}" alt="NDVI/MSAVI time series and trend" />
-        <figcaption>Smoothed NDVI/MSAVI with seasonal decomposition and linear trend.</figcaption>
+      <figure class="plot">
+        <img src="{{ ndvi_png }}" alt="NDVI trend" />
+        <figcaption>NDVI trend for all AOIs.</figcaption>
+      </figure>
+      <figure class="plot">
+        <img src="{{ msavi_png }}" alt="Yearly MSAVI" />
+        <figcaption>Yearly mean MSAVI for all AOIs.</figcaption>
       </figure>
     </section>
 
@@ -231,13 +239,25 @@ This file contains **production-ready HTML/Jinja2 templates** and **print CSS** 
     <!-- METRICS TABLE -->
     <section>
       <h2>AOI Metrics</h2>
+      <h3>Biodiversity</h3>
       <table class="simple">
         <thead>
-          <tr>{% for c in metrics_columns %}<th>{{ c }}</th>{% endfor %}</tr>
+          <tr>{% for c in biodiv_columns %}<th>{{ c }}</th>{% endfor %}</tr>
         </thead>
         <tbody>
-          {% for row in metrics %}
-          <tr>{% for c in metrics_columns %}<td>{{ row[c] }}</td>{% endfor %}</tr>
+          {% for row in biodiv_metrics %}
+          <tr>{% for v in row %}<td>{{ v }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <h3>Vegetation Health</h3>
+      <table class="simple">
+        <thead>
+          <tr>{% for c in veg_columns %}<th>{{ c }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for row in veg_metrics %}
+          <tr>{% for v in row %}<td>{{ v }}</td>{% endfor %}</tr>
           {% endfor %}
         </tbody>
       </table>
@@ -386,7 +406,8 @@ h3 { font-size: 12pt; margin: 10px 0 4px; }
 .summary-grid { display: grid; grid-template-columns: 1.1fr 1.5fr; grid-template-rows: auto auto; gap: 10px; margin-top: 8px; }
 .summary-grid .panel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
 .summary-grid .map img { width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; }
-.kpi-strip { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.kpi-strip { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; width: 100%; }
+.summary-grid .kpi-strip { grid-column: 1 / -1; }
 .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; font-size: 10.5pt; }
 .kpi span { color: #475569; display: block; font-size: 9.5pt; }
 
@@ -399,6 +420,8 @@ h3 { font-size: 12pt; margin: 10px 0 4px; }
 .simple { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
 .simple th, .simple td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; }
 .simple thead th { background: #f1f5f9; }
+
+.plot img { width: 100%; }
 
 .kv { width: 100%; border-collapse: collapse; }
 .kv th { width: 34%; vertical-align: top; text-align: left; color: #334155; }
@@ -444,7 +467,7 @@ context = dict(
     inside_pa=False, nearest_pa_name="",
     nearest_pa_distance_km=None, nearest_kba_name="",
     nearest_kba_distance_km=None,
-    timeseries_png="timeseries.png", map_png="aoi_map.png",
+    ndvi_png="ndvi.png", msavi_png="msavi.png", map_png="aoi_map.png",
     esrs_extent_condition="Intactness 62%, Frag‑Norm 0.44; NDVI stable to improving.",
     esrs_pressures="MSA 2015 indicates moderate pressure; EFA seasonal variability normal.",
     esrs_targets="Intactness +5 pp in 24 months; fragmentation −10%.",

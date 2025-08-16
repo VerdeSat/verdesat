@@ -151,3 +151,46 @@ def make_timeseries_png(ts_long: pd.DataFrame) -> bytes:
     fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
     plt.close(fig)
     return buf.getvalue()
+
+
+def _multi_aoi_plot(ts_long: pd.DataFrame, var: str, *, yearly: bool = False) -> bytes:
+    """Plot ``var`` for all AOIs, optionally aggregated yearly."""
+
+    df = ts_long[ts_long["var"] == var].copy()
+    if df.empty:
+        return make_timeseries_png(df.assign(date=pd.Timestamp.today()))
+
+    df["date"] = pd.to_datetime(df["date"])
+    if yearly:
+        df["date"] = df["date"].dt.to_period("Y").dt.to_timestamp()
+        df = df.groupby(["date", "aoi_id"], as_index=False)["value"].mean()
+
+    pivot = df.pivot(index="date", columns="aoi_id", values="value")
+    pivot.sort_index(inplace=True)
+
+    plt.style.use("seaborn-v0_8")
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for col in pivot.columns:
+        ax.plot(pivot.index, pivot[col], marker="o", label=str(col))
+    ax.set_xlabel("Date" if not yearly else "Year")
+    ax.set_ylabel(var.upper())
+    ax.legend(title="AOI")
+    ax.grid(True, linestyle="--", alpha=0.5)
+    fig.tight_layout()
+
+    buf = BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def make_ndvi_trend_png(ts_long: pd.DataFrame) -> bytes:
+    """Render NDVI trend plot for all AOIs."""
+
+    return _multi_aoi_plot(ts_long, "ndvi")
+
+
+def make_yearly_msavi_png(ts_long: pd.DataFrame) -> bytes:
+    """Render yearly aggregated MSAVI plot for all AOIs."""
+
+    return _multi_aoi_plot(ts_long, "msavi", yearly=True)
