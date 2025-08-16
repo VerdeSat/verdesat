@@ -105,14 +105,16 @@ def build_evidence_pack(
             }
         ],
     }
-    if include_ai and ai_service is None:
-        ai_service = SimpleNamespace(
-            generate_summary=lambda _req: SimpleNamespace(
-                narrative="AI summary unavailable",
-                summary={"status": "unavailable"},
+    if include_ai:
+        if ai_service is None:
+            ai_service = SimpleNamespace(
+                generate_summary=lambda _req: SimpleNamespace(
+                    narrative="AI summary unavailable",
+                    summary={"status": "unavailable"},
+                )
             )
-        )
-        ai_request = {}
+        if ai_request is None:
+            ai_request = {"aoi_id": str(aoi_id)}
 
     result = build_aoi_evidence_pack(
         aoi=aoi_ctx,
