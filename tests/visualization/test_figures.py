@@ -67,3 +67,19 @@ def test_ndvi_msavi_plots_return_pngs() -> None:
     msavi_png = make_yearly_msavi_png(df)
     assert Image.open(io.BytesIO(ndvi_png)).format == "PNG"
     assert Image.open(io.BytesIO(msavi_png)).format == "PNG"
+
+
+def test_multi_aoi_plot_handles_duplicate_entries() -> None:
+    df = pd.DataFrame(
+        {
+            "date": ["2024-01-01", "2024-01-01"],
+            "var": ["ndvi", "ndvi"],
+            "stat": ["raw", "raw"],
+            "value": [0.1, 0.2],
+            "aoi_id": ["a1", "a1"],
+            "freq": ["monthly", "monthly"],
+            "source": ["S2", "S2"],
+        }
+    )
+    data = make_ndvi_trend_png(df)
+    assert Image.open(io.BytesIO(data)).format == "PNG"

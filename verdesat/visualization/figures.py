@@ -165,7 +165,12 @@ def _multi_aoi_plot(ts_long: pd.DataFrame, var: str, *, yearly: bool = False) ->
         df["date"] = df["date"].dt.to_period("Y").dt.to_timestamp()
         df = df.groupby(["date", "aoi_id"], as_index=False)["value"].mean()
 
-    pivot = df.pivot(index="date", columns="aoi_id", values="value")
+    pivot = df.pivot_table(
+        index="date",
+        columns="aoi_id",
+        values="value",
+        aggfunc="mean",
+    )  # average duplicates
     pivot.sort_index(inplace=True)
 
     plt.style.use("seaborn-v0_8")
