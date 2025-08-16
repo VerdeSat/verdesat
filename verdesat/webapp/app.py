@@ -37,8 +37,10 @@ from verdesat.webapp.components.layout import (
 from verdesat.webapp.services.chip_service import EEChipServiceAdapter
 from verdesat.webapp.services.project_compute import ProjectComputeService
 from verdesat.webapp.services.r2 import signed_url
-from verdesat.webapp.services.exports import export_project_pdf
-from verdesat.webapp.services.reporting_bridge import build_evidence_pack
+from verdesat.webapp.services.reporting_bridge import (
+    build_evidence_pack,
+    build_project_pack,
+)
 
 # -------------------------------------------------------------------
 
@@ -141,9 +143,15 @@ def report_controls(
     """Display controls for generating project and AOI reports."""
 
     if st.button("Generate PDF report"):
-        st.session_state["report_url"] = export_project_pdf(
-            metrics_df, project, start_year, end_year
+        result = build_project_pack(
+            metrics_df,
+            ndvi_df,
+            msavi_df,
+            project,
+            start_year=start_year,
+            end_year=end_year,
         )
+        st.session_state["report_url"] = result.url or ""
     url = st.session_state.get("report_url")
     if url:
         st.markdown(f"[Download PDF report]({url})")

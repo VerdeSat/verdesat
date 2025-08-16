@@ -287,4 +287,4 @@ verdesat pack project \
 - [x] Refactor KPI builder to output **MetricsRow**.
  - [x] Implement CLI `verdesat pack aoi|project`.
  - [x] Implement Web bridge and button.
-- [ ] Remove/deprecate legacy exporters.
+- [x] Remove/deprecate legacy exporters.
