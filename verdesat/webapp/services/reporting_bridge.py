@@ -4,18 +4,23 @@ from __future__ import annotations
 
 from dataclasses import fields
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
+import json
 import tempfile
 
-import geopandas as gpd
 import pandas as pd
+from shapely.geometry import mapping
 
 from verdesat.analytics.timeseries import decomp_to_long
+from verdesat.core.config import ConfigManager
+from verdesat.core.logger import Logger
 from verdesat.core.storage import LocalFS, StorageAdapter
 from verdesat.project.project import Project
+from verdesat.schemas.ai_report import AiReportRequest
 from verdesat.schemas.reporting import AoiContext, MetricsRow, ProjectContext
+from verdesat.services.ai_report import AiReportService, LlmClient
 from verdesat.services.reporting import PackResult, build_aoi_evidence_pack
+from verdesat.adapters.llm_openai import OpenAiLlmClient
 
 
 def build_evidence_pack(
@@ -50,9 +55,20 @@ def build_evidence_pack(
     centroid = aoi.geometry.centroid
     area_m2 = aoi.static_props.get("area_m2")
     tmp_geo = tempfile.NamedTemporaryFile(suffix=".geojson", delete=False)
-    gpd.GeoDataFrame(
-        [{**aoi.static_props}], geometry=[aoi.geometry], crs="EPSG:4326"
-    ).to_file(tmp_geo.name, driver="GeoJSON")
+    with open(tmp_geo.name, "w", encoding="utf-8") as fh:
+        json.dump(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": mapping(aoi.geometry),
+                        "properties": {**aoi.static_props},
+                    }
+                ],
+            },
+            fh,
+        )
     aoi_ctx = AoiContext(
         aoi_id=str(aoi_id),
         aoi_name=aoi.static_props.get("name"),
@@ -105,16 +121,38 @@ def build_evidence_pack(
             }
         ],
     }
-    if include_ai:
-        if ai_service is None:
-            ai_service = SimpleNamespace(
-                generate_summary=lambda _req: SimpleNamespace(
-                    narrative="AI summary unavailable",
-                    summary={"status": "unavailable"},
-                )
-            )
-        if ai_request is None:
-            ai_request = {"aoi_id": str(aoi_id)}
+    tmp_metrics_path: str | None = None
+    tmp_ts_path: str | None = None
+    tmp_lineage_path: str | None = None
+    if include_ai and (ai_service is None or ai_request is None):
+        config = ConfigManager()
+        logger = Logger.get_logger(__name__)
+        llm = OpenAiLlmClient(seed=int(config.get("ai_report_seed", 42)), logger=logger)
+        ai_service = AiReportService(
+            llm=cast(LlmClient, llm),
+            storage=storage,
+            logger=logger,
+            config=config,
+        )
+        tmp_metrics = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        metrics_df[metrics_df[id_col].astype(str) == str(aoi_id)].to_csv(
+            tmp_metrics.name, index=False
+        )
+        tmp_metrics_path = tmp_metrics.name
+        tmp_ts = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        ts_long.to_csv(tmp_ts.name, index=False)
+        tmp_ts_path = tmp_ts.name
+        tmp_lineage = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        tmp_lineage.write(json.dumps(lineage).encode("utf-8"))
+        tmp_lineage.flush()
+        tmp_lineage_path = tmp_lineage.name
+        ai_request = AiReportRequest(
+            aoi_id=str(aoi_id),
+            project_id=project_ctx.project_id,
+            metrics_path=tmp_metrics_path,
+            timeseries_path=tmp_ts_path,
+            lineage_path=tmp_lineage_path,
+        )
 
     result = build_aoi_evidence_pack(
         aoi=aoi_ctx,
@@ -128,4 +166,7 @@ def build_evidence_pack(
         ai_request=ai_request,
     )
     Path(tmp_geo.name).unlink(missing_ok=True)
+    for path in (tmp_metrics_path, tmp_ts_path, tmp_lineage_path):
+        if path:
+            Path(path).unlink(missing_ok=True)
     return result

@@ -5,6 +5,8 @@ from typing import Any
 from verdesat.core.config import ConfigManager
 from verdesat.geo.aoi import AOI
 from verdesat.project.project import Project
+from verdesat.services.ai_report import AiReportService
+from verdesat.schemas.ai_report import AiReportRequest
 from verdesat.services.reporting import PackResult
 from verdesat.webapp.services.reporting_bridge import build_evidence_pack
 
@@ -66,7 +68,7 @@ def test_build_evidence_pack(monkeypatch):
 
 
 def test_build_evidence_pack_defaults(monkeypatch):
-    """Include AI with no service/request uses safe defaults."""
+    """Include AI with no service/request sets up service and request."""
 
     aoi = AOI(
         geometry=Polygon([(0, 0), (0, 1), (1, 1), (1, 0)]),
@@ -101,6 +103,7 @@ def test_build_evidence_pack_defaults(monkeypatch):
         fake_build,
     )
 
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
     build_evidence_pack(
         metrics_df,
         ndvi_df,
@@ -111,5 +114,6 @@ def test_build_evidence_pack_defaults(monkeypatch):
     )
 
     assert captured["include_ai"] is True
-    assert captured["ai_service"] is not None
-    assert captured["ai_request"] == {"aoi_id": "1"}
+    assert isinstance(captured["ai_service"], AiReportService)
+    assert isinstance(captured["ai_request"], AiReportRequest)
+    assert captured["ai_request"].aoi_id == "1"
