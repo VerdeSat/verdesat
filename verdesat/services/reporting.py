@@ -247,19 +247,99 @@ def build_project_pack(
     map_png = make_map_png(map_ctx)
     ts_png = make_timeseries_png(ts_long) if ts_long is not None else map_png
 
+    summary = metrics_df.mean(numeric_only=True).to_dict()
+
+    def _num(val: Any) -> float:
+        return float(val) if val is not None and not pd.isna(val) else 0.0
+
+    def _mode(col: str) -> str:
+        if col not in metrics_df.columns:
+            return ""
+        series = metrics_df[col].dropna()
+        if series.empty:
+            return ""
+        return str(series.mode().iat[0])
+
+    inside_pa = (
+        bool(metrics_df["inside_pa"].any())
+        if "inside_pa" in metrics_df.columns
+        else False
+    )
+
+    nearest_pa_name = ""
+    nearest_pa_distance = 0.0
+    if {"nearest_pa_name", "nearest_pa_distance_km"} <= set(metrics_df.columns):
+        distances = metrics_df["nearest_pa_distance_km"]
+        if not distances.isna().all():
+            idx = distances.idxmin()
+            nearest_pa_name = str(metrics_df.loc[idx, "nearest_pa_name"])
+            nearest_pa_distance = _num(metrics_df.loc[idx, "nearest_pa_distance_km"])
+
+    nearest_kba_name = ""
+    nearest_kba_distance = 0.0
+    if {"nearest_kba_name", "nearest_kba_distance_km"} <= set(metrics_df.columns):
+        distances = metrics_df["nearest_kba_distance_km"]
+        if not distances.isna().all():
+            idx = distances.idxmin()
+            nearest_kba_name = str(metrics_df.loc[idx, "nearest_kba_name"])
+            nearest_kba_distance = _num(metrics_df.loc[idx, "nearest_kba_distance_km"])
+
     context = {
         "report_title": "VerdeSat Project Pack",
         "report_date": date.today().isoformat(),
         "project_name": project.project_name,
         "project_id": project.project_id,
+        "method_version": lineage.get("method_version", ""),
+        "report_hash": "",
+        "bscore": _num(summary.get("bscore")),
+        "bscore_band": _mode("bscore_band").lower(),
+        "bscore_band_label": _mode("bscore_band").title(),
+        "weights": {"intactness": 0.4, "shannon": 0.3, "fragmentation": 0.3},
         "map_png": _bytes_to_data_uri(map_png),
+        "acquisition_from": (
+            metrics_df["window_start"].dropna().min()
+            if "window_start" in metrics_df.columns
+            else ""
+        ),
+        "acquisition_to": (
+            metrics_df["window_end"].dropna().max()
+            if "window_end" in metrics_df.columns
+            else ""
+        ),
+        "intactness_pct": _num(summary.get("intactness_pct")),
+        "frag_norm": _num(summary.get("frag_norm")),
+        "msa": _num(summary.get("msa")),
+        "ndvi_mean": _num(summary.get("ndvi_mean")),
+        "ndvi_slope": _num(summary.get("ndvi_slope")),
+        "ndvi_p_value": _num(summary.get("ndvi_p_value")),
+        "ndvi_delta": _num(summary.get("ndvi_delta")),
+        "valid_obs_pct": _num(summary.get("valid_obs_pct")),
+        "executive_summary": "",
+        "kpi_sentences": {
+            "bscore": "",
+            "intactness": "",
+            "fragmentation": "",
+            "ndvi_trend": "",
+        },
+        "inside_pa": inside_pa,
+        "nearest_pa_name": nearest_pa_name,
+        "nearest_pa_distance_km": nearest_pa_distance,
+        "nearest_kba_name": nearest_kba_name,
+        "nearest_kba_distance_km": nearest_kba_distance,
         "timeseries_png": _bytes_to_data_uri(ts_png),
         "metrics_columns": list(metrics_df.columns),
         "metrics": metrics_df.to_dict(orient="records"),
         "print_css": (
             Path(__file__).parent.parent / "templates" / "print.css"
         ).read_text(encoding="utf-8"),
+        "esrs_extent_condition": "",
+        "esrs_pressures": "",
+        "esrs_targets": "",
+        "esrs_actions": "",
+        "esrs_financial_effects": "",
+        "methods_text": "",
         "lineage_json": lineage,
+        "sources": lineage.get("sources", []),
         "year": date.today().year,
     }
 

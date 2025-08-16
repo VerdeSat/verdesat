@@ -125,16 +125,29 @@ def _add_north_arrow(ax: plt.Axes) -> None:
 
 
 def make_timeseries_png(ts_long: pd.DataFrame) -> bytes:
-    """Plot a simple timeseries and return PNG bytes."""
+    """Plot a simple timeseries and return PNG bytes.
+
+    The visual style mirrors the legacy ReportLab PDF exporter with a seaborn
+    theme, circular markers, grid lines and a legend. Each variable in the
+    ``var`` column becomes its own series.
+    """
+
     df = ts_long.copy()
     df["date"] = pd.to_datetime(df["date"])
     pivot = df.pivot_table(index="date", columns="var", values="value")
     pivot.sort_index(inplace=True)
-    fig, ax = plt.subplots(figsize=(4, 3))
-    pivot.plot(ax=ax)
+
+    plt.style.use("seaborn-v0_8")
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for col in pivot.columns:
+        ax.plot(pivot.index, pivot[col], marker="o", label=str(col))
     ax.set_xlabel("Date")
     ax.set_ylabel("Value")
+    ax.legend(title="Series")
+    ax.grid(True, linestyle="--", alpha=0.5)
+    fig.tight_layout()
+
     buf = BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight")
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
     plt.close(fig)
     return buf.getvalue()

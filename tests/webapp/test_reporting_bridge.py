@@ -1,5 +1,4 @@
 import pandas as pd
-from pathlib import Path
 from shapely.geometry import Polygon
 
 from verdesat.core.config import ConfigManager

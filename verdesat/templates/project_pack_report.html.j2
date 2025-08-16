@@ -13,23 +13,82 @@
     <div class="meta">
       <div>{{ report_date }}</div>
       <div>Project: {{ project_name }} ({{ project_id }})</div>
+      <div>Method v{{ method_version }} • Hash {{ report_hash[:8] if report_hash else '' }}</div>
     </div>
   </header>
+
   <main>
-    <section>
-      <h1>Project Overview</h1>
-      <figure class="map">
-        <img src="{{ map_png }}" alt="Project AOIs" />
-      </figure>
+    <!-- HERO / EXEC SUMMARY -->
+    <section class="hero">
+      <h1>Biodiversity & Forest‑Health Screening</h1>
+      <p class="subhead">CSRD/TNFD‑friendly indicators. Screening‑grade; best for forests. Not a species inventory.</p>
+      <div class="summary-grid">
+        <div class="panel">
+          <div class="kpi-label">B‑Score</div>
+          <div class="bscore">{{ bscore|round(0) if bscore is not none else '–' }}/100</div>
+          <div class="band {{ bscore_band|lower }}">{{ bscore_band_label }}</div>
+          <div class="kpi-note">Weights: I {{ weights.intactness }} / S {{ weights.shannon }} / F {{ weights.fragmentation }}</div>
+        </div>
+        <figure class="map">
+          <img src="{{ map_png }}" alt="Project AOIs" />
+          <figcaption>AOI boundaries and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
+        </figure>
+        <div class="kpi-strip">
+          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(1) }}%</strong></div>
+          <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|round(2) }}</strong></div>
+          <div class="kpi"><span>MSA</span><strong>{{ msa|round(2) }}</strong></div>
+          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(3) }}</strong></div>
+          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(3) }}</strong></div>
+          <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|round(3) }}</strong></div>
+          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(3) }}</strong></div>
+          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(0) }}%</strong></div>
+        </div>
+      </div>
+      <p class="executive">{{ executive_summary }}</p>
     </section>
+
+    <!-- PROTECTED AREAS / SENSITIVITY -->
     <section>
-      <h2>Timeseries Summary</h2>
+      <h2>Context: Protected & Sensitive Areas</h2>
+      <table class="simple">
+        <thead><tr><th>Inside PA?</th><th>Nearest PA</th><th>Distance</th><th>Nearest KBA</th><th>Distance</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>{{ inside_pa|default(false) and 'Yes' or 'No' }}</td>
+            <td>{{ nearest_pa_name or '–' }}</td>
+            <td>{{ nearest_pa_distance_km is not none and (nearest_pa_distance_km|round(2) ~ ' km') or '–' }}</td>
+            <td>{{ nearest_kba_name or '–' }}</td>
+            <td>{{ nearest_kba_distance_km is not none and (nearest_kba_distance_km|round(2) ~ ' km') or '–' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- TRENDS -->
+    <section>
+      <h2>Vegetation Trends</h2>
       <figure>
-        <img src="{{ timeseries_png }}" alt="Project timeseries" />
+        <img src="{{ timeseries_png }}" alt="NDVI/MSAVI time series and trend" />
+        <figcaption>Smoothed NDVI/MSAVI with seasonal decomposition and linear trend.</figcaption>
       </figure>
     </section>
+
+    <!-- ESRS E4 MAPPING -->
     <section>
-      <h2>Metrics</h2>
+      <h2>ESRS E4 Mapping (screening)</h2>
+      <table class="kv">
+        <tr><th>Extent & Condition</th><td>{{ esrs_extent_condition }}</td></tr>
+        <tr><th>Pressures</th><td>{{ esrs_pressures }}</td></tr>
+        <tr><th>Targets</th><td>{{ esrs_targets }}</td></tr>
+        <tr><th>Actions & Resources</th><td>{{ esrs_actions }}</td></tr>
+        <tr><th>Anticipated Financial Effects</th><td>{{ esrs_financial_effects }}</td></tr>
+      </table>
+      <p class="disclaimer">Screening‑grade outputs. Field validation recommended for regulatory sign‑off.</p>
+    </section>
+
+    <!-- METRICS TABLE -->
+    <section>
+      <h2>AOI Metrics</h2>
       <table class="simple">
         <thead>
           <tr>{% for c in metrics_columns %}<th>{{ c }}</th>{% endfor %}</tr>
@@ -41,13 +100,39 @@
         </tbody>
       </table>
     </section>
+
+    <!-- DATA & METHODS -->
     <section>
-      <h2>Data Lineage</h2>
+      <h2>Methods & Limitations</h2>
+      <ul class="bullets">
+        <li>AOI aggregation to handle mixed resolutions (10 m ↔ 300 m); report pixel counts and % valid observations.</li>
+        <li>MSA 2015 (300 m) used as pressure context; vintage and coarseness disclosed.</li>
+        <li>NDVI saturation in dense canopies considered in interpretation; seasonal decomposition applied.</li>
+      </ul>
+      <p>{{ methods_text }}</p>
+      <h3>Data lineage</h3>
       <pre class="code">{{ lineage_json|tojson(indent=2) }}</pre>
+      <h3>Sources</h3>
+      <table class="simple">
+        <thead><tr><th>Name</th><th>Version</th><th>Date Range</th><th>Resolution</th><th>Notes</th></tr></thead>
+        <tbody>
+          {% for s in sources %}
+          <tr>
+            <td>{{ s.name }}</td>
+            <td>{{ s.version }}</td>
+            <td>{{ s.date_range }}</td>
+            <td>{{ s.resolution }}</td>
+            <td>{{ s.notes }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </section>
   </main>
+
   <footer class="vs-footer">
-    <div class="foot">© {{ year }} VerdeSat</div>
+    <div>© {{ year }} VerdeSat • Data: Sentinel‑2, Esri LULC 10 m, GLOBIO MSA 2015 (300 m), EFA/EFT 300 m (where available), WDPA/KBA</div>
+    <div class="page-num">Page <span class="pageNumber"></span> / <span class="totalPages"></span></div>
   </footer>
 </body>
 </html>
