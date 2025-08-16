@@ -23,35 +23,43 @@
     <section class="hero">
       <h1>Biodiversity & Forest‑Health Screening</h1>
       <p class="subhead">CSRD/TNFD‑friendly indicators. Screening‑grade; best for forests. Not a species inventory.</p>
-      <div class="summary-grid">
-        <div class="panel">
-          <div class="kpi-label">B‑Score</div>
-          <div class="bscore">
-            {% if bscore is defined and bscore is not none %}
-              {{ bscore|round(0) }}/100
-            {% else %}
-              –
-            {% endif %}
-          </div>
-          <div class="band {{ bscore_band|default('')|lower }}">{{ bscore_band_label|default('') }}</div>
-          {% set w = weights|default({}) %}
-          <div class="kpi-note">Weights: I {{ w.intactness|default('') }} / S {{ w.shannon|default('') }} / F {{ w.fragmentation|default('') }}</div>
-        </div>
-        <figure class="map">
-          <img src="{{ map_png }}" alt="AOI map with overlay" />
-          <figcaption>AOI boundary and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
-        </figure>
-        <div class="kpi-strip">
-          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|default(0)|float|round(2) }}%</strong></div>
-          <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|default(0)|float|round(2) }}</strong></div>
-          <div class="kpi"><span>MSA</span><strong>{{ msa|default(0)|float|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|default(0)|float|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|default(0)|float|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|default(0)|float|round(3) }}</strong></div>
-          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|default(0)|float|round(2) }}</strong></div>
-          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|default(0)|float|round(2) }}%</strong></div>
-        </div>
-      </div>
+      <table class="summary">
+        <tr>
+          <td class="panel">
+            <div class="kpi-label">B‑Score</div>
+            <div class="bscore">
+              {% if bscore is defined and bscore is not none %}
+                {{ bscore|round(0) }}/100
+              {% else %}
+                –
+              {% endif %}
+            </div>
+            <div class="band {{ bscore_band|default('')|lower }}">{{ bscore_band_label|default('') }}</div>
+            {% set w = weights|default({}) %}
+            <div class="kpi-note">Weights: I {{ w.intactness|default('') }} / S {{ w.shannon|default('') }} / F {{ w.fragmentation|default('') }}</div>
+          </td>
+          <td class="map">
+            <figure>
+              <img src="{{ map_png }}" alt="AOI map with overlay" />
+              <figcaption>AOI boundary and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
+            </figure>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <div class="kpi-strip">
+              <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|default(0)|float|round(2) }}%</strong></div>
+              <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|default(0)|float|round(2) }}</strong></div>
+              <div class="kpi"><span>MSA</span><strong>{{ msa|default(0)|float|round(2) }}</strong></div>
+              <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|default(0)|float|round(2) }}</strong></div>
+              <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|default(0)|float|round(2) }}</strong></div>
+              <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|default(0)|float|round(3) }}</strong></div>
+              <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|default(0)|float|round(2) }}</strong></div>
+              <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|default(0)|float|round(2) }}%</strong></div>
+            </div>
+          </td>
+        </tr>
+      </table>
       <p class="executive">{{ executive_summary }}</p>
     </section>
 

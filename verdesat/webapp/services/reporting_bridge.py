@@ -44,6 +44,12 @@ def build_evidence_pack(
     storage = storage or project.storage or LocalFS()
     id_col = project.config.get("id_col", "id")
 
+    metrics_df = metrics_df.copy()
+    metrics_df["aoi_id"] = metrics_df[id_col].astype(str)
+    obs_counts = ndvi_df.groupby(id_col)["observed"].count()
+    metrics_df["obs_count"] = metrics_df[id_col].map(obs_counts).fillna(0).astype(int)
+
+
     aoi = next(
         (a for a in project.aois if str(a.static_props.get(id_col)) == str(aoi_id)),
         None,
@@ -215,6 +221,10 @@ def build_project_pack(
     )
 
     id_col = project.config.get("id_col", "id")
+    metrics_df = metrics_df.copy()
+    metrics_df["aoi_id"] = metrics_df[id_col].astype(str)
+    obs_counts = ndvi_df.groupby(id_col)["observed"].count()
+    metrics_df["obs_count"] = metrics_df[id_col].map(obs_counts).fillna(0).astype(int)
 
     if start_year is not None and end_year is not None:
         ndvi_mask = (ndvi_df["date"].dt.year >= start_year) & (
@@ -226,7 +236,7 @@ def build_project_pack(
         )
         msavi_df = msavi_df.loc[msavi_mask]
     ndvi_frames: list[pd.DataFrame] = []
-    for aoi_id in metrics_df[id_col].astype(str).unique():
+    for aoi_id in metrics_df["aoi_id"].unique():
         ndvi_single = ndvi_df[ndvi_df[id_col].astype(str) == str(aoi_id)][
             ["date", "observed", "trend", "seasonal"]
         ].copy()
@@ -244,7 +254,7 @@ def build_project_pack(
         )
 
     msavi_frames: list[pd.DataFrame] = []
-    for aoi_id in metrics_df[id_col].astype(str).unique():
+    for aoi_id in metrics_df["aoi_id"].unique():
         msavi_single = msavi_df[msavi_df[id_col].astype(str) == str(aoi_id)][
             ["date", "mean_msavi"]
         ].copy()

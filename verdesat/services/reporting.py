@@ -249,6 +249,10 @@ def build_project_pack(
         figure. When ``None`` a placeholder map is used.
     """
 
+    metrics_df = metrics_df.copy()
+    if "aoi_id" not in metrics_df.columns and "id" in metrics_df.columns:
+        metrics_df["aoi_id"] = metrics_df["id"].astype(str)
+
     storage = storage or LocalFS()
     map_ctx = aoi or AoiContext(aoi_id="")
     map_png = make_map_png(map_ctx)
@@ -304,13 +308,18 @@ def build_project_pack(
         "ndvi_delta",
         "ndvi_p_value",
         "msavi_mean",
+        "obs_count",
         "valid_obs_pct",
     ]
 
     def _fmt(val: Any, key: str) -> str:
         if val is None or pd.isna(val):
             return "–"
-        return f"{float(val):.3f}" if key == "ndvi_p_value" else f"{float(val):.2f}"
+        if key == "ndvi_p_value":
+            return f"{float(val):.3f}"
+        if key == "obs_count":
+            return str(int(val))
+        return f"{float(val):.2f}"
 
     biodiv_columns = ["AOI"] + [
         LABELS[f] for f in biodiv_fields if f in metrics_df.columns

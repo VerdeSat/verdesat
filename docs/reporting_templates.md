@@ -34,28 +34,34 @@ This file contains **production-ready HTML/Jinja2 templates** and **print CSS** 
     <section class="hero">
       <h1>Biodiversity & Forest‑Health Screening</h1>
       <p class="subhead">CSRD/TNFD‑friendly indicators. Screening‑grade; best for forests. Not a species inventory.</p>
-      <div class="summary-grid">
-        <div class="panel">
-          <div class="kpi-label">B‑Score</div>
-          <div class="bscore">{{ bscore|round(0) if bscore is not none else '–' }}/100</div>
-          <div class="band {{ bscore_band|lower }}">{{ bscore_band_label }}</div>
-          <div class="kpi-note">Weights: I {{ weights.intactness }} / S {{ weights.shannon }} / F {{ weights.fragmentation }}</div>
-        </div>
-        <figure class="map">
-          <img src="{{ map_png }}" alt="AOI map with overlay" />
-          <figcaption>AOI boundary and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
-        </figure>
-        <div class="kpi-strip">
-          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(2) }}%</strong></div>
-          <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|round(2) }}</strong></div>
-          <div class="kpi"><span>MSA</span><strong>{{ msa|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|round(3) }}</strong></div>
-          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(2) }}</strong></div>
-          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(2) }}%</strong></div>
-        </div>
-      </div>
+      <table class="summary">
+        <tr>
+          <td class="panel">
+            <div class="kpi-label">B‑Score</div>
+            <div class="bscore">{{ bscore|round(0) if bscore is not none else '–' }}/100</div>
+            <div class="band {{ bscore_band|lower }}">{{ bscore_band_label }}</div>
+            <div class="kpi-note">Weights: I {{ weights.intactness }} / S {{ weights.shannon }} / F {{ weights.fragmentation }}</div>
+          </td>
+          <td class="map">
+            <img src="{{ map_png }}" alt="AOI map with overlay" />
+            <figcaption>AOI boundary and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <div class="kpi-strip">
+              <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(2) }}%</strong></div>
+              <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|round(2) }}</strong></div>
+              <div class="kpi"><span>MSA</span><strong>{{ msa|round(2) }}</strong></div>
+              <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(2) }}</strong></div>
+              <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(2) }}</strong></div>
+              <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|round(3) }}</strong></div>
+              <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(2) }}</strong></div>
+              <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(2) }}%</strong></div>
+            </div>
+          </td>
+        </tr>
+      </table>
       <p class="executive">{{ executive_summary }}</p>
     </section>
 
@@ -168,28 +174,34 @@ This file contains **production-ready HTML/Jinja2 templates** and **print CSS** 
     <section class="hero">
       <h1>Biodiversity & Forest‑Health Screening</h1>
       <p class="subhead">CSRD/TNFD‑friendly indicators. Screening‑grade; best for forests. Not a species inventory.</p>
-      <div class="summary-grid">
-        <div class="panel">
-          <div class="kpi-label">B‑Score</div>
-          <div class="bscore">{{ bscore|round(0) if bscore is not none else '–' }}/100</div>
-          <div class="band {{ bscore_band|lower }}">{{ bscore_band_label }}</div>
-          <div class="kpi-note">Weights: I {{ weights.intactness }} / S {{ weights.shannon }} / F {{ weights.fragmentation }}</div>
-        </div>
-        <figure class="map">
-          <img src="{{ map_png }}" alt="Project AOIs" />
-          <figcaption>AOI boundaries and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
-        </figure>
-        <div class="kpi-strip">
-          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(2) }}%</strong></div>
-          <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|round(2) }}</strong></div>
-          <div class="kpi"><span>MSA</span><strong>{{ msa|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|round(3) }}</strong></div>
-          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(2) }}</strong></div>
-          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(2) }}%</strong></div>
-        </div>
-      </div>
+      <table class="summary">
+        <tr>
+          <td class="panel">
+            <div class="kpi-label">B‑Score</div>
+            <div class="bscore">{{ bscore|round(0) if bscore is not none else '–' }}/100</div>
+            <div class="band {{ bscore_band|lower }}">{{ bscore_band_label }}</div>
+            <div class="kpi-note">Weights: I {{ weights.intactness }} / S {{ weights.shannon }} / F {{ weights.fragmentation }}</div>
+          </td>
+          <td class="map">
+            <img src="{{ map_png }}" alt="Project AOIs" />
+            <figcaption>AOI boundaries and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <div class="kpi-strip">
+              <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(2) }}%</strong></div>
+              <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|round(2) }}</strong></div>
+              <div class="kpi"><span>MSA</span><strong>{{ msa|round(2) }}</strong></div>
+              <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(2) }}</strong></div>
+              <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(2) }}</strong></div>
+              <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|round(3) }}</strong></div>
+              <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(2) }}</strong></div>
+              <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(2) }}%</strong></div>
+            </div>
+          </td>
+        </tr>
+      </table>
       <p class="executive">{{ executive_summary }}</p>
     </section>
 
@@ -403,11 +415,11 @@ h3 { font-size: 12pt; margin: 10px 0 4px; }
 .disclaimer { color: #64748b; font-size: 10pt; }
 .foot { color: #64748b; font-size: 9.5pt; }
 
-.summary-grid { display: grid; grid-template-columns: 1.1fr 1.5fr; grid-template-rows: auto auto; gap: 10px; margin-top: 8px; }
-.summary-grid .panel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
-.summary-grid .map img { width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; }
+.summary { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.summary td { vertical-align: top; padding: 0; }
+.summary .panel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
+.summary .map img { width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; }
 .kpi-strip { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; width: 100%; }
-.summary-grid .kpi-strip { grid-column: 1 / -1; }
 .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; font-size: 10.5pt; }
 .kpi span { color: #475569; display: block; font-size: 9.5pt; }
 

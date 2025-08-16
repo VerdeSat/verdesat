@@ -22,28 +22,36 @@
     <section class="hero">
       <h1>Biodiversity & Forest‑Health Screening</h1>
       <p class="subhead">CSRD/TNFD‑friendly indicators. Screening‑grade; best for forests. Not a species inventory.</p>
-      <div class="summary-grid">
-        <div class="panel">
-          <div class="kpi-label">B‑Score</div>
-          <div class="bscore">{{ bscore|round(0) if bscore is not none else '–' }}/100</div>
-          <div class="band {{ bscore_band|lower }}">{{ bscore_band_label }}</div>
-          <div class="kpi-note">Weights: I {{ weights.intactness }} / S {{ weights.shannon }} / F {{ weights.fragmentation }}</div>
-        </div>
-        <figure class="map">
-          <img src="{{ map_png }}" alt="Project AOIs" />
-          <figcaption>AOI boundaries and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
-        </figure>
-        <div class="kpi-strip">
-          <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(2) }}%</strong></div>
-          <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|round(2) }}</strong></div>
-          <div class="kpi"><span>MSA</span><strong>{{ msa|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(2) }}</strong></div>
-          <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|round(3) }}</strong></div>
-          <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(2) }}</strong></div>
-          <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(2) }}%</strong></div>
-        </div>
-      </div>
+      <table class="summary">
+        <tr>
+          <td class="panel">
+            <div class="kpi-label">B‑Score</div>
+            <div class="bscore">{{ bscore|round(0) if bscore is not none else '–' }}/100</div>
+            <div class="band {{ bscore_band|lower }}">{{ bscore_band_label }}</div>
+            <div class="kpi-note">Weights: I {{ weights.intactness }} / S {{ weights.shannon }} / F {{ weights.fragmentation }}</div>
+          </td>
+          <td class="map">
+            <figure>
+              <img src="{{ map_png }}" alt="Project AOIs" />
+              <figcaption>AOI boundaries and latest composite ({{ acquisition_from }} → {{ acquisition_to }})</figcaption>
+            </figure>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <div class="kpi-strip">
+              <div class="kpi"><span>Intactness</span><strong>{{ intactness_pct|round(2) }}%</strong></div>
+              <div class="kpi"><span>Frag‑Norm</span><strong>{{ frag_norm|round(2) }}</strong></div>
+              <div class="kpi"><span>MSA</span><strong>{{ msa|round(2) }}</strong></div>
+              <div class="kpi"><span>NDVI μ</span><strong>{{ ndvi_mean|round(2) }}</strong></div>
+              <div class="kpi"><span>NDVI slope/yr</span><strong>{{ ndvi_slope|round(2) }}</strong></div>
+              <div class="kpi"><span>NDVI p-value</span><strong>{{ ndvi_p_value|round(3) }}</strong></div>
+              <div class="kpi"><span>ΔNDVI YoY</span><strong>{{ ndvi_delta|round(2) }}</strong></div>
+              <div class="kpi"><span>% valid obs</span><strong>{{ valid_obs_pct|round(2) }}%</strong></div>
+            </div>
+          </td>
+        </tr>
+      </table>
       <p class="executive">{{ executive_summary }}</p>
     </section>
 
@@ -60,6 +68,33 @@
             <td>{{ nearest_kba_name or '–' }}</td>
             <td>{{ nearest_kba_distance_km is not none and (nearest_kba_distance_km|round(2) ~ ' km') or '–' }}</td>
           </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- METRICS TABLE -->
+    <section>
+      <h2>AOI Metrics</h2>
+      <h3>Biodiversity</h3>
+      <table class="simple">
+        <thead>
+          <tr>{% for c in biodiv_columns %}<th>{{ c }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for row in biodiv_metrics %}
+          <tr>{% for v in row %}<td>{{ v }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <h3>Vegetation Health</h3>
+      <table class="simple">
+        <thead>
+          <tr>{% for c in veg_columns %}<th>{{ c }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for row in veg_metrics %}
+          <tr>{% for v in row %}<td>{{ v }}</td>{% endfor %}</tr>
+          {% endfor %}
         </tbody>
       </table>
     </section>
@@ -88,33 +123,6 @@
         <tr><th>Anticipated Financial Effects</th><td>{{ esrs_financial_effects }}</td></tr>
       </table>
       <p class="disclaimer">Screening‑grade outputs. Field validation recommended for regulatory sign‑off.</p>
-    </section>
-
-    <!-- METRICS TABLE -->
-    <section>
-      <h2>AOI Metrics</h2>
-      <h3>Biodiversity</h3>
-      <table class="simple">
-        <thead>
-          <tr>{% for c in biodiv_columns %}<th>{{ c }}</th>{% endfor %}</tr>
-        </thead>
-        <tbody>
-          {% for row in biodiv_metrics %}
-          <tr>{% for v in row %}<td>{{ v }}</td>{% endfor %}</tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      <h3>Vegetation Health</h3>
-      <table class="simple">
-        <thead>
-          <tr>{% for c in veg_columns %}<th>{{ c }}</th>{% endfor %}</tr>
-        </thead>
-        <tbody>
-          {% for row in veg_metrics %}
-          <tr>{% for v in row %}<td>{{ v }}</td>{% endfor %}</tr>
-          {% endfor %}
-        </tbody>
-      </table>
     </section>
 
     <!-- DATA & METHODS -->

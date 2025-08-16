@@ -54,3 +54,5 @@ def test_build_project_pack(monkeypatch):
     assert {"ndvi", "msavi"} == set(captured["ts_long"]["var"].unique())
     assert captured["aoi"].aoi_id == "project"
     assert str(captured["aoi"].geometry_path).endswith(".geojson")
+    assert captured["metrics_df"]["aoi_id"].tolist() == ["1"]
+    assert captured["metrics_df"]["obs_count"].tolist() == [2]
