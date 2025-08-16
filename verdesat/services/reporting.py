@@ -219,25 +219,46 @@ def build_project_pack(
     lineage: dict,
     storage: StorageAdapter | None = None,
     template: str = "project_pack_report.html.j2",
+    aoi: AoiContext | None = None,
 ) -> PackResult:
     """Build a project-level report pack.
 
-    The template is expected to accept ``project_name`` and ``project_id``.
-    ``ts_long`` may be ``None`` to skip the timeseries figure.
+    Parameters
+    ----------
+    project:
+        Project metadata.
+    metrics_df:
+        Aggregated metrics for the project.
+    ts_long:
+        Optional long-form timeseries for the project.
+    lineage:
+        Data lineage metadata.
+    storage:
+        Storage backend; defaults to :class:`~verdesat.core.storage.LocalFS`.
+    template:
+        Jinja2 template name.
+    aoi:
+        Optional :class:`AoiContext` providing a geometry used for the map
+        figure. When ``None`` a placeholder map is used.
     """
 
     storage = storage or LocalFS()
-    ts_png = (
-        make_timeseries_png(ts_long)
-        if ts_long is not None
-        else make_map_png(AoiContext(aoi_id=""))
-    )
+    map_ctx = aoi or AoiContext(aoi_id="")
+    map_png = make_map_png(map_ctx)
+    ts_png = make_timeseries_png(ts_long) if ts_long is not None else map_png
+
     context = {
         "report_title": "VerdeSat Project Pack",
         "report_date": date.today().isoformat(),
         "project_name": project.project_name,
         "project_id": project.project_id,
+        "map_png": _bytes_to_data_uri(map_png),
         "timeseries_png": _bytes_to_data_uri(ts_png),
+        "metrics_columns": list(metrics_df.columns),
+        "metrics": metrics_df.to_dict(orient="records"),
+        "print_css": (
+            Path(__file__).parent.parent / "templates" / "print.css"
+        ).read_text(encoding="utf-8"),
         "lineage_json": lineage,
         "year": date.today().year,
     }
@@ -260,7 +281,7 @@ def build_project_pack(
         pdf_bytes=pdf_bytes,
         metrics_csv=metrics_csv,
         lineage=lineage,
-        map_png=make_map_png(AoiContext(aoi_id="")),
+        map_png=map_png,
         ts_png=ts_png,
         storage=storage,
         path_parts=path,

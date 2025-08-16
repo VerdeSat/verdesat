@@ -276,11 +276,28 @@ def build_project_pack(
             }
         ],
     }
+    tmp_geo = tempfile.NamedTemporaryFile(suffix=".geojson", delete=False)
+    features = [
+        {"type": "Feature", "geometry": mapping(a.geometry), "properties": {}}
+        for a in project.aois
+    ]
+    with open(tmp_geo.name, "w", encoding="utf-8") as fh:
+        json.dump({"type": "FeatureCollection", "features": features}, fh)
 
-    return build_project_pack_service(
+    aoi_ctx = AoiContext(
+        aoi_id="project",
+        project_id=project_ctx.project_id,
+        geometry_path=tmp_geo.name,
+    )
+
+    result = build_project_pack_service(
         project=project_ctx,
         metrics_df=metrics_df,
         ts_long=ts_long,
         lineage=lineage,
         storage=storage,
+        aoi=aoi_ctx,
     )
+
+    Path(tmp_geo.name).unlink(missing_ok=True)
+    return result

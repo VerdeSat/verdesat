@@ -1,4 +1,5 @@
 import pandas as pd
+from pathlib import Path
 from shapely.geometry import Polygon
 
 from verdesat.core.config import ConfigManager
@@ -52,3 +53,5 @@ def test_build_project_pack(monkeypatch):
     assert result.uri == "proj.zip"
     assert captured["project"].project_id == "Demo"
     assert {"ndvi", "msavi"} == set(captured["ts_long"]["var"].unique())
+    assert captured["aoi"].aoi_id == "project"
+    assert str(captured["aoi"].geometry_path).endswith(".geojson")

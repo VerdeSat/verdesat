@@ -191,7 +191,8 @@ def build_project_pack(
     *, project: ProjectContext, metrics_df: pd.DataFrame,
     ts_long: pd.DataFrame | None, lineage: dict,
     storage: StorageAdapter | None = None,
-    template: str = "project_pack.html.j2",
+    template: str = "project_pack_report.html.j2",
+    aoi: AoiContext | None = None,
 ) -> PackResult: ...
 ```
 
@@ -260,7 +261,7 @@ verdesat pack project \
 ## 7) Templates (single source of truth)
 - Store **HTML** + **print CSS** in `docs/reporting_templates.md`.
 - Evidence Pack template id: `evidence_pack_report.html.j2`.
-- Project Pack template id: `project_pack_report.html.j2` (to add).
+ - Project Pack template id: `project_pack_report.html.j2`.
 - Renderer extracts fenced code blocks.
 
 ---

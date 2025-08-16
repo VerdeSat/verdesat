@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>{{ report_title or "VerdeSat Project Pack" }}</title>
+  <style>
+    {{ print_css|safe }}
+  </style>
+</head>
+<body>
+  <header class="vs-header">
+    <div class="brand">VerdeSat</div>
+    <div class="meta">
+      <div>{{ report_date }}</div>
+      <div>Project: {{ project_name }} ({{ project_id }})</div>
+    </div>
+  </header>
+  <main>
+    <section>
+      <h1>Project Overview</h1>
+      <figure class="map">
+        <img src="{{ map_png }}" alt="Project AOIs" />
+      </figure>
+    </section>
+    <section>
+      <h2>Timeseries Summary</h2>
+      <figure>
+        <img src="{{ timeseries_png }}" alt="Project timeseries" />
+      </figure>
+    </section>
+    <section>
+      <h2>Metrics</h2>
+      <table class="simple">
+        <thead>
+          <tr>{% for c in metrics_columns %}<th>{{ c }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for row in metrics %}
+          <tr>{% for c in metrics_columns %}<td>{{ row[c] }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    <section>
+      <h2>Data Lineage</h2>
+      <pre class="code">{{ lineage_json|tojson(indent=2) }}</pre>
+    </section>
+  </main>
+  <footer class="vs-footer">
+    <div class="foot">© {{ year }} VerdeSat</div>
+  </footer>
+</body>
+</html>
