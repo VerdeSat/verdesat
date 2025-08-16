@@ -8,7 +8,7 @@
 
 ## 1) Decisions (non‑negotiable)
 - **Single render engine:** HTML/Jinja2 → **WeasyPrint PDF**. (ReportLab remains an optional fallback only.)
-- **One pack format:** **Evidence Pack (AOI)** and **Project Pack** as **ZIPs** with `report.pdf`, `metrics.csv`, `lineage.json`, and a `figures/` directory.
+- **One pack format:** **Evidence Pack (AOI)** and **Project Pack** as **ZIPs** with `report.pdf`, `metrics.csv`, `lineage.json`, `aoi.geojson`, an optional `ai_summary.json`, and a `figures/` directory.
 - **Canonical schema:** all inputs to the renderer use **snake_case**.
 - **Label mapping:** templates map `snake_case → UI label` for human‑readable captions.
 - **Storage abstraction:** use **StorageAdapter** (LocalFS or R2) selected by config.

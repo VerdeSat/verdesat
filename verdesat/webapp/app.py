@@ -153,8 +153,16 @@ def report_controls(
         return
 
     sel = st.selectbox("AOI for evidence pack", aoi_ids)
+    include_ai = st.checkbox("Include AI summary")
     if st.button("Build AOI evidence pack"):
-        result = build_evidence_pack(metrics_df, ndvi_df, msavi_df, project, sel)
+        result = build_evidence_pack(
+            metrics_df,
+            ndvi_df,
+            msavi_df,
+            project,
+            sel,
+            include_ai=include_ai,
+        )
         st.session_state["pack_url"] = result.url
     pack_url = st.session_state.get("pack_url")
     if pack_url:

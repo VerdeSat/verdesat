@@ -45,8 +45,21 @@ def test_build_evidence_pack(monkeypatch):
         fake_build,
     )
 
-    result = build_evidence_pack(metrics_df, ndvi_df, msavi_df, project, "1")
+    result = build_evidence_pack(
+        metrics_df,
+        ndvi_df,
+        msavi_df,
+        project,
+        "1",
+        include_ai=True,
+        ai_service="svc",
+        ai_request={"x": 1},
+    )
 
     assert isinstance(result, PackResult)
     assert captured["aoi"].aoi_id == "1"
+    assert captured["aoi"].geometry_path is not None
     assert set(captured["ts_long"]["var"]) == {"ndvi", "msavi"}
+    assert captured["include_ai"] is True
+    assert captured["ai_service"] == "svc"
+    assert captured["ai_request"] == {"x": 1}

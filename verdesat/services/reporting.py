@@ -66,6 +66,7 @@ def _write_pack(
     storage: StorageAdapter,
     path_parts: tuple[str, ...],
     ai_summary: dict | None = None,
+    aoi_geojson: bytes | None = None,
 ) -> PackResult:
     """Compose ZIP artefact and persist it using *storage*."""
 
@@ -81,6 +82,8 @@ def _write_pack(
                 "ai_summary.json",
                 json.dumps(ai_summary, indent=2).encode("utf-8"),
             )
+        if aoi_geojson is not None:
+            zf.writestr("aoi.geojson", aoi_geojson)
 
     data = buf.getvalue()
     sha = hashlib.sha256(data).hexdigest()
@@ -119,6 +122,9 @@ def build_aoi_evidence_pack(
 
     map_png = make_map_png(aoi)
     ts_png = make_timeseries_png(ts_long)
+    aoi_geojson: bytes | None = None
+    if aoi.geometry_path and Path(aoi.geometry_path).exists():
+        aoi_geojson = Path(aoi.geometry_path).read_bytes()
 
     ai_summary: dict[str, Any] | None = None
     narrative = ""
@@ -198,6 +204,7 @@ def build_aoi_evidence_pack(
         storage=storage,
         path_parts=path,
         ai_summary=ai_summary,
+        aoi_geojson=aoi_geojson,
     )
 
 

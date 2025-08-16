@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import fields
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
+import tempfile
 
+import geopandas as gpd
 import pandas as pd
 
 from verdesat.analytics.timeseries import decomp_to_long
@@ -22,6 +26,9 @@ def build_evidence_pack(
     aoi_id: str,
     *,
     storage: StorageAdapter | None = None,
+    include_ai: bool = False,
+    ai_service: Any | None = None,
+    ai_request: Any | None = None,
 ) -> PackResult:
     """Generate an evidence pack for ``aoi_id`` using current app state."""
 
@@ -42,10 +49,15 @@ def build_evidence_pack(
 
     centroid = aoi.geometry.centroid
     area_m2 = aoi.static_props.get("area_m2")
+    tmp_geo = tempfile.NamedTemporaryFile(suffix=".geojson", delete=False)
+    gpd.GeoDataFrame(
+        [{**aoi.static_props}], geometry=[aoi.geometry], crs="EPSG:4326"
+    ).to_file(tmp_geo.name, driver="GeoJSON")
     aoi_ctx = AoiContext(
         aoi_id=str(aoi_id),
         aoi_name=aoi.static_props.get("name"),
         project_id=project_ctx.project_id,
+        geometry_path=tmp_geo.name,
         centroid_lon=float(centroid.x),
         centroid_lat=float(centroid.y),
         area_ha=(float(area_m2) / 10_000.0) if area_m2 is not None else None,
@@ -93,12 +105,25 @@ def build_evidence_pack(
             }
         ],
     }
+    if include_ai and ai_service is None:
+        ai_service = SimpleNamespace(
+            generate_summary=lambda _req: SimpleNamespace(
+                narrative="AI summary unavailable",
+                summary={"status": "unavailable"},
+            )
+        )
+        ai_request = {}
 
-    return build_aoi_evidence_pack(
+    result = build_aoi_evidence_pack(
         aoi=aoi_ctx,
         project=project_ctx,
         metrics=metrics_row,
         ts_long=ts_long,
         lineage=lineage,
         storage=storage,
+        include_ai=include_ai,
+        ai_service=ai_service,
+        ai_request=ai_request,
     )
+    Path(tmp_geo.name).unlink(missing_ok=True)
+    return result
