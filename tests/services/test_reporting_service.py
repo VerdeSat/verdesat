@@ -1,5 +1,7 @@
 import os
 import zipfile
+from types import SimpleNamespace
+from typing import Any
 
 import pandas as pd
 
@@ -67,6 +69,7 @@ def test_build_aoi_evidence_pack(tmp_path) -> None:
             "lineage.json",
             "figures/map.png",
             "figures/timeseries.png",
+            "aoi.geojson",
         } <= names
         with zf.open("report.pdf") as fh:
             assert fh.read(4) == b"%PDF"
@@ -75,3 +78,35 @@ def test_build_aoi_evidence_pack(tmp_path) -> None:
             assert "ndvi_mean" in text
         with zf.open("figures/map.png") as fh:
             assert fh.read(8).startswith(b"\x89PNG")
+
+
+def test_build_aoi_evidence_pack_with_ai(tmp_path) -> None:
+    storage = TmpStorage(tmp_path)
+    project = ProjectContext(project_id="p1", project_name="Demo")
+    geojson = tmp_path / "aoi.geojson"
+    geojson.write_text(
+        '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"id":"a1"},"geometry":{"type":"Polygon","coordinates":[[[0,0],[0,1],[1,1],[1,0],[0,0]]]}}]}'
+    )
+    aoi = AoiContext(aoi_id="a1", aoi_name="AOI 1", geometry_path=str(geojson))
+    metrics = MetricsRow(ndvi_mean=0.2, bscore=42.0, bscore_band="moderate")
+    ts_long = _sample_ts(aoi.aoi_id)
+    lineage = {"method_version": "0.2.0"}
+
+    class DummyAi:
+        def generate_summary(self, req: Any) -> Any:
+            return SimpleNamespace(narrative="n", summary={"x": 1})
+
+    result = build_aoi_evidence_pack(
+        aoi=aoi,
+        project=project,
+        metrics=metrics,
+        ts_long=ts_long,
+        lineage=lineage,
+        storage=storage,
+        include_ai=True,
+        ai_service=DummyAi(),
+        ai_request={"foo": "bar"},
+    )
+
+    with zipfile.ZipFile(result.uri) as zf:
+        assert "ai_summary.json" in zf.namelist()
