@@ -321,8 +321,12 @@ _Generated: 2025-08-12T17:03:51Z_
 **Functions**
 - `export_metrics_csv` — Serialize ``metrics`` for ``aoi`` to CSV and return a presigned URL.
 - `export_project_csv` — Export aggregated ``metrics`` for ``project`` and return a URL.
-- `export_project_pdf` — Render project metrics, map and charts as a PDF and return a URL.
 - `export_metrics_pdf` — Render ``metrics`` and visuals for ``aoi`` as a PDF and return a URL.
+
+## `verdesat.webapp.services.reporting_bridge`
+**Functions**
+- `build_evidence_pack` — Generate an evidence pack for the selected AOI.
+- `build_project_pack` — Build a project-wide report pack using the unified reporting service.
 
 ## `verdesat.webapp.services.project_compute`
 **Classes**

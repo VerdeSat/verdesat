@@ -13,10 +13,11 @@ h3 { font-size: 12pt; margin: 10px 0 4px; }
 .disclaimer { color: #64748b; font-size: 10pt; }
 .foot { color: #64748b; font-size: 9.5pt; }
 
-.summary-grid { display: grid; grid-template-columns: 1.1fr 1.5fr; grid-template-rows: auto auto; gap: 10px; margin-top: 8px; }
-.summary-grid .panel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
-.summary-grid .map img { width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; }
-.kpi-strip { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.summary { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.summary td { vertical-align: top; padding: 0; }
+.summary .panel { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
+.summary .map img { width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; }
+.kpi-strip { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; width: 100%; }
 .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; font-size: 10.5pt; }
 .kpi span { color: #475569; display: block; font-size: 9.5pt; }
 
@@ -29,6 +30,8 @@ h3 { font-size: 12pt; margin: 10px 0 4px; }
 .simple { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
 .simple th, .simple td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; }
 .simple thead th { background: #f1f5f9; }
+
+.plot img { width: 100%; }
 
 .kv { width: 100%; border-collapse: collapse; }
 .kv th { width: 34%; vertical-align: top; text-align: left; color: #334155; }

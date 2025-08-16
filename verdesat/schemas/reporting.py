@@ -62,6 +62,7 @@ class MetricsRow:
     bscore: float | None = None  # 0..100
     bscore_band: str | None = None  # "low|moderate|high"
     # Validity
+    obs_count: int | None = None
     valid_obs_pct: float | None = None
     # Sensitivity context
     inside_pa: bool | None = None
@@ -86,6 +87,7 @@ LABELS: Dict[str, str] = {
     "msa": "MSA",
     "bscore": "B‑Score",
     "bscore_band": "B‑Score band",
+    "obs_count": "# obs",
     "valid_obs_pct": "% valid obs",
 }
 

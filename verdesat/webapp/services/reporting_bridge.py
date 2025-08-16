@@ -19,7 +19,11 @@ from verdesat.project.project import Project
 from verdesat.schemas.ai_report import AiReportRequest
 from verdesat.schemas.reporting import AoiContext, MetricsRow, ProjectContext
 from verdesat.services.ai_report import AiReportService, LlmClient
-from verdesat.services.reporting import PackResult, build_aoi_evidence_pack
+from verdesat.services.reporting import (
+    PackResult,
+    build_aoi_evidence_pack,
+    build_project_pack as build_project_pack_service,
+)
 from verdesat.adapters.llm_openai import OpenAiLlmClient
 
 
@@ -39,6 +43,12 @@ def build_evidence_pack(
 
     storage = storage or project.storage or LocalFS()
     id_col = project.config.get("id_col", "id")
+
+    metrics_df = metrics_df.copy()
+    metrics_df["aoi_id"] = metrics_df[id_col].astype(str)
+    obs_counts = ndvi_df.groupby(id_col)["observed"].count()
+    metrics_df["obs_count"] = metrics_df[id_col].map(obs_counts).fillna(0).astype(int)
+
 
     aoi = next(
         (a for a in project.aois if str(a.static_props.get(id_col)) == str(aoi_id)),
@@ -188,4 +198,116 @@ def build_evidence_pack(
     for path in (tmp_metrics_path, tmp_ts_path, tmp_lineage_path):
         if path:
             Path(path).unlink(missing_ok=True)
+    return result
+
+
+def build_project_pack(
+    metrics_df: pd.DataFrame,
+    ndvi_df: pd.DataFrame,
+    msavi_df: pd.DataFrame,
+    project: Project,
+    *,
+    start_year: int | None = None,
+    end_year: int | None = None,
+    storage: StorageAdapter | None = None,
+    lineage: dict[str, Any] | None = None,
+) -> PackResult:
+    """Generate a project-wide report pack using current app state."""
+
+    storage = storage or project.storage or LocalFS()
+    project_ctx = ProjectContext(
+        project_id=project.name,
+        project_name=project.name,
+    )
+
+    id_col = project.config.get("id_col", "id")
+    metrics_df = metrics_df.copy()
+    metrics_df["aoi_id"] = metrics_df[id_col].astype(str)
+    obs_counts = ndvi_df.groupby(id_col)["observed"].count()
+    metrics_df["obs_count"] = metrics_df[id_col].map(obs_counts).fillna(0).astype(int)
+
+    if start_year is not None and end_year is not None:
+        ndvi_mask = (ndvi_df["date"].dt.year >= start_year) & (
+            ndvi_df["date"].dt.year <= end_year
+        )
+        ndvi_df = ndvi_df.loc[ndvi_mask]
+        msavi_mask = (msavi_df["date"].dt.year >= start_year) & (
+            msavi_df["date"].dt.year <= end_year
+        )
+        msavi_df = msavi_df.loc[msavi_mask]
+    ndvi_frames: list[pd.DataFrame] = []
+    for aoi_id in metrics_df["aoi_id"].unique():
+        ndvi_single = ndvi_df[ndvi_df[id_col].astype(str) == str(aoi_id)][
+            ["date", "observed", "trend", "seasonal"]
+        ].copy()
+        if ndvi_single.empty:
+            continue
+        ndvi_single["resid"] = float("nan")
+        ndvi_frames.append(
+            decomp_to_long(
+                ndvi_single,
+                aoi_id=str(aoi_id),
+                var="ndvi",
+                freq="monthly",
+                source="S2",
+            )
+        )
+
+    msavi_frames: list[pd.DataFrame] = []
+    for aoi_id in metrics_df["aoi_id"].unique():
+        msavi_single = msavi_df[msavi_df[id_col].astype(str) == str(aoi_id)][
+            ["date", "mean_msavi"]
+        ].copy()
+        if msavi_single.empty:
+            continue
+        msavi_frames.append(
+            msavi_single.assign(
+                var="msavi",
+                stat="raw",
+                value=msavi_single["mean_msavi"],
+                aoi_id=str(aoi_id),
+                freq="monthly",
+                source="S2",
+            )[["date", "var", "stat", "value", "aoi_id", "freq", "source"]]
+        )
+
+    ts_parts = ndvi_frames + msavi_frames
+    ts_long = pd.concat(ts_parts, ignore_index=True) if ts_parts else None
+
+    lineage = lineage or {
+        "method_version": "0.2.0",
+        "sources": [
+            {
+                "name": "Sentinel-2 L2A",
+                "version": "v2024",
+                "resolution": "10 m",
+                "date_range": "2017–present",
+                "notes": "NDVI/MSAVI composites",
+            }
+        ],
+    }
+    tmp_geo = tempfile.NamedTemporaryFile(suffix=".geojson", delete=False)
+    features = [
+        {"type": "Feature", "geometry": mapping(a.geometry), "properties": {}}
+        for a in project.aois
+    ]
+    with open(tmp_geo.name, "w", encoding="utf-8") as fh:
+        json.dump({"type": "FeatureCollection", "features": features}, fh)
+
+    aoi_ctx = AoiContext(
+        aoi_id="project",
+        project_id=project_ctx.project_id,
+        geometry_path=tmp_geo.name,
+    )
+
+    result = build_project_pack_service(
+        project=project_ctx,
+        metrics_df=metrics_df,
+        ts_long=ts_long,
+        lineage=lineage,
+        storage=storage,
+        aoi=aoi_ctx,
+    )
+
+    Path(tmp_geo.name).unlink(missing_ok=True)
     return result
